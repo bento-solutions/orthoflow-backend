@@ -27,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code /auth/reset-password} are {@code permitAll} and were completely
  * unthrottled: no lockout, no backoff, so an attacker could grind login
  * guesses or use forgot-password as a mail cannon (audit H6). This caps
- * attempts per client IP per fixed window and answers a burst with 429 +
- * {@code Retry-After}.
+ * attempts per client IP per fixed window (default 20 / 5 min, both
+ * configurable) and answers a burst with 429 + {@code Retry-After}.
  *
  * <p>In-memory and per-instance, which is enough for the single-container
  * deployment this runs in. If the API is ever scaled out, move this to a
@@ -51,7 +51,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
 
     public AuthRateLimitFilter(
-            @Value("${orthoflow.auth.rate-limit.max-attempts:10}") int maxAttempts,
+            // 20 / 5 min per IP: a small clinic behind one NAT'd public IP can
+            // still have several staff sign in (with the odd typo) on a Monday
+            // morning, while a brute-force run — which needs thousands — is
+            // stopped cold. Tune per deployment.
+            @Value("${orthoflow.auth.rate-limit.max-attempts:20}") int maxAttempts,
             @Value("${orthoflow.auth.rate-limit.window-seconds:300}") long windowSeconds) {
         this.maxAttempts = maxAttempts;
         this.window = Duration.ofSeconds(windowSeconds);
