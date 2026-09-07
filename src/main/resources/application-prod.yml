@@ -23,12 +23,16 @@ logging:
     com.orthoflow: INFO
 
 orthoflow:
-  # See AuthController#register / application.yml. Still defaults to false
-  # here too — self-service account creation stays open until the real
-  # practice is onboarded, at which point set RESTRICT_REGISTRATION_TO_BOOTSTRAP=true
-  # on this deployment.
+  # See AuthController#register / application.yml. Defaults to TRUE in
+  # production: /auth/register is public (it has to be, to create the very
+  # first account on an empty database), so with this off anyone on the
+  # internet can POST a new account — and RegisterRequest carries the role,
+  # so anyone can mint themselves an ADMIN. On means: the first account only
+  # (bootstrap, forced to ADMIN by the controller), and every account after
+  # that requires an authenticated ADMIN. Only set
+  # RESTRICT_REGISTRATION_TO_BOOTSTRAP=false on a throwaway environment.
   auth:
-    restrict-registration-to-bootstrap: ${RESTRICT_REGISTRATION_TO_BOOTSTRAP:false}
+    restrict-registration-to-bootstrap: ${RESTRICT_REGISTRATION_TO_BOOTSTRAP:true}
   # No default in production: a deployment that forgets this fails to start
   # rather than silently serving a frontend it does not trust.
   cors:

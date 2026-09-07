@@ -1,5 +1,6 @@
 package com.orthoflow.patient.domain.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
@@ -28,6 +29,11 @@ public class Patient {
     @Id
     private UUID id;
 
+    // Internal columns: never part of the API surface. PatientController
+    // returns PatientResponse (which omits them); these @JsonIgnores also
+    // cover any other path that serialises the entity, e.g. the ADMIN
+    // consent endpoint in the compliance module (audit H3).
+    @JsonIgnore
     @Version
     @Column(name = "version")
     private Long version;
@@ -75,9 +81,11 @@ public class Patient {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @JsonIgnore
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
+    @JsonIgnore
     @Column(name = "deleted_by")
     private UUID deletedBy;
 

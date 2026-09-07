@@ -136,6 +136,10 @@ public class AuthService {
                 .orElseThrow(() -> new ValidationException("This password reset link is invalid or has expired"));
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Kill every token minted before this reset — a reset is only
+        // meaningful if it also logs out whoever knew the old password
+        // (JwtAuthFilter checks token issuedAt against this).
+        user.setSessionsValidAfter(OffsetDateTime.now());
         userRepository.save(user);
 
         token.setUsedAt(OffsetDateTime.now());

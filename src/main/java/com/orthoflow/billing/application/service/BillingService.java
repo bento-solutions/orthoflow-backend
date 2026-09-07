@@ -124,7 +124,9 @@ public class BillingService {
 
     @Transactional
     public void recordPayment(UUID invoiceId, RecordPaymentRequest request, UUID recorderId) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
+        // Row-locked: two concurrent payments must not both read the same
+        // outstanding balance and each pass the check below (audit M2).
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found"));
 
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
@@ -179,7 +181,7 @@ public class BillingService {
      */
     @Transactional
     public void cancelInvoice(UUID invoiceId, UUID actorId) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found"));
 
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
@@ -213,33 +215,15 @@ public class BillingService {
 
     @Transactional(readOnly = true)
     public BillingSummaryResponse getBillingSummary() {
-        List<Invoice> invoices = invoiceRepository.findAll();
-
         LocalDate periodStart = LocalDate.now().withDayOfMonth(1);
         LocalDate periodEnd = LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth());
 
-        // Scoped to the declared period — previously this claimed "this
-        // month" while summing every invoice ever created (audit II.12).
-        List<Invoice> invoicesThisPeriod = invoices.stream()
-                .filter(inv -> {
-                    LocalDate issued = inv.getIssueDate() != null
-                            ? inv.getIssueDate()
-                            : inv.getCreatedAt().toLocalDate();
-                    return !issued.isBefore(periodStart) && !issued.isAfter(periodEnd);
-                })
-                .collect(Collectors.toList());
-
-        BigDecimal totalInvoiced = invoicesThisPeriod.stream()
-                .map(Invoice::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalCollected = invoicesThisPeriod.stream()
-                .flatMap(inv -> inv.getPayments().stream())
-                .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Map<InvoiceStatus, Long> byStatus = invoices.stream()
-                .collect(Collectors.groupingBy(Invoice::getStatus, Collectors.counting()));
+        // Aggregates in the database, not findAll() + an in-memory reduce
+        // over every invoice (plus its lines and payments, N+1) on every
+        // dashboard load (audit M1/II.12).
+        BigDecimal totalInvoiced = round(invoiceRepository.sumTotalIssuedBetween(periodStart, periodEnd));
+        BigDecimal totalCollected =
+                round(invoiceRepository.sumPaymentsForInvoicesIssuedBetween(periodStart, periodEnd));
 
         return BillingSummaryResponse.builder()
                 .periodStart(periodStart)
@@ -247,8 +231,8 @@ public class BillingService {
                 .totalInvoiced(totalInvoiced)
                 .totalCollected(totalCollected)
                 .outstandingAmount(totalInvoiced.subtract(totalCollected))
-                .invoiceCount(invoices.size())
-                .byStatus(byStatus)
+                .invoiceCount((int) invoiceRepository.count())
+                .byStatus(invoiceRepository.countByStatus())
                 .build();
     }
 
@@ -263,7 +247,10 @@ public class BillingService {
     }
 
     private BigDecimal getTaxRate(String regionCode) {
-        return switch (regionCode.toUpperCase()) {
+        if (regionCode == null || regionCode.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        return switch (regionCode.trim().toUpperCase(java.util.Locale.ROOT)) {
             case "FR" -> BigDecimal.valueOf(0.20);
             case "MA" -> BigDecimal.ZERO;
             case "US" -> BigDecimal.valueOf(0.08);

@@ -31,7 +31,12 @@ app:
     # Dev-only default (32+ bytes). ALWAYS override with JWT_SECRET in any
     # shared/production environment — see application-prod.yml.
     secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
-    expiration-minutes: ${JWT_EXPIRATION_MINUTES:480}
+    # 4h. There is no refresh token, so this is also the max a stolen token is
+    # useful for. Deactivation/demotion/password-reset are enforced per-request
+    # by JwtAuthFilter regardless of this value; shortening it only bounds the
+    # theft window. Raise via JWT_EXPIRATION_MINUTES if it proves too short in
+    # practice (a mid-consultation logout is disruptive).
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:240}
   # Base origin used to build the password-reset link sent to users. Override
   # with FRONTEND_URL wherever the frontend isn't served from localhost:4200
   # (see application-prod.yml).

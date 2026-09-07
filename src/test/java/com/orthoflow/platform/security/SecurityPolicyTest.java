@@ -1,5 +1,8 @@
 package com.orthoflow.platform.security;
 
+import com.orthoflow.auth.domain.model.User;
+import com.orthoflow.auth.domain.model.UserRole;
+import com.orthoflow.auth.domain.repository.UserRepository;
 import com.orthoflow.auth.infrastructure.security.JwtAuthFilter;
 import com.orthoflow.auth.infrastructure.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -56,13 +62,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * and finds the real {@code OrthoflowApplication} — whose explicit
  * {@code @EnableJpaRepositories}/{@code @EntityScan} then try to wire a real
  * {@code EntityManagerFactory} even inside the slice, which fails with no
- * datasource. Listing the four classes this test actually needs via
+ * datasource. Listing exactly the classes this test actually needs via
  * {@code @ContextConfiguration} sidesteps that discovery entirely.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = {
-        SecurityConfig.class, JwtAuthFilter.class, JwtService.class,
-        SecurityPolicyTest.Noop.class, SecurityPolicyTest.MvcConfig.class
+        SecurityConfig.class, JwtAuthFilter.class, JwtService.class, AuthRateLimitFilter.class,
+        RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class,
+        SecurityPolicyTest.Noop.class, SecurityPolicyTest.MvcConfig.class,
+        SecurityPolicyTest.StubUsers.class
 })
 @WebAppConfiguration
 @TestPropertySource(properties = {
@@ -94,12 +102,52 @@ class SecurityPolicyTest {
     static class MvcConfig {
     }
 
+    /**
+     * {@link JwtAuthFilter} now loads the user on every request (to check
+     * {@code active} and the password-reset cutoff), so it needs a
+     * {@link UserRepository}. This slice has no database; the stub maps the
+     * three deterministic per-role ids {@link #idFor} mints onto an active
+     * user with that role, and knows no other id.
+     */
+    @Configuration
+    static class StubUsers {
+        @org.springframework.context.annotation.Bean
+        UserRepository userRepository() {
+            Map<UUID, UserRole> byId = Map.of(
+                    idFor(ASSISTANT), UserRole.ASSISTANT,
+                    idFor(DOCTOR), UserRole.DOCTOR,
+                    idFor(ADMIN), UserRole.ADMIN);
+            return new UserRepository() {
+                @Override
+                public Optional<User> findById(UUID id) {
+                    return Optional.ofNullable(byId.get(id)).map(role -> User.builder()
+                            .id(id).email("test@example.com").role(role).active(true)
+                            .passwordHash("x").firstName("T").lastName("U").build());
+                }
+                @Override public User save(User user) { throw new UnsupportedOperationException(); }
+                @Override public Optional<User> findByEmail(String email) { return Optional.empty(); }
+                @Override public List<User> findAll() { return List.of(); }
+                @Override public boolean existsAny() { return true; }
+            };
+        }
+    }
+
     private static final String ASSISTANT = "ASSISTANT";
     private static final String DOCTOR = "DOCTOR";
     private static final String ADMIN = "ADMIN";
     private static final Set<String> ALL_ROLES = Set.of(ASSISTANT, DOCTOR, ADMIN);
 
     private static final String ID = "11111111-1111-1111-1111-111111111111";
+
+    /** A stable, per-role user id so {@link StubUsers} can resolve it back to a role. */
+    private static UUID idFor(String role) {
+        return switch (role) {
+            case ASSISTANT -> UUID.fromString("00000000-0000-0000-0000-0000000000a5");
+            case DOCTOR -> UUID.fromString("00000000-0000-0000-0000-0000000000d0");
+            case ADMIN -> UUID.fromString("00000000-0000-0000-0000-0000000000ad");
+            default -> throw new IllegalArgumentException(role);
+        };
+    }
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -273,7 +321,7 @@ class SecurityPolicyTest {
     }
 
     private String tokenFor(String role) {
-        return jwtService.generateToken(UUID.randomUUID(), "test@example.com", role);
+        return jwtService.generateToken(idFor(role), "test@example.com", role);
     }
 
     /**

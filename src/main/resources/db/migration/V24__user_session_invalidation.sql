@@ -1,0 +1,11 @@
+-- AUDIT-2026-09 H1: a JWT stayed valid for its full lifetime (up to 8h) even
+-- after the account was deactivated, demoted, or had its password reset —
+-- JwtAuthFilter trusted the token's own role claim and never looked at the
+-- user row. The filter now loads the user on every request and checks:
+--   * the account is still active,
+--   * the token was issued at/after this cutoff.
+--
+-- Null means "no session has ever been force-invalidated for this user" — the
+-- common case. AuthService stamps it with now() on a password reset so every
+-- token minted before the reset stops working immediately.
+ALTER TABLE users ADD COLUMN sessions_valid_after TIMESTAMPTZ;

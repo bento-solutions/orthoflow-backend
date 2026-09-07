@@ -9,10 +9,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -79,6 +85,43 @@ public class GlobalExceptionHandler {
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return problem(HttpStatus.BAD_REQUEST, detail.isEmpty() ? "Validation failed" : detail, request);
+    }
+
+    // ── Malformed request → 400, not 500 ────────────────────────────────
+    // These were all falling through to handleUnexpected: a broken JSON body,
+    // a non-UUID path variable, a missing query param — ordinary client
+    // mistakes — logged themselves as "Unhandled exception" and came back 500.
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return problem(HttpStatus.BAD_REQUEST, "The request body is missing or is not valid JSON.", request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String name = ex.getName();
+        String required = ex.getRequiredType() == null ? "the expected type" : ex.getRequiredType().getSimpleName();
+        return problem(HttpStatus.BAD_REQUEST, "'" + name + "' is not a valid " + required + ".", request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        return problem(HttpStatus.BAD_REQUEST, "Required parameter '" + ex.getParameterName() + "' is missing.", request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleUploadTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "That upload is larger than this endpoint accepts.", request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        return problem(HttpStatus.METHOD_NOT_ALLOWED, "That HTTP method is not supported on this endpoint.", request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResource(NoResourceFoundException ex, HttpServletRequest request) {
+        return problem(HttpStatus.NOT_FOUND, "No endpoint at " + request.getRequestURI() + ".", request);
     }
 
     @ExceptionHandler(Exception.class)

@@ -91,11 +91,29 @@ public class ClinicalRecordService {
      * finding is withdrawn rather than deleted. RESOLVED is the other exit and
      * means something different: it was true, and has since been treated.
      */
+    /**
+     * The REST entry point: the finding must belong to {@code patientId} (the
+     * one in the URL), or it is a 404 — see {@link #assertBelongsToPatient}.
+     * The voice pipeline uses the {@code patientId}-less overload below, since
+     * it is already operating inside one patient's confirmed session.
+     */
+    @Transactional
+    public ToothFindingResponse changeFindingStatus(UUID patientId, UUID findingId, FindingStatus newStatus, UUID actorId) {
+        ToothFinding finding = toothFindingRepository.findById(findingId)
+                .orElseThrow(() -> new NotFoundException("Finding not found: " + findingId));
+        assertBelongsToPatient(patientId, finding.getChart() == null ? null : finding.getChart().getPatientId(),
+                "Finding not found: " + findingId);
+        return applyFindingStatus(finding, newStatus, actorId);
+    }
+
     @Transactional
     public ToothFindingResponse changeFindingStatus(UUID findingId, FindingStatus newStatus, UUID actorId) {
         ToothFinding finding = toothFindingRepository.findById(findingId)
                 .orElseThrow(() -> new NotFoundException("Finding not found: " + findingId));
+        return applyFindingStatus(finding, newStatus, actorId);
+    }
 
+    private ToothFindingResponse applyFindingStatus(ToothFinding finding, FindingStatus newStatus, UUID actorId) {
         finding.setStatus(newStatus);
         ToothFinding saved = toothFindingRepository.save(finding);
         recomputePrimaryStatus(finding.getChart(), finding.getFdi(), actorId, "voice", null);
@@ -190,9 +208,10 @@ public class ClinicalRecordService {
     }
 
     @Transactional
-    public void deleteNote(UUID noteId) {
+    public void deleteNote(UUID patientId, UUID noteId) {
         ClinicalNote note = clinicalNoteRepository.findById(noteId)
                 .orElseThrow(() -> new NotFoundException("Clinical note not found: " + noteId));
+        assertBelongsToPatient(patientId, note.getPatientId(), "Clinical note not found: " + noteId);
         note.setDeletedAt(OffsetDateTime.now());
         clinicalNoteRepository.save(note);
     }
@@ -233,9 +252,10 @@ public class ClinicalRecordService {
     }
 
     @Transactional
-    public void deleteAllergy(UUID allergyId) {
+    public void deleteAllergy(UUID patientId, UUID allergyId) {
         PatientAllergy allergy = allergyRepository.findById(allergyId)
                 .orElseThrow(() -> new NotFoundException("Allergy not found: " + allergyId));
+        assertBelongsToPatient(patientId, allergy.getPatientId(), "Allergy not found: " + allergyId);
         allergy.setDeletedAt(OffsetDateTime.now());
         allergyRepository.save(allergy);
     }
@@ -272,9 +292,10 @@ public class ClinicalRecordService {
     }
 
     @Transactional
-    public void deleteMedicalHistory(UUID entryId) {
+    public void deleteMedicalHistory(UUID patientId, UUID entryId) {
         MedicalHistoryEntry entry = medicalHistoryRepository.findById(entryId)
                 .orElseThrow(() -> new NotFoundException("Medical history entry not found: " + entryId));
+        assertBelongsToPatient(patientId, entry.getPatientId(), "Medical history entry not found: " + entryId);
         entry.setDeletedAt(OffsetDateTime.now());
         medicalHistoryRepository.save(entry);
     }
@@ -322,6 +343,19 @@ public class ClinicalRecordService {
     private void requirePatient(UUID patientId) {
         if (patientRepository.findById(patientId).isEmpty()) {
             throw new NotFoundException("Patient not found: " + patientId);
+        }
+    }
+
+    /**
+     * These records are addressed as {@code /patients/{patientId}/clinical-record/…/{childId}},
+     * but the child id alone is unique, so without this a note, allergy,
+     * finding or history entry belonging to patient A could be mutated or
+     * deleted through a URL naming patient B (audit M3). A mismatch is a 404,
+     * not a 403 — the resource genuinely does not exist under that patient.
+     */
+    private static void assertBelongsToPatient(UUID expectedPatientId, UUID actualPatientId, String notFoundMessage) {
+        if (actualPatientId == null || !actualPatientId.equals(expectedPatientId)) {
+            throw new NotFoundException(notFoundMessage);
         }
     }
 

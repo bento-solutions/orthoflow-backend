@@ -27,12 +27,15 @@ import java.util.UUID;
  * The voice pipeline's server side: session lifecycle, the audit trail, and
  * the confirm/reject gate on any clinical write a dictated command produced.
  *
- * <p>Every write here is DOCTOR/ADMIN only, same as {@link
- * com.orthoflow.clinical.presentation.controller.ClinicalRecordController} —
- * a voice command inherits its permission from the JWT it runs under, not
- * from a separate voice-specific permission model. Reads (the lexicon, the
- * audit trail) are open to any authenticated user so a read-only assistant
- * account can still see what a session recorded.
+ * <p>Every route here is DOCTOR/ADMIN only — {@code SecurityConfig} maps all
+ * of {@code /voice/**} (reads included) to the same clinical floor as {@link
+ * com.orthoflow.clinical.presentation.controller.ClinicalRecordController},
+ * because a voice session's audit trail and summary contain the same patient
+ * health information the clinical record does. A voice command inherits its
+ * permission from the JWT it runs under, not from a separate voice-specific
+ * permission model. The per-method {@code @PreAuthorize} annotations below
+ * restate that floor for the writes and are redundant with the matrix by
+ * design (defence in depth).
  */
 @RestController
 @RequestMapping("/voice")

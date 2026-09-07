@@ -67,7 +67,7 @@ public class ClinicalRecordController {
             @PathVariable UUID patientId,
             @PathVariable UUID findingId,
             @RequestParam FindingStatus status) {
-        return clinicalRecordService.changeFindingStatus(findingId, status, currentUserProvider.requireUserId());
+        return clinicalRecordService.changeFindingStatus(patientId, findingId, status, currentUserProvider.requireUserId());
     }
 
     // ── Notes ───────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ public class ClinicalRecordController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public void deleteNote(@PathVariable UUID patientId, @PathVariable UUID noteId) {
-        clinicalRecordService.deleteNote(noteId);
+        clinicalRecordService.deleteNote(patientId, noteId);
     }
 
     // ── Allergies ───────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ public class ClinicalRecordController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public void deleteAllergy(@PathVariable UUID patientId, @PathVariable UUID allergyId) {
-        clinicalRecordService.deleteAllergy(allergyId);
+        clinicalRecordService.deleteAllergy(patientId, allergyId);
     }
 
     // ── Medical history ─────────────────────────────────────────────────
@@ -136,6 +136,6 @@ public class ClinicalRecordController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public void deleteMedicalHistory(@PathVariable UUID patientId, @PathVariable UUID entryId) {
-        clinicalRecordService.deleteMedicalHistory(entryId);
+        clinicalRecordService.deleteMedicalHistory(patientId, entryId);
     }
 }

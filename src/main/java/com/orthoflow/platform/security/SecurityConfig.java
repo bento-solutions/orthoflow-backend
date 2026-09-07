@@ -67,7 +67,10 @@ public class SecurityConfig {
     private static final String[] CLINICAL = { DOCTOR, ADMIN };
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
     private final CorsProperties corsProperties;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -76,7 +79,15 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(SecurityConfig::policy)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            // 401 for "not authenticated", 403 for "wrong role" — both as
+            // problem+json. Without this, an unauthenticated call to a
+            // protected route returns Spring's default 403 and the frontend
+            // never realises the session is gone.
+            .exceptionHandling(ex -> ex
+                    .authenticationEntryPoint(authenticationEntryPoint)
+                    .accessDeniedHandler(accessDeniedHandler))
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authRateLimitFilter, JwtAuthFilter.class);
         return http.build();
     }
 
@@ -190,9 +201,14 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id"));
         configuration.setExposedHeaders(List.of("X-Correlation-Id"));
-        configuration.setAllowCredentials(true);
+        // The API authenticates with a Bearer header, never a cookie, so
+        // credentialed CORS is not needed — and leaving it on is what forces
+        // the exact-origin echo and blocks a future wildcard. If auth ever
+        // moves to a cookie (see the audit's H5), turn this back on together
+        // with CSRF protection.
+        configuration.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

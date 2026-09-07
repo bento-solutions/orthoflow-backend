@@ -156,7 +156,7 @@ class BillingServiceTest {
                 .total(BigDecimal.valueOf(100))
                 .payments(new java.util.ArrayList<>())
                 .build();
-        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.findByIdForUpdate(invoice.getId())).thenReturn(Optional.of(invoice));
 
         RecordPaymentRequest request = new RecordPaymentRequest();
         request.setAmount(BigDecimal.valueOf(150));
@@ -176,7 +176,7 @@ class BillingServiceTest {
                 .total(BigDecimal.valueOf(100))
                 .payments(new java.util.ArrayList<>())
                 .build();
-        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.findByIdForUpdate(invoice.getId())).thenReturn(Optional.of(invoice));
 
         RecordPaymentRequest request = new RecordPaymentRequest();
         request.setAmount(BigDecimal.valueOf(10));
@@ -196,7 +196,7 @@ class BillingServiceTest {
                 .total(BigDecimal.valueOf(100))
                 .payments(new java.util.ArrayList<>())
                 .build();
-        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.findByIdForUpdate(invoice.getId())).thenReturn(Optional.of(invoice));
 
         RecordPaymentRequest request = new RecordPaymentRequest();
         request.setAmount(BigDecimal.valueOf(10));
@@ -216,7 +216,7 @@ class BillingServiceTest {
                 .total(BigDecimal.valueOf(100))
                 .payments(new java.util.ArrayList<>())
                 .build();
-        when(invoiceRepository.findById(invoice.getId())).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.findByIdForUpdate(invoice.getId())).thenReturn(Optional.of(invoice));
 
         RecordPaymentRequest request = new RecordPaymentRequest();
         request.setAmount(BigDecimal.valueOf(100));

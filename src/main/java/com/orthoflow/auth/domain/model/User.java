@@ -41,6 +41,15 @@ public class User {
     @Column(nullable = false)
     private boolean active;
 
+    /**
+     * Tokens issued before this instant are rejected by {@code JwtAuthFilter},
+     * even if still within their expiry. Stamped with {@code now()} on a
+     * password reset so a stolen token cannot outlive the reset. Null (the
+     * normal state) means no session has been force-invalidated for this user.
+     */
+    @Column(name = "sessions_valid_after")
+    private OffsetDateTime sessionsValidAfter;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

@@ -7,6 +7,7 @@ import com.orthoflow.auth.application.dto.RegisterRequest;
 import com.orthoflow.auth.application.dto.ResetPasswordRequest;
 import com.orthoflow.auth.application.dto.UserResponse;
 import com.orthoflow.auth.application.service.AuthService;
+import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.common.exception.UnauthorizedException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,12 +22,13 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // Off during pre-launch development so the team can create/reset
-    // multiple test accounts without an admin session. Flip
-    // RESTRICT_REGISTRATION_TO_BOOTSTRAP=true (no code change needed) once
-    // a real practice is onboarded and self-service account creation should
-    // require an authenticated ADMIN again.
-    @Value("${orthoflow.auth.restrict-registration-to-bootstrap:false}")
+    // TRUE everywhere except throwaway dev environments (default is true in
+    // application-prod.yml). When true, /auth/register only creates the very
+    // first account (bootstrap) — forced to ADMIN below — and every account
+    // after that needs an authenticated ADMIN. When false, /auth/register is
+    // a fully open, self-service endpoint: only acceptable on a disposable
+    // database no real patient data will ever touch.
+    @Value("${orthoflow.auth.restrict-registration-to-bootstrap:true}")
     private boolean restrictRegistrationToBootstrap;
 
     @PostMapping("/login")
@@ -35,17 +37,26 @@ public class AuthController {
     }
 
     /**
-     * Open to bootstrap the very first (ADMIN) account on an empty database.
-     * When orthoflow.auth.restrict-registration-to-bootstrap is enabled,
-     * creating further accounts once any user exists requires an
-     * authenticated ADMIN.
+     * Open only to bootstrap the very first account on an empty database, which
+     * is always created as ADMIN (the practice owner) regardless of the role in
+     * the request — the client does not get to choose the role of the first
+     * account. Every account after that requires an authenticated ADMIN.
+     *
+     * <p>The path itself is {@code permitAll} in SecurityConfig because the
+     * bootstrap case has no one to authenticate as; the "is the users table
+     * empty" decision can only be made here, not in the path matrix.
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
         if (restrictRegistrationToBootstrap) {
             boolean bootstrap = authService.noUsersExist();
-            if (!bootstrap && !hasAdminRole()) {
+            if (bootstrap) {
+                // First account is the practice owner. Never honour a
+                // client-supplied role here — that is the ADMIN-mints-ADMIN
+                // hole this whole branch exists to close.
+                request.setRole(UserRole.ADMIN);
+            } else if (!hasAdminRole()) {
                 throw new UnauthorizedException("Only an administrator can create new accounts");
             }
         }
