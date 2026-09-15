@@ -203,18 +203,21 @@ public class VoiceCommandService {
                 if (patientId == null) throw new ValidationException("addFindings requires a patient");
                 String fdi = str(e, "fdi");
 
+                // Retract superseded findings atomically.
+                List<UUID> retractUuids = listOf(e, "retractIds").stream()
+                        .map(id -> UUID.fromString(String.valueOf(id)))
+                        .toList();
                 List<String> retracted = new ArrayList<>();
-                for (Object id : listOf(e, "retractIds")) {
-                    ToothFindingResponse resp = clinicalRecordService.changeFindingStatus(
-                            UUID.fromString(String.valueOf(id)), FindingStatus.RETRACTED, actorId);
-                    retracted.add(resp.findingCode());
+                if (!retractUuids.isEmpty()) {
+                    retracted.addAll(clinicalRecordService.retractFindingsBatch(retractUuids, actorId)
+                            .stream().map(r -> r.findingCode()).toList());
                 }
 
                 List<Object> findings = listOf(e, "findings");
                 if (findings.isEmpty()) throw new ValidationException("addFindings requires at least one finding");
 
-                List<String> ids = new ArrayList<>();
-                List<String> codes = new ArrayList<>();
+                // Build all requests, then write them in one transaction.
+                List<AddToothFindingRequest> requests = new ArrayList<>();
                 for (Object item : findings) {
                     if (!(item instanceof Map<?, ?> raw)) {
                         throw new ValidationException("Each finding must be an object");
@@ -231,11 +234,13 @@ public class VoiceCommandService {
                     req.setNote(finding.get("note") != null ? strOrNull(finding, "note") : strOrNull(e, "note"));
                     req.setSource("voice");
                     req.setSessionId(sessionId);
-
-                    ToothFindingResponse resp = clinicalRecordService.addFinding(patientId, fdi, req, actorId);
-                    ids.add(resp.id().toString());
-                    codes.add(resp.findingCode());
+                    requests.add(req);
                 }
+
+                var results = clinicalRecordService.addFindingsBatch(patientId, fdi, requests, actorId);
+                List<String> ids = results.stream().map(r -> r.id().toString()).toList();
+                List<String> codes = results.stream().map(r -> r.findingCode()).toList();
+
                 yield new ExecutionResult("ToothFinding", String.join(",", ids),
                         retracted.isEmpty() ? null : String.join(",", retracted),
                         fdi + ": " + String.join(", ", codes));
@@ -259,14 +264,12 @@ public class VoiceCommandService {
                     }
                 }
                 if (ids.isEmpty()) throw new ValidationException("Nothing matching that is recorded on this tooth");
-                List<String> withdrawn = new ArrayList<>();
-                List<String> withdrawnIds = new ArrayList<>();
-                for (Object id : ids) {
-                    ToothFindingResponse resp = clinicalRecordService.changeFindingStatus(
-                            UUID.fromString(String.valueOf(id)), FindingStatus.RETRACTED, actorId);
-                    withdrawn.add(resp.findingCode());
-                    withdrawnIds.add(resp.id().toString());
-                }
+                List<UUID> retractUuids = ids.stream()
+                        .map(id -> UUID.fromString(String.valueOf(id)))
+                        .toList();
+                var results = clinicalRecordService.retractFindingsBatch(retractUuids, actorId);
+                List<String> withdrawn = results.stream().map(r -> r.findingCode()).toList();
+                List<String> withdrawnIds = results.stream().map(r -> r.id().toString()).toList();
                 yield new ExecutionResult("ToothFinding", String.join(",", withdrawnIds),
                         String.join(", ", withdrawn), "(withdrawn)");
             }

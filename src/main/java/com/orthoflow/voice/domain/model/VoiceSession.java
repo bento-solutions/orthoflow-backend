@@ -24,6 +24,9 @@ public class VoiceSession {
     @Id
     private UUID id;
 
+    @Version
+    private Long version;
+
     @Column(name = "patient_id")
     private UUID patientId;
 

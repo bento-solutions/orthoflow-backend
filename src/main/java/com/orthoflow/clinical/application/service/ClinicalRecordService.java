@@ -52,6 +52,45 @@ public class ClinicalRecordService {
      */
     @Transactional
     public ToothFindingResponse addFinding(UUID patientId, String fdi, AddToothFindingRequest request, UUID actorId) {
+        return addFindingInternal(patientId, fdi, request, actorId);
+    }
+
+    /**
+     * Records multiple findings on a single tooth in one transaction. This is
+     * the normal voice dictation path — "old crown, recurrent caries, crown
+     * needs replacement" is three findings, but they must land together or
+     * not at all so a partial failure does not leave the record half-written.
+     */
+    @Transactional
+    public List<ToothFindingResponse> addFindingsBatch(UUID patientId, String fdi,
+                                                        List<AddToothFindingRequest> requests, UUID actorId) {
+        List<ToothFindingResponse> results = new java.util.ArrayList<>();
+        for (AddToothFindingRequest request : requests) {
+            results.add(addFindingInternal(patientId, fdi, request, actorId));
+        }
+        return results;
+    }
+
+    /**
+     * Retracts multiple findings in one transaction. Used by the correction
+     * path ("no, actually…") where superseded findings are withdrawn and
+     * replacements recorded together, so the record never passes through a
+     * state where the tooth carries neither.
+     */
+    @Transactional
+    public List<ToothFindingResponse> retractFindingsBatch(List<UUID> findingIds, UUID actorId) {
+        List<ToothFindingResponse> results = new java.util.ArrayList<>();
+        for (UUID findingId : findingIds) {
+            results.add(changeFindingStatus(findingId, FindingStatus.RETRACTED, actorId));
+        }
+        return results;
+    }
+
+    /**
+     * Internal: performs the addFinding logic without starting its own
+     * transaction — it participates in whatever transaction is already open.
+     */
+    private ToothFindingResponse addFindingInternal(UUID patientId, String fdi, AddToothFindingRequest request, UUID actorId) {
         DentalChart chart = requireChart(patientId);
         String code = request.getFindingCode();
 

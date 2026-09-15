@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -90,12 +91,21 @@ public class NluResponseParser {
 
     /**
      * Models occasionally wrap JSON in a markdown fence or a sentence despite
-     * being told not to. Taking the outermost brace-balanced span is more
-     * forgiving than a strict parse and cannot smuggle anything past the
+     * being told not to. A fenced block is stripped first, then the outermost
+     * brace-balanced span is taken — which cannot smuggle anything past the
      * validation above.
      */
     private String extractJsonObject(String raw) {
         String trimmed = raw.trim();
+
+        // Strip markdown code fences: ```json ... ``` or ``` ... ```
+        java.util.regex.Matcher fenced = java.util.regex.Pattern
+                .compile("```(?:json)?\\s*\\n?(.*?)\\n?\\s*```", java.util.regex.Pattern.DOTALL)
+                .matcher(trimmed);
+        if (fenced.find()) {
+            trimmed = fenced.group(1).trim();
+        }
+
         int start = trimmed.indexOf('{');
         int end = trimmed.lastIndexOf('}');
         if (start >= 0 && end > start) {
@@ -121,18 +131,32 @@ public class NluResponseParser {
      * here, whatever JSON type the model chose for them.
      *
      * <p>Models return {@code "fdi": 16} as often as {@code "fdi": "16"}, and
-     * Jackson faithfully preserves the difference. The write path survives it
-     * — it calls {@code toString()} — but the entity map is also serialised
-     * onto the audit row, which is what the browser reads back when it renders
-     * the review page and when it matches "enlève la carie sur la seize". Both
-     * test for a string, so a numeric fdi silently disappears from the tooth
-     * chart and cannot be removed by voice, while the finding itself saves
-     * perfectly normally. Canonicalising here fixes every consumer at once.
+     * Jackson faithfully preserves the difference. Canonicalising here fixes
+     * every consumer at once — including nested identifiers inside the
+     * {@code findings} array.
      */
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> normaliseIdentifiers(Map<String, Object> entities) {
         Object fdi = entities.get("fdi");
         if (fdi instanceof Number number) {
             entities.put("fdi", String.valueOf(number.longValue()));
+        }
+        // Normalise fdi and findingId inside each finding in the findings array.
+        Object findings = entities.get("findings");
+        if (findings instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> map) {
+                    Map<String, Object> finding = (Map<String, Object>) map;
+                    Object nestedFdi = finding.get("fdi");
+                    if (nestedFdi instanceof Number n) {
+                        finding.put("fdi", String.valueOf(n.longValue()));
+                    }
+                    Object findingId = finding.get("findingId");
+                    if (findingId instanceof Number n) {
+                        finding.put("findingId", String.valueOf(n.longValue()));
+                    }
+                }
+            }
         }
         return entities;
     }

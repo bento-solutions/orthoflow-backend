@@ -49,7 +49,7 @@ public class VoiceInterpretationService {
         } else {
             log.info("Voice NLU fallback disabled (grammar-only). Utterances the on-device grammar "
                     + "cannot parse will be answered with a clarifying question. Set "
-                    + "orthoflow.voice.nlu.provider to 'anthropic' or 'openai-compatible' to enable it.");
+                    + "orthoflow.voice.nlu.provider to 'gemini', 'anthropic' or 'openai-compatible' to enable it.");
         }
     }
 

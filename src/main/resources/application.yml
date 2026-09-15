@@ -58,20 +58,19 @@ orthoflow:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
   voice:
     nlu:
-      # disabled | anthropic | openai-compatible
+      # disabled | anthropic | openai-compatible | gemini
       #
-      # 'disabled' is the default on purpose. Enabling a provider means
+      # 'disabled' is the safe default. Enabling a provider means
       # transcripts of a consultation — which contain health information about
       # the patient and anyone else in the room — start leaving this machine.
       # That needs a DPA, a lawful basis and a CNDP notification under Law
       # 09-08 first. 'openai-compatible' pointed at a model on this same VPS
       # (e.g. Ollama at http://localhost:11434/v1) answers the question by
       # keeping the data inside the same trust boundary as the database.
-      provider: ${VOICE_NLU_PROVIDER:disabled}
-      # claude-opus-5 is the default. claude-haiku-4-5 is markedly cheaper and
-      # faster and is a reasonable choice for this task — mapping one short
-      # utterance onto a listed intent — but that is a cost/quality tradeoff
-      # for the deployer to make, not one to make silently on their behalf.
+      # 'gemini' uses Google's Interactions API — fast, multilingual, and
+      # excellent at clinical vocabulary in French/Darija code-switching.
+      provider: ${VOICE_NLU_PROVIDER:gemini}
+      # Used by anthropic and openai-compatible providers.
       model: ${VOICE_NLU_MODEL:claude-opus-5}
       api-key: ${VOICE_NLU_API_KEY:}
       # Required for openai-compatible, e.g. http://localhost:11434/v1
@@ -79,6 +78,14 @@ orthoflow:
       timeout-ms: ${VOICE_NLU_TIMEOUT_MS:9000}
       max-transcript-chars: ${VOICE_NLU_MAX_TRANSCRIPT_CHARS:800}
       max-output-tokens: ${VOICE_NLU_MAX_OUTPUT_TOKENS:700}
+      # ── Gemini NLU settings ─────────────────────────────────────────
+      # When provider=gemini, these take effect. The API key falls back to
+      # the STT key (orthoflow.voice.stt.api-key) when blank, so a single
+      # Gemini key in .env drives both STT and NLU.
+      gemini-model: ${VOICE_NLU_GEMINI_MODEL:gemini-2.5-flash}
+      gemini-api-key: ${VOICE_NLU_GEMINI_API_KEY:}
+      gemini-base-url: ${VOICE_NLU_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+      gemini-thinking-level: ${VOICE_NLU_GEMINI_THINKING_LEVEL:minimal}
     # ── Server-side speech-to-text ─────────────────────────────────────
     # The browser's own SpeechRecognition is the default and needs none of
     # this. Enabling it routes captured audio through a hosted Whisper
@@ -88,7 +95,7 @@ orthoflow:
     # read here and never sent to the browser. Point base-url at a
     # self-hosted faster-whisper server to keep audio on-premise.
     stt:
-      enabled: ${VOICE_STT_ENABLED:false}
+      enabled: ${VOICE_STT_ENABLED:true}
       # groq (Whisper, OpenAI-shaped multipart) | gemini (Interactions API)
       #
       # gemini is the better recogniser for the speech this app actually
@@ -96,7 +103,7 @@ orthoflow:
       # carrying dental vocabulary. Whisper decodes phonemes in isolation and
       # loses clinical terms; Gemini can be told what kind of speech this is.
       # groq remains configured so a deployment can A/B the two.
-      provider: ${VOICE_STT_PROVIDER:groq}
+      provider: ${VOICE_STT_PROVIDER:gemini}
       # Used by whichever provider is active — only one runs at a time.
       api-key: ${VOICE_STT_API_KEY:}
       # groq only: whisper-large-v3-turbo (fastest, cheapest) | whisper-large-v3

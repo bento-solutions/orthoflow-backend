@@ -34,7 +34,7 @@ public class VoiceNluProperties {
     @Getter
     @Setter
     public static class Nlu {
-        /** disabled | anthropic | openai-compatible */
+        /** disabled | anthropic | openai-compatible | gemini */
         private String provider = "disabled";
         private String model = "claude-haiku-4-5-20251001";
         private String apiKey = "";
@@ -44,6 +44,16 @@ public class VoiceNluProperties {
         /** Utterances longer than this are refused rather than truncated mid-clause. */
         private int maxTranscriptChars = 800;
         private int maxOutputTokens = 700;
+
+        // ── Gemini-specific NLU settings ────────────────────────────────
+        /** Gemini model for NLU. Flash is fast and cheap for intent classification. */
+        private String geminiModel = "gemini-2.5-flash";
+        /** Falls back to the STT api-key when blank, so one Gemini key drives both. */
+        private String geminiApiKey = "";
+        /** Gemini Interactions API root. */
+        private String geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
+        /** Thinking level: minimal is correct for intent classification. */
+        private String geminiThinkingLevel = "minimal";
     }
 
     @Getter
