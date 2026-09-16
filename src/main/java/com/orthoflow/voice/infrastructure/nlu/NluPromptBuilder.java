@@ -117,17 +117,58 @@ public class NluPromptBuilder {
         return "Utterance: \"" + request.getTranscript().trim() + "\"";
     }
 
-    /** Both providers ask for the same shape; keeping the schema in one place. */
+    private static final Map<String, Object> STRING = Map.of("type", "string");
+
+    /**
+     * Both providers ask for the same shape; keeping the schema in one place.
+     *
+     * <p>{@code entities} has to name every argument a command can take, and
+     * that is not tidiness. Structured output emits only the properties a
+     * schema declares, so the bare {@code {"type": "object"}} this used to
+     * carry came back as {@code {}} on every call — an intent with no tooth
+     * and no findings, which downstream reads as "understood, recorded
+     * nothing". A command whose argument is missing here is a command the
+     * fallback can never complete.
+     */
     public Map<String, Object> responseSchema() {
+        Map<String, Object> finding = Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "code", STRING,
+                        "surface", STRING,
+                        "severity", STRING,
+                        "note", STRING),
+                "required", List.of("code"));
+
+        Map<String, Object> entities = Map.of(
+                "type", "object",
+                "properties", Map.ofEntries(
+                        // chart.addToothFindings / replaceLastFinding / removeFinding
+                        Map.entry("fdi", STRING),
+                        Map.entry("findings", Map.of("type", "array", "items", finding)),
+                        Map.entry("codes", Map.of("type", "array", "items", STRING)),
+                        // clinical.addNote
+                        Map.entry("category", STRING),
+                        Map.entry("content", STRING),
+                        // clinical.addMedicalHistory
+                        Map.entry("label", STRING),
+                        Map.entry("detail", STRING),
+                        // clinical.addAllergy
+                        Map.entry("substance", STRING),
+                        Map.entry("reaction", STRING),
+                        Map.entry("severity", STRING),
+                        Map.entry("note", STRING),
+                        // schedule.followUp
+                        Map.entry("when", STRING)));
+
         return Map.of(
                 "type", "object",
                 "properties", Map.of(
                         "intent", Map.of("type", List.of("string", "null")),
-                        "entities", Map.of("type", "object"),
+                        "entities", entities,
                         "confidence", Map.of("type", "number"),
                         "clarification", Map.of("type", List.of("string", "null"))),
-                "required", List.of("intent", "entities", "confidence", "clarification"),
-                "additionalProperties", false);
+                "required", List.of("intent", "entities", "confidence", "clarification"));
     }
 
     private String orUnknown(String value) {

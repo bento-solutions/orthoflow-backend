@@ -119,8 +119,11 @@ public class SpeechToTextService {
 
         return TranscriptionResponse.builder()
                 .text(result.text())
+                .normalized(result.normalized())
                 .provider(properties.getProvider())
-                .model(properties.activeModel())
+                // The model that answered, which differs from the configured one
+                // when an overloaded primary fell back.
+                .model(result.model() != null ? result.model() : properties.activeModel())
                 .language(result.language())
                 .durationSeconds(result.durationSeconds())
                 .build();

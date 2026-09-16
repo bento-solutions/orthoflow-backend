@@ -88,12 +88,21 @@ public class GeminiNluProvider implements NluProvider {
             body.put("model", resolveModel());
             body.put("system_instruction", promptBuilder.systemPrompt(request));
             body.put("input", input);
-            body.put("thinking_level", properties.getNlu().getGeminiThinkingLevel());
-            body.put("max_output_tokens", properties.getNlu().getMaxOutputTokens());
-            // Structured output: tell Gemini to produce JSON matching our schema.
-            body.put("output_config", Map.of(
-                    "response_mime_type", "application/json",
-                    "response_schema", promptBuilder.responseSchema()));
+            // The Interactions API takes these under generation_config and
+            // response_format. Sent at the top level (thinking_level,
+            // output_config) they are rejected as unknown parameters, which
+            // failed every interpretation with HTTP 400.
+            Map<String, Object> generation = new LinkedHashMap<>();
+            generation.put("max_output_tokens", properties.getNlu().getMaxOutputTokens());
+            String thinking = properties.getNlu().getGeminiThinkingLevel();
+            if (thinking != null && !thinking.isBlank()) {
+                generation.put("thinking_level", thinking.trim());
+            }
+            body.put("generation_config", generation);
+            body.put("response_format", Map.of(
+                    "type", "text",
+                    "mime_type", "application/json",
+                    "schema", promptBuilder.responseSchema()));
             // Not persisted on Google's side — consultation data.
             body.put("store", false);
 
@@ -172,7 +181,7 @@ public class GeminiNluProvider implements NluProvider {
 
     private String resolveModel() {
         String model = properties.getNlu().getGeminiModel();
-        return (model != null && !model.isBlank()) ? model : "gemini-2.5-flash";
+        return (model != null && !model.isBlank()) ? model : "gemini-3.5-flash";
     }
 
     private static String truncate(String s) {

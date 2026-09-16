@@ -15,6 +15,13 @@ import lombok.Builder;
 @Builder
 public record TranscriptionResponse(
         String text,
+        /**
+         * The transcript respelled into the command vocabulary (tooth numbers as
+         * digits, near-miss terms spelled as the grammar expects), when the
+         * provider produces one. The browser parses this first and falls back
+         * to {@code text}; {@code text} is what the audit trail keeps.
+         */
+        String normalized,
         String provider,
         String model,
         /** Language Whisper detected for this clip, when it reported one. */

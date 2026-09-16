@@ -82,10 +82,12 @@ orthoflow:
       # When provider=gemini, these take effect. The API key falls back to
       # the STT key (orthoflow.voice.stt.api-key) when blank, so a single
       # Gemini key in .env drives both STT and NLU.
-      gemini-model: ${VOICE_NLU_GEMINI_MODEL:gemini-2.5-flash}
+      # gemini-2.5-flash is closed to new API keys (404), so it cannot be the
+      # default any more.
+      gemini-model: ${VOICE_NLU_GEMINI_MODEL:gemini-3.5-flash}
       gemini-api-key: ${VOICE_NLU_GEMINI_API_KEY:}
       gemini-base-url: ${VOICE_NLU_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
-      gemini-thinking-level: ${VOICE_NLU_GEMINI_THINKING_LEVEL:minimal}
+      gemini-thinking-level: ${VOICE_NLU_GEMINI_THINKING_LEVEL:low}
     # ── Server-side speech-to-text ─────────────────────────────────────
     # The browser's own SpeechRecognition is the default and needs none of
     # this. Enabling it routes captured audio through a hosted Whisper
@@ -115,9 +117,16 @@ orthoflow:
       # above — switching provider back and forth rewrites neither.
       gemini-base-url: ${VOICE_STT_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
       gemini-model: ${VOICE_STT_GEMINI_MODEL:gemini-3.8-flash}
+      # Tried when the primary answers 429/5xx ("experiencing high demand") or
+      # times out, then preferred for a minute. Blank disables the fallback.
+      gemini-fallback-model: ${VOICE_STT_GEMINI_FALLBACK_MODEL:gemini-3.5-flash}
       # Transcription is not a reasoning task and thinking only adds latency
-      # to a call a doctor is waiting on mid-examination.
-      gemini-thinking-level: ${VOICE_STT_GEMINI_THINKING_LEVEL:minimal}
+      # to a call a doctor is waiting on mid-examination. Not 'minimal':
+      # gemini-3.8-flash rejects it (low | medium | high only).
+      gemini-thinking-level: ${VOICE_STT_GEMINI_THINKING_LEVEL:low}
+      # The fallback runs when the primary is overloaded — latency matters
+      # most then, and gemini-3.5-flash accepts 'minimal'.
+      gemini-fallback-thinking-level: ${VOICE_STT_GEMINI_FALLBACK_THINKING_LEVEL:minimal}
       # Blank = detect the language per utterance, which is correct for
       # Moroccan clinicians who code-switch mid-sentence. Set to fr/ar/en
       # only to force it.

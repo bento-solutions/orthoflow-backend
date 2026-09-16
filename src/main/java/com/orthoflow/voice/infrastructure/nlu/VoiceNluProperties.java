@@ -47,13 +47,17 @@ public class VoiceNluProperties {
 
         // ── Gemini-specific NLU settings ────────────────────────────────
         /** Gemini model for NLU. Flash is fast and cheap for intent classification. */
-        private String geminiModel = "gemini-2.5-flash";
+        private String geminiModel = "gemini-3.5-flash";
         /** Falls back to the STT api-key when blank, so one Gemini key drives both. */
         private String geminiApiKey = "";
         /** Gemini Interactions API root. */
         private String geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
-        /** Thinking level: minimal is correct for intent classification. */
-        private String geminiThinkingLevel = "minimal";
+        /**
+         * Thinking level. Low rather than minimal: the newer Flash models reject
+         * minimal, and a rejected request is a slower failure than a little
+         * thinking. Blank omits the field.
+         */
+        private String geminiThinkingLevel = "low";
     }
 
     @Getter

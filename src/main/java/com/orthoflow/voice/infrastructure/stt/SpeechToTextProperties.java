@@ -94,11 +94,28 @@ public class SpeechToTextProperties {
     private String geminiModel = "gemini-3.8-flash";
 
     /**
+     * Tried when the primary answers 429 or 5xx, or times out. The newest
+     * Flash model is regularly "experiencing high demand", and a dentist
+     * mid-examination cannot wait it out. Blank disables the fallback.
+     */
+    private String geminiFallbackModel = "gemini-3.5-flash";
+
+    /**
      * How hard the model may think before answering. Transcription is not a
      * reasoning task and thinking only adds latency to a call that sits in
-     * front of a doctor mid-examination.
+     * front of a doctor mid-examination. {@code low} rather than
+     * {@code minimal}: gemini-3.8-flash rejects {@code minimal} outright.
+     * Blank omits the field and takes the model's default.
      */
-    private String geminiThinkingLevel = "minimal";
+    private String geminiThinkingLevel = "low";
+
+    /**
+     * Thinking level used when the fallback model answers. {@code minimal} by
+     * default: the fallback runs when the primary is overloaded, which is
+     * exactly when latency matters most, and gemini-3.5-flash accepts it
+     * (and answers faster with it) where gemini-3.8-flash does not.
+     */
+    private String geminiFallbackThinkingLevel = "minimal";
 
     private int timeoutMs = 15000;
 
