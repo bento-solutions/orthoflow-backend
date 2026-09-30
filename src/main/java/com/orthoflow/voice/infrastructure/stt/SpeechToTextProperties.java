@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Server-side speech-to-text for the voice-first clinical workflow.
  *
@@ -23,14 +26,16 @@ import org.springframework.stereotype.Component;
  * lawful basis, CNDP notification under Law 09-08). The API key is held here
  * on the server and never reaches the browser.
  *
- * <p>Two providers ship. {@code groq} targets Groq's OpenAI-compatible audio
- * API, and any endpoint implementing {@code POST /audio/transcriptions} with
- * the same multipart shape (a self-hosted {@code faster-whisper} server, for
- * example) works by pointing {@code base-url} at it. {@code gemini} targets
- * Google's Interactions API, which is not multipart and not OpenAI-shaped, so
- * it carries its own {@code gemini-base-url} and {@code gemini-model} rather
- * than overloading the two above — a deployment can switch {@code provider}
- * back and forth without rewriting either provider's endpoint settings.
+ * <p>Three providers ship, run as a chain: {@code provider} first, then each
+ * of {@code fallbacks}. {@code gemini} targets Google's Interactions API and
+ * is the best recogniser for French dental dictation, because it can be told
+ * what vocabulary to expect and returns a vocabulary-normalized reading
+ * alongside the verbatim one. {@code assemblyai} is a dedicated recogniser
+ * that answers in under a second, which makes it the right fallback when
+ * Gemini is overloaded. {@code groq} targets Groq's hosted Whisper — and any
+ * endpoint implementing {@code POST /audio/transcriptions} (a self-hosted
+ * {@code faster-whisper}, for example) via {@code base-url} — and is the last
+ * resort, since Whisper hallucinates the most on noisy audio.
  */
 @Component
 @ConfigurationProperties(prefix = "orthoflow.voice.stt")
@@ -46,8 +51,20 @@ public class SpeechToTextProperties {
      */
     private boolean enabled = false;
 
-    /** {@code groq} or {@code gemini}; anything else disables transcription. */
+    /**
+     * The primary recogniser: {@code gemini}, {@code assemblyai} or
+     * {@code groq}. A name that matches no provider disables transcription
+     * rather than silently picking another vendor.
+     */
     private String provider = "groq";
+
+    /**
+     * Tried in order when the primary fails — a 429, a 5xx, a timeout, a
+     * refusal. A dentist mid-examination cannot wait out an overloaded
+     * vendor, and a clip that fails every provider is a finding they have to
+     * repeat. Each vendor needs its key under {@code orthoflow.voice.providers}.
+     */
+    private List<String> fallbacks = new ArrayList<>(List.of("gemini", "assemblyai", "groq"));
 
     /** Held server-side only. Supplied via {@code VOICE_STT_API_KEY}. */
     private String apiKey = "";
@@ -117,7 +134,27 @@ public class SpeechToTextProperties {
      */
     private String geminiFallbackThinkingLevel = "minimal";
 
-    private int timeoutMs = 15000;
+    /** Budget for the primary's attempt, including its own model fallback. */
+    private int timeoutMs = 9000;
+
+    /** Budget for each fallback provider's single attempt. */
+    private int fallbackTimeoutMs = 5000;
+
+    /**
+     * Ceiling on the whole chain. Kept under the browser's own 20 s wait so a
+     * clip that fails everywhere is reported by the server, not abandoned by
+     * the client.
+     */
+    private int totalBudgetMs = 17000;
+
+    /**
+     * A recogniser-reported confidence below which a transcript is dropped as
+     * noise. 0.55 separates the two populations measured on consultation
+     * audio with handpiece and suction noise: fluent hallucinations scored
+     * 0.2–0.5, real dictation 0.7 and above. Applies to providers that report
+     * a confidence (AssemblyAI).
+     */
+    private double minConfidence = 0.55;
 
     /**
      * Hard ceiling on an uploaded clip, enforced before the provider call so
@@ -133,6 +170,8 @@ public class SpeechToTextProperties {
      * whatever the other provider's setting happens to hold.
      */
     public String activeModel() {
-        return "gemini".equalsIgnoreCase(provider) ? geminiModel : model;
+        if ("gemini".equalsIgnoreCase(provider)) return geminiModel;
+        if ("assemblyai".equalsIgnoreCase(provider)) return AssemblyAiTranscriptionClient.MODEL;
+        return model;
     }
 }

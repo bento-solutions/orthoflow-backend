@@ -42,6 +42,7 @@ class SpeechToTextServiceTest {
 
     private SpeechToTextProperties properties;
     private SpeechToTextService service;
+    private long now = 1_000_000;
 
     @BeforeEach
     void setUp() {
@@ -50,7 +51,11 @@ class SpeechToTextServiceTest {
         // as well as everything they exercised before.
         lenient().when(client.name()).thenReturn("groq");
         lenient().when(otherProvider.name()).thenReturn("gemini");
-        service = new SpeechToTextService(properties, List.of(client, otherProvider));
+        lenient().when(client.isConfigured()).thenReturn(true);
+        lenient().when(otherProvider.isConfigured()).thenReturn(true);
+        lenient().when(client.model()).thenReturn("whisper-large-v3-turbo");
+        lenient().when(otherProvider.model()).thenReturn("gemini-3.5-flash");
+        service = new SpeechToTextService(properties, List.of(client, otherProvider), () -> now);
     }
 
     private MockMultipartFile clip(byte[] bytes) {
@@ -86,7 +91,6 @@ class SpeechToTextServiceTest {
     @Test
     void whenEnabledMapsTheProviderTranscriptThrough() {
         properties.setEnabled(true);
-        properties.setModel("whisper-large-v3-turbo");
         when(client.transcribe(any(), any(), any(), any(), any()))
                 .thenReturn(TranscriptionResult.ofText("upper right first molar, recurrent caries", "french", 3.4));
 
@@ -103,7 +107,6 @@ class SpeechToTextServiceTest {
     void callsTheProviderNamedInConfigurationAndNoOther() {
         properties.setEnabled(true);
         properties.setProvider("gemini");
-        properties.setGeminiModel("gemini-3.8-flash");
         when(otherProvider.transcribe(any(), any(), any(), any(), any()))
                 .thenReturn(TranscriptionResult.ofText("dent seize, carie récurrente", null, null));
 
@@ -111,8 +114,8 @@ class SpeechToTextServiceTest {
 
         assertThat(response.text()).isEqualTo("dent seize, carie récurrente");
         assertThat(response.provider()).isEqualTo("gemini");
-        // The active provider's model, not whatever the Whisper setting holds.
-        assertThat(response.model()).isEqualTo("gemini-3.8-flash");
+        // The answering provider's model, not whatever the Whisper setting holds.
+        assertThat(response.model()).isEqualTo("gemini-3.5-flash");
         verify(client, never()).transcribe(any(), any(), any(), any(), any());
     }
 
@@ -134,6 +137,7 @@ class SpeechToTextServiceTest {
     @Test
     void anUpstreamFailureDegradesInsteadOfThrowing() {
         properties.setEnabled(true);
+        properties.setFallbacks(List.of());
         when(client.transcribe(any(), any(), any(), any(), any()))
                 .thenReturn(TranscriptionResult.ofError("stt-http-503"));
 
@@ -141,5 +145,89 @@ class SpeechToTextServiceTest {
 
         assertThat(response.text()).isEmpty();
         assertThat(response.error()).isEqualTo("stt-http-503");
+    }
+
+    // ── The chain ───────────────────────────────────────────────────────
+
+    @Test
+    void anOverloadedPrimaryFallsThroughToTheNextProviderWithinTheSameRequest() {
+        properties.setEnabled(true);
+        properties.setProvider("gemini");
+        properties.setFallbacks(List.of("groq"));
+        when(otherProvider.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofError("stt-http-429"));
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofText("dent 16, carie", "fr", 1.2));
+
+        TranscriptionResponse response = service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+
+        assertThat(response.error()).isNull();
+        assertThat(response.text()).isEqualTo("dent 16, carie");
+        assertThat(response.provider()).isEqualTo("groq");
+    }
+
+    @Test
+    void skipsAProviderThatJustReportedOverloadUntilItCoolsDown() {
+        properties.setEnabled(true);
+        properties.setProvider("gemini");
+        properties.setFallbacks(List.of("groq"));
+        when(otherProvider.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofError("stt-http-503"));
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofText("dent 16, carie", null, null));
+
+        service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+        service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+        verify(otherProvider, org.mockito.Mockito.times(1)).transcribe(any(), any(), any(), any(), any());
+
+        now += SpeechToTextService.OVERLOAD_COOLDOWN_MS + 1;
+        service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+        verify(otherProvider, org.mockito.Mockito.times(2)).transcribe(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aPrimaryWithoutAKeyIsSkippedInFavourOfAConfiguredFallback() {
+        properties.setEnabled(true);
+        properties.setProvider("gemini");
+        properties.setFallbacks(List.of("groq"));
+        when(otherProvider.isConfigured()).thenReturn(false);
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofText("dent 16", null, null));
+
+        assertThat(service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null).provider()).isEqualTo("groq");
+        verify(otherProvider, never()).transcribe(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void whenEveryProviderFailsTheLastErrorIsReported() {
+        properties.setEnabled(true);
+        properties.setProvider("gemini");
+        properties.setFallbacks(List.of("groq"));
+        when(otherProvider.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofError("stt-http-429"));
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofError("stt-timeout"));
+
+        TranscriptionResponse response = service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+
+        assertThat(response.text()).isEmpty();
+        assertThat(response.error()).isEqualTo("stt-timeout");
+    }
+
+    @Test
+    void whatRecognisersSayAboutSilenceIsNotACommand() {
+        properties.setEnabled(true);
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofText("Merci.", null, null));
+
+        TranscriptionResponse response = service.transcribe(clip(new byte[] {1, 2, 3}), "fr", null);
+
+        assertThat(response.error()).isNull();
+        assertThat(response.text()).isEmpty();
+        assertThat(SpeechToTextService.isSilenceHallucination("Sous-titres réalisés par la communauté d'Amara.org"))
+                .isTrue();
+        // An answer to a confirmation is not noise.
+        assertThat(SpeechToTextService.isSilenceHallucination("OK")).isFalse();
+        assertThat(SpeechToTextService.isSilenceHallucination("dent 16, carie")).isFalse();
     }
 }

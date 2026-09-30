@@ -20,6 +20,9 @@ public interface TranscriptionProvider {
     /** True when this provider is configured well enough to be called. */
     boolean isConfigured();
 
+    /** The model this provider runs, for diagnostics when it answered nothing. */
+    String model();
+
     /**
      * @param audio            raw bytes of the recorded clip
      * @param filename         original name; the extension is how some providers

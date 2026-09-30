@@ -57,8 +57,26 @@ orthoflow:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201}
   voice:
+    # ── Vendor credentials, shared by every stage ─────────────────────
+    # Transcription, interpretation and the summary each fall back from one
+    # vendor to another, so a key is held once per vendor rather than once
+    # per stage. Server-side only; none of these ever reaches the browser.
+    # Each stage's own api-key still works for its primary vendor.
+    providers:
+      gemini:
+        api-key: ${VOICE_GEMINI_API_KEY:}
+      groq:
+        api-key: ${VOICE_GROQ_API_KEY:}
+        base-url: ${VOICE_GROQ_BASE_URL:https://api.groq.com/openai/v1}
+      deepseek:
+        api-key: ${VOICE_DEEPSEEK_API_KEY:}
+        base-url: ${VOICE_DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      assemblyai:
+        api-key: ${VOICE_ASSEMBLYAI_API_KEY:}
+        # The EU data-residency endpoint: consultation audio is health data.
+        base-url: ${VOICE_ASSEMBLYAI_BASE_URL:https://sync.eu.assemblyai.com/v1}
     nlu:
-      # disabled | anthropic | openai-compatible | gemini
+      # disabled | anthropic | openai-compatible | gemini | groq | deepseek
       #
       # 'disabled' is the safe default. Enabling a provider means
       # transcripts of a consultation — which contain health information about
@@ -69,7 +87,10 @@ orthoflow:
       # keeping the data inside the same trust boundary as the database.
       # 'gemini' uses Google's Interactions API — fast, multilingual, and
       # excellent at clinical vocabulary in French/Darija code-switching.
-      provider: ${VOICE_NLU_PROVIDER:gemini}
+      # groq by default: a free-tier Gemini key allows 20 interpretations a day
+      # on gemini-3.5-flash; Groq answers in under a second with far more
+      # headroom. Gemini is still tried when Groq is unavailable.
+      provider: ${VOICE_NLU_PROVIDER:groq}
       # Used by anthropic and openai-compatible providers.
       model: ${VOICE_NLU_MODEL:claude-opus-5}
       api-key: ${VOICE_NLU_API_KEY:}
@@ -88,6 +109,12 @@ orthoflow:
       gemini-api-key: ${VOICE_NLU_GEMINI_API_KEY:}
       gemini-base-url: ${VOICE_NLU_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
       gemini-thinking-level: ${VOICE_NLU_GEMINI_THINKING_LEVEL:low}
+      # Tried in order when the primary is overloaded or rate-limited. Needs
+      # the vendor key under orthoflow.voice.providers. Never used while the
+      # primary is 'disabled'.
+      fallbacks: ${VOICE_NLU_FALLBACKS:gemini,deepseek}
+      groq-model: ${VOICE_NLU_GROQ_MODEL:qwen/qwen3.8-27b}
+      deepseek-model: ${VOICE_NLU_DEEPSEEK_MODEL:deepseek-flash}
     # ── Server-side speech-to-text ─────────────────────────────────────
     # The browser's own SpeechRecognition is the default and needs none of
     # this. Enabling it routes captured audio through a hosted Whisper
@@ -98,14 +125,18 @@ orthoflow:
     # self-hosted faster-whisper server to keep audio on-premise.
     stt:
       enabled: ${VOICE_STT_ENABLED:true}
-      # groq (Whisper, OpenAI-shaped multipart) | gemini (Interactions API)
-      #
-      # gemini is the better recogniser for the speech this app actually
-      # hears: French with Darija and English mixed into the same sentence,
-      # carrying dental vocabulary. Whisper decodes phonemes in isolation and
-      # loses clinical terms; Gemini can be told what kind of speech this is.
-      # groq remains configured so a deployment can A/B the two.
-      provider: ${VOICE_STT_PROVIDER:gemini}
+      # The primary recogniser, then each fallback in order, inside one time
+      # budget: assemblyai (Universal-3.5 Pro, sync, EU) | gemini (Interactions
+      # API) | groq (Whisper). Measured on noisy French dental dictation
+      # (September 2026): AssemblyAI answers in ~0.3-0.6 s, keeps its accuracy
+      # under handpiece and suction noise, and its confidence separates noise
+      # from speech. Gemini adds a vocabulary-normalized reading but a
+      # free-tier key allows 5 requests a minute and 20 a day per model — a
+      # continuously-listening session spends that in the first minutes — so
+      # it is the first fallback, not the primary, unless the key is paid.
+      # Whisper hallucinates most on noise and is the last resort.
+      provider: ${VOICE_STT_PROVIDER:assemblyai}
+      fallbacks: ${VOICE_STT_FALLBACKS:gemini,groq}
       # Used by whichever provider is active — only one runs at a time.
       api-key: ${VOICE_STT_API_KEY:}
       # groq only: whisper-large-v3-turbo (fastest, cheapest) | whisper-large-v3
@@ -132,7 +163,14 @@ orthoflow:
       # only to force it.
       language: ${VOICE_STT_LANGUAGE:}
       temperature: ${VOICE_STT_TEMPERATURE:0}
-      timeout-ms: ${VOICE_STT_TIMEOUT_MS:15000}
+      # The primary's budget (including its own model fallback), each
+      # fallback's, and the whole chain's — under the browser's 20 s wait.
+      timeout-ms: ${VOICE_STT_TIMEOUT_MS:9000}
+      fallback-timeout-ms: ${VOICE_STT_FALLBACK_TIMEOUT_MS:5000}
+      total-budget-ms: ${VOICE_STT_TOTAL_BUDGET_MS:17000}
+      # Transcripts below this recogniser confidence are dropped as noise
+      # (AssemblyAI reports one). Measured: hallucinations 0.2-0.5, speech 0.7+.
+      min-confidence: ${VOICE_STT_MIN_CONFIDENCE:0.55}
       max-audio-bytes: ${VOICE_STT_MAX_AUDIO_BYTES:15728640}
     # ── End-of-consultation summary ────────────────────────────────────
     # The prose the dentist reads at review, generated from the session's own
@@ -142,15 +180,22 @@ orthoflow:
     # consultation to a third party. Nothing it produces reaches a clinical
     # record without the dentist editing and saving it themselves.
     summary:
+      # Off: no model is called and the review page gets the recorded
+      # findings as a structured report. On: a model writes the narrative,
+      # which is checked against the records (every tooth, no invented one)
+      # before it is shown; a failed check tries the next route.
       enabled: ${VOICE_SUMMARY_ENABLED:false}
       provider: ${VOICE_SUMMARY_PROVIDER:groq}
       api-key: ${VOICE_SUMMARY_API_KEY:}
+      # vendor:model, tried in order after provider/model.
+      fallbacks: ${VOICE_SUMMARY_FALLBACKS:groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
       # A summary runs once per consultation, so latency is irrelevant and
       # quality is not: the smaller models' French degrades noticeably on
       # medical vocabulary. llama-3.3-70b-versatile is gated behind Groq's
       # enterprise tier and 404s on a standard key, so it is not the default.
       model: ${VOICE_SUMMARY_MODEL:openai/gpt-oss-120b}
-      base-url: ${VOICE_SUMMARY_BASE_URL:https://api.groq.com/openai/v1}
+      # Blank: the primary vendor's endpoint from orthoflow.voice.providers.
+      base-url: ${VOICE_SUMMARY_BASE_URL:}
       # The language the summary is written in, as a name the model knows.
       language: ${VOICE_SUMMARY_LANGUAGE:French}
       timeout-ms: ${VOICE_SUMMARY_TIMEOUT_MS:30000}

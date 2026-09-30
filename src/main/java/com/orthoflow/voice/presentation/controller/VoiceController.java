@@ -98,18 +98,21 @@ public class VoiceController {
      * own audit trail.
      *
      * <p>Persists nothing, so the review page may call it as often as the
-     * dentist edits what is included. The text only reaches the record if they
-     * save it through {@link #commitSession}.
+     * dentist edits what is included — passing the included entries, so the
+     * narrative never describes one they removed. The text only reaches the
+     * record if they save it through {@link #commitSession}.
      *
-     * <p>A response carrying {@code error} means no narrative could be
-     * produced — generation is off, unconfigured, or the provider was
-     * unreachable. The review page still renders the structured findings, so
-     * that is a degraded page, not a blocked one.
+     * <p>When no model is configured or none produced a summary that matches
+     * the records, the response carries the records as a structured report
+     * ({@code generated: false}). {@code error} is set only when the session
+     * recorded nothing to summarise.
      */
     @PostMapping("/sessions/{sessionId}/summarize")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
-    public SessionSummaryResponse summariseSession(@PathVariable UUID sessionId) {
-        return sessionSummaryService.summarise(sessionId);
+    public SessionSummaryResponse summariseSession(
+            @PathVariable UUID sessionId,
+            @RequestBody(required = false) SummarizeSessionRequest request) {
+        return sessionSummaryService.summarise(sessionId, request != null ? request.getAuditIds() : null);
     }
 
     /**

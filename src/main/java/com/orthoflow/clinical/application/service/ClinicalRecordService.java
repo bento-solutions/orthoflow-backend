@@ -86,6 +86,62 @@ public class ClinicalRecordService {
         return results;
     }
 
+    /** What a correction did: the findings it withdrew and the ones that replaced them. */
+    public record FindingReplacement(List<ToothFindingResponse> retracted, List<ToothFindingResponse> added) {}
+
+    /**
+     * Withdraws superseded findings and records their replacements as one unit.
+     *
+     * <p>The correction path ("no, actually crown replacement") used to call
+     * {@link #retractFindingsBatch} and {@link #addFindingsBatch} one after the
+     * other, each in its own transaction because the voice layer above is
+     * deliberately not transactional. If the second failed the first had already
+     * committed, and the tooth was left with neither the old findings nor the
+     * new. Here they share one transaction: it lands whole or not at all.
+     *
+     * <p>Every id is checked before anything changes — it must exist, belong to
+     * this patient and sit on this tooth — so a stale or foreign id fails the
+     * whole correction instead of withdrawing what it happens to name.
+     */
+    @Transactional
+    public FindingReplacement replaceFindings(UUID patientId, String fdi, List<UUID> retractIds,
+                                              List<AddToothFindingRequest> replacements, UUID actorId) {
+        // What the replacement asks for is checked before anything is withdrawn,
+        // so a code the catalog rejects fails the correction with the old
+        // findings still standing — not only by way of the rollback.
+        validateFdi(fdi);
+        for (AddToothFindingRequest replacement : replacements) {
+            FindingCatalog.get(replacement.getFindingCode()).orElseThrow(() -> new ValidationException(
+                    "Unknown finding code '" + replacement.getFindingCode()
+                            + "'. It is not in the clinical finding catalog."));
+            parseSeverity(replacement.getSeverity());
+        }
+
+        List<ToothFinding> superseded = new java.util.ArrayList<>();
+        for (UUID id : retractIds) {
+            ToothFinding finding = toothFindingRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Finding not found: " + id));
+            assertBelongsToPatient(patientId,
+                    finding.getChart() == null ? null : finding.getChart().getPatientId(),
+                    "Finding not found: " + id);
+            if (!finding.getFdi().equals(fdi)) {
+                throw new ValidationException("Finding " + id + " is on tooth " + finding.getFdi()
+                        + ", not tooth " + fdi + ".");
+            }
+            superseded.add(finding);
+        }
+
+        List<ToothFindingResponse> retracted = new java.util.ArrayList<>();
+        for (ToothFinding finding : superseded) {
+            retracted.add(applyFindingStatus(finding, FindingStatus.RETRACTED, actorId));
+        }
+        List<ToothFindingResponse> added = new java.util.ArrayList<>();
+        for (AddToothFindingRequest request : replacements) {
+            added.add(addFindingInternal(patientId, fdi, request, actorId));
+        }
+        return new FindingReplacement(retracted, added);
+    }
+
     /**
      * Internal: performs the addFinding logic without starting its own
      * transaction — it participates in whatever transaction is already open.

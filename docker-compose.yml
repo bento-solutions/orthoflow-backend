@@ -60,10 +60,20 @@ services:
       RESTRICT_REGISTRATION_TO_BOOTSTRAP: ${RESTRICT_REGISTRATION_TO_BOOTSTRAP:-true}
       # Server-side speech-to-text. Off unless VOICE_STT_ENABLED=true is set
       # in .env; the key is read here and never reaches the browser.
-      # VOICE_STT_PROVIDER picks the recogniser: gemini (better on French with
-      # Darija and dental vocabulary) or groq (Whisper).
+      # VOICE_STT_PROVIDER picks the primary recogniser — assemblyai, gemini
+      # or groq (Whisper) — and VOICE_STT_FALLBACKS the ones tried after it.
+      # AssemblyAI is the measured best primary unless the Gemini key is paid
+      # (free tier: 5 requests/min, 20/day per model).
+      # One key per vendor, shared by transcription, interpretation and the
+      # summary, which each fall back from one vendor to the next.
+      VOICE_GEMINI_API_KEY: ${VOICE_GEMINI_API_KEY:-}
+      VOICE_GROQ_API_KEY: ${VOICE_GROQ_API_KEY:-}
+      VOICE_DEEPSEEK_API_KEY: ${VOICE_DEEPSEEK_API_KEY:-}
+      VOICE_ASSEMBLYAI_API_KEY: ${VOICE_ASSEMBLYAI_API_KEY:-}
       VOICE_STT_ENABLED: ${VOICE_STT_ENABLED:-false}
       VOICE_STT_PROVIDER: ${VOICE_STT_PROVIDER:-groq}
+      # Tried in order when the primary fails (429, 5xx, timeout).
+      VOICE_STT_FALLBACKS: ${VOICE_STT_FALLBACKS:-gemini,groq}
       VOICE_STT_API_KEY: ${VOICE_STT_API_KEY:-}
       VOICE_STT_MODEL: ${VOICE_STT_MODEL:-whisper-large-v3-turbo}
       VOICE_STT_BASE_URL: ${VOICE_STT_BASE_URL:-https://api.groq.com/openai/v1}
@@ -79,6 +89,8 @@ services:
       # question rather than resolved, which is the single biggest source of
       # commands that fail to land.
       VOICE_NLU_PROVIDER: ${VOICE_NLU_PROVIDER:-disabled}
+      VOICE_NLU_GEMINI_MODEL: ${VOICE_NLU_GEMINI_MODEL:-gemini-3.5-flash}
+      VOICE_NLU_FALLBACKS: ${VOICE_NLU_FALLBACKS:-gemini,deepseek}
       VOICE_NLU_MODEL: ${VOICE_NLU_MODEL:-claude-opus-5}
       VOICE_NLU_API_KEY: ${VOICE_NLU_API_KEY:-}
       VOICE_NLU_BASE_URL: ${VOICE_NLU_BASE_URL:-}
@@ -88,7 +100,8 @@ services:
       VOICE_SUMMARY_PROVIDER: ${VOICE_SUMMARY_PROVIDER:-groq}
       VOICE_SUMMARY_API_KEY: ${VOICE_SUMMARY_API_KEY:-}
       VOICE_SUMMARY_MODEL: ${VOICE_SUMMARY_MODEL:-openai/gpt-oss-120b}
-      VOICE_SUMMARY_BASE_URL: ${VOICE_SUMMARY_BASE_URL:-https://api.groq.com/openai/v1}
+      VOICE_SUMMARY_BASE_URL: ${VOICE_SUMMARY_BASE_URL:-}
+      VOICE_SUMMARY_FALLBACKS: ${VOICE_SUMMARY_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
       VOICE_SUMMARY_LANGUAGE: ${VOICE_SUMMARY_LANGUAGE:-French}
     healthcheck:
       # deploy.sh waits on this after a pull; BusyBox wget ships in the

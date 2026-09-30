@@ -2,6 +2,7 @@ package com.orthoflow.voice.infrastructure.stt;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orthoflow.voice.infrastructure.provider.VoiceProviderProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -10,10 +11,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Speech-to-text backed by any server that implements the OpenAI
@@ -27,23 +31,55 @@ import java.util.List;
  * implements, and not depending on a vendor client keeps the provider
  * swappable by configuration alone.
  *
+ * <h2>Whisper hallucinates, and in a surgery that matters</h2>
+ *
+ * <p>Measured on consultation audio with handpiece and suction noise, Whisper
+ * returned "Merci." for pure noise and — worse — recited its own prompt back
+ * as though the dentist had dictated it: "abcès, mobilité, poche parodontale,
+ * récession gingivale…". So this client:
+ *
+ * <ul>
+ *   <li>sends its own short prompt — Whisper only reads the last 224 tokens,
+ *       and the browser's vocabulary list is far longer — rather than the
+ *       browser's hint;</li>
+ *   <li>drops segments Whisper itself scores as probably not speech;</li>
+ *   <li>drops a transcript that is a recital of the prompt's terms with no
+ *       tooth in it.</li>
+ * </ul>
+ *
  * <p>An upstream failure comes back as {@link TranscriptionResult#ofError} —
- * never a thrown exception — so the caller can fall back to browser-side
- * recognition instead of losing the utterance.
+ * never a thrown exception — so the caller moves on to the next provider.
  */
 @Component
 @Slf4j
 public class GroqTranscriptionClient implements TranscriptionProvider {
 
+    /** The terms Whisper is primed with; also what a prompt echo is recognised by. */
+    static final List<String> PROMPT_TERMS = List.of(
+            "carie récurrente", "carie profonde", "couronne à remplacer", "traitement canalaire", "abcès",
+            "mobilité", "poche parodontale", "récession gingivale", "gingivite", "tartre", "obturation",
+            "composite", "occlusale", "mésiale", "distale");
+
+    static final String PROMPT = "Calypso, dent seize. Vocabulaire dentaire : " + String.join(", ", PROMPT_TERMS) + ".";
+
+    /** Whisper's own estimate that a segment holds no speech, above which it is dropped. */
+    static final double NO_SPEECH_CEILING = 0.6;
+
+    /** Mean token log-probability below which a segment is a guess, not a transcript. */
+    static final double MIN_AVG_LOGPROB = -1.0;
+
     private final SpeechToTextProperties properties;
+    private final VoiceProviderProperties vendors;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public GroqTranscriptionClient(SpeechToTextProperties properties, ObjectMapper objectMapper) {
+    public GroqTranscriptionClient(SpeechToTextProperties properties, VoiceProviderProperties vendors,
+                                   ObjectMapper objectMapper) {
         this.properties = properties;
+        this.vendors = vendors;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(properties.getTimeoutMs()))
+                .connectTimeout(Duration.ofSeconds(5))
                 .build();
     }
 
@@ -53,18 +89,32 @@ public class GroqTranscriptionClient implements TranscriptionProvider {
     }
 
     @Override
+    public String model() {
+        return properties.getModel();
+    }
+
+    @Override
     public boolean isConfigured() {
-        return properties.getApiKey() != null && !properties.getApiKey().isBlank()
-                && properties.getBaseUrl() != null && !properties.getBaseUrl().isBlank();
+        return !apiKey().isBlank() && !baseUrl().isBlank();
+    }
+
+    private String apiKey() {
+        return vendors.keyFor(name(), properties.getProvider(), properties.getApiKey());
     }
 
     /**
-     * @param audio       raw bytes of the recorded clip
-     * @param filename    original name — the extension (.webm/.ogg/.wav/.mp3…)
-     *                    is how the provider infers the container
-     * @param contentType MIME type reported by the browser's MediaRecorder
+     * {@code orthoflow.voice.stt.base-url} still wins, so a deployment pointed
+     * at a self-hosted Whisper keeps working.
+     */
+    private String baseUrl() {
+        String own = properties.getBaseUrl();
+        return own != null && !own.isBlank() ? own.replaceAll("/+$", "") : vendors.getGroq().base();
+    }
+
+    /**
      * @param languageOverride ISO-639-1 hint, or null/blank to auto-detect
-     * @param prompt      optional bias text (spelling of names, terms); may be null
+     * @param prompt           the browser's vocabulary hint — not forwarded;
+     *                         see the class comment
      */
     @Override
     public TranscriptionResult transcribe(byte[] audio, String filename, String contentType,
@@ -77,8 +127,8 @@ public class GroqTranscriptionClient implements TranscriptionProvider {
             List<byte[]> parts = new ArrayList<>();
 
             parts.add(field(boundary, "model", properties.getModel()));
-            // verbose_json is what carries detected language and clip duration
-            // back; the plain json format returns only the text.
+            // verbose_json is what carries per-segment no-speech probabilities,
+            // the detected language and the clip duration.
             parts.add(field(boundary, "response_format", "verbose_json"));
             parts.add(field(boundary, "temperature", Double.toString(properties.getTemperature())));
 
@@ -88,45 +138,87 @@ public class GroqTranscriptionClient implements TranscriptionProvider {
             if (language != null && !language.isBlank()) {
                 parts.add(field(boundary, "language", language.trim()));
             }
-            if (prompt != null && !prompt.isBlank()) {
-                parts.add(field(boundary, "prompt", prompt.trim()));
-            }
+            parts.add(field(boundary, "prompt", PROMPT));
             parts.add(filePart(boundary, "file", filename, contentType, audio));
             parts.add(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
 
-            byte[] body = concat(parts);
-            String base = properties.getBaseUrl().replaceAll("/+$", "");
-
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(base + "/audio/transcriptions"))
-                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
-                    .header("Authorization", "Bearer " + properties.getApiKey())
+                    .uri(URI.create(baseUrl() + "/audio/transcriptions"))
+                    .timeout(Duration.ofMillis(properties.getFallbackTimeoutMs()))
+                    .header("Authorization", "Bearer " + apiKey())
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(concat(parts)))
                     .build();
 
             HttpResponse<String> response =
                     httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() / 100 != 2) {
-                log.warn("Speech-to-text provider returned HTTP {} — body: {}",
+                log.warn("Whisper speech-to-text returned HTTP {} — body: {}",
                         response.statusCode(), truncate(response.body()));
                 return TranscriptionResult.ofError("stt-http-" + response.statusCode());
             }
+            return parse(objectMapper.readTree(response.body()));
 
-            JsonNode root = objectMapper.readTree(response.body());
-            String text = root.path("text").asText("");
-            String detected = root.hasNonNull("language") ? root.get("language").asText() : null;
-            Double duration = root.hasNonNull("duration") ? root.get("duration").asDouble() : null;
-            return TranscriptionResult.ofText(text, detected, duration);
-
+        } catch (HttpTimeoutException e) {
+            log.warn("Whisper speech-to-text timed out after {} ms", properties.getFallbackTimeoutMs());
+            return TranscriptionResult.ofError("stt-timeout");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return TranscriptionResult.ofError("stt-interrupted");
         } catch (Exception e) {
-            log.warn("Speech-to-text call failed: {}", e.toString());
+            log.warn("Whisper speech-to-text call failed: {}", e.toString());
             return TranscriptionResult.ofError("stt-request-failed");
         }
+    }
+
+    TranscriptionResult parse(JsonNode root) {
+        String detected = root.hasNonNull("language") ? root.get("language").asText() : null;
+        Double duration = root.hasNonNull("duration") ? root.get("duration").asDouble() : null;
+
+        String text;
+        JsonNode segments = root.path("segments");
+        if (segments.isArray() && !segments.isEmpty()) {
+            StringBuilder kept = new StringBuilder();
+            for (JsonNode segment : segments) {
+                if (segment.path("no_speech_prob").asDouble(0) > NO_SPEECH_CEILING
+                        || segment.path("avg_logprob").asDouble(0) < MIN_AVG_LOGPROB) {
+                    continue;
+                }
+                kept.append(segment.path("text").asText("")).append(' ');
+            }
+            text = kept.toString().trim();
+        } else {
+            text = root.path("text").asText("").trim();
+        }
+
+        if (isPromptEcho(text)) {
+            log.info("Whisper recited its prompt instead of transcribing; dropped: {}", truncate(text));
+            text = "";
+        }
+        return TranscriptionResult.ofText(text, null, detected, duration, properties.getModel());
+    }
+
+    /**
+     * Four or more of the prompt's terms and nothing that names a tooth. A
+     * real dictation naming that many findings names the tooth too; a recital
+     * of the prompt never does.
+     */
+    static boolean isPromptEcho(String text) {
+        if (text == null || text.isBlank()) return false;
+        String folded = fold(text);
+        long terms = PROMPT_TERMS.stream().filter(term -> folded.contains(fold(term))).count();
+        if (terms < 4) return false;
+        boolean namesTooth = folded.matches("(?s).*\\d.*")
+                || folded.matches("(?s).*\\b(onze|douze|treize|quatorze|quinze|seize|dix|vingt|trente|quarante"
+                        + "|cinquante|soixante|quatre-vingt|eleven|twelve|thirteen|fourteen|fifteen|sixteen"
+                        + "|seventeen|eighteen|twenty|thirty|forty)\\b.*");
+        return !namesTooth;
+    }
+
+    private static String fold(String text) {
+        return Normalizer.normalize(text.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
     }
 
     // ── multipart/form-data assembly ────────────────────────────────────

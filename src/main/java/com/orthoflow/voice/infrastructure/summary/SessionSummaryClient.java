@@ -1,107 +1,114 @@
 package com.orthoflow.voice.infrastructure.summary;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orthoflow.voice.infrastructure.provider.ChatCompletionClient;
+import com.orthoflow.voice.infrastructure.provider.VoiceProviderProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Generates the consultation narrative from what the session actually
- * recorded, against any OpenAI-compatible chat endpoint.
+ * recorded, on the first model in the configured chain that produces a
+ * summary the caller accepts.
  *
- * <p>Raw {@link HttpClient} rather than a vendor SDK, matching {@link
- * com.orthoflow.voice.infrastructure.nlu.OpenAiCompatibleNluProvider} — the
- * chat-completions shape is what every host implements, and not depending on
- * a vendor client keeps the provider swappable by configuration alone.
+ * <p>The chain is {@code provider}/{@code model} followed by each of
+ * {@code fallbacks} ({@code vendor:model}). A route is skipped when its vendor
+ * has no key; a route whose output the caller rejects — a tooth the records
+ * never mention, a recorded tooth left out — counts as a failure, and the next
+ * route gets the same records.
  *
- * <p>Returns null on any failure rather than throwing. A consultation whose
- * summary could not be generated is not a lost consultation: the findings are
- * in the audit trail and the review page renders them regardless, so the
- * doctor writes the observation themselves and nothing is blocked.
+ * <p>Returns null when every route failed. A consultation whose summary could
+ * not be generated is not a lost consultation: the caller renders the records
+ * deterministically instead.
  */
 @Component
 @Slf4j
 public class SessionSummaryClient {
 
-    private final VoiceSummaryProperties properties;
-    private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    /** One model on one vendor. */
+    public record Route(String vendor, String model) {
+        static Route parse(String spec) {
+            String trimmed = spec == null ? "" : spec.trim();
+            int colon = trimmed.indexOf(':');
+            if (colon <= 0 || colon == trimmed.length() - 1) return null;
+            return new Route(trimmed.substring(0, colon).trim(), trimmed.substring(colon + 1).trim());
+        }
+    }
 
-    public SessionSummaryClient(VoiceSummaryProperties properties, ObjectMapper objectMapper) {
+    /** The text that was accepted, and which route produced it. */
+    public record Generated(String text, Route route) {}
+
+    private final VoiceSummaryProperties properties;
+    private final VoiceProviderProperties vendors;
+    private final ChatCompletionClient chat;
+
+    public SessionSummaryClient(VoiceSummaryProperties properties, VoiceProviderProperties vendors,
+                                ChatCompletionClient chat) {
         this.properties = properties;
-        this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(properties.getTimeoutMs()))
-                .build();
+        this.vendors = vendors;
+        this.chat = chat;
+    }
+
+    /** Routes that have a key, in the order they are tried. */
+    public List<Route> routes() {
+        List<Route> routes = new ArrayList<>();
+        routes.add(new Route(properties.getProvider(), properties.getModel()));
+        if (properties.getFallbacks() != null) {
+            for (String spec : properties.getFallbacks()) {
+                Route route = Route.parse(spec);
+                if (route != null && !routes.contains(route)) routes.add(route);
+            }
+        }
+        return routes.stream().filter(route -> !key(route).isBlank() && !baseUrl(route).isBlank()).toList();
     }
 
     public boolean isConfigured() {
-        return properties.getApiKey() != null && !properties.getApiKey().isBlank()
-                && properties.getBaseUrl() != null && !properties.getBaseUrl().isBlank();
+        return !routes().isEmpty();
     }
 
     /**
-     * @param systemPrompt the role and output contract
-     * @param userPrompt   the session's recorded commands, rendered as text
-     * @return the generated summary, or null if it could not be produced
+     * @param accept returns null to accept the text, or why it was rejected
+     * @return the first accepted summary, or null
      */
-    public String summarise(String systemPrompt, String userPrompt) {
-        if (!isConfigured()) {
-            return null;
-        }
-        try {
-            Map<String, Object> body = Map.of(
-                    "model", properties.getModel(),
-                    "max_tokens", properties.getMaxOutputTokens(),
-                    // A clinical summary should not vary between two runs on the
-                    // same consultation — the doctor may regenerate it while
-                    // editing, and a different narrative each time is alarming.
-                    "temperature", 0,
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content", userPrompt)));
-
-            String base = properties.getBaseUrl().replaceAll("/+$", "");
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(base + "/chat/completions"))
-                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + properties.getApiKey())
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
-                    .build();
-
-            HttpResponse<String> response =
-                    httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() / 100 != 2) {
-                log.warn("Session summary provider returned HTTP {} — body: {}",
-                        response.statusCode(), truncate(response.body()));
-                return null;
+    public Generated summarise(String systemPrompt, String userPrompt, Function<String, String> accept) {
+        for (Route route : routes()) {
+            ChatCompletionClient.Result result = chat.complete(new ChatCompletionClient.Request(
+                    baseUrl(route), key(route), route.model(), systemPrompt, userPrompt,
+                    properties.getMaxOutputTokens(), false, properties.getTimeoutMs()));
+            if (!result.succeeded()) {
+                log.warn("Session summary on {}:{} failed ({}) — trying the next route",
+                        route.vendor(), route.model(), result.error());
+                continue;
             }
-
-            JsonNode root = objectMapper.readTree(response.body());
-            String text = root.path("choices").path(0).path("message").path("content").asText("");
-            return text.isBlank() ? null : text.trim();
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        } catch (Exception e) {
-            log.warn("Session summary call failed: {}", e.toString());
-            return null;
+            String rejection = accept.apply(result.text());
+            if (rejection != null) {
+                log.warn("Session summary on {}:{} rejected: {} — trying the next route",
+                        route.vendor(), route.model(), rejection);
+                continue;
+            }
+            return new Generated(result.text(), route);
         }
+        return null;
     }
 
-    private static String truncate(String s) {
-        if (s == null) return "";
-        return s.length() <= 300 ? s : s.substring(0, 300) + "…";
+    private String key(Route route) {
+        return vendors.keyFor(route.vendor(), properties.getProvider(), properties.getApiKey());
+    }
+
+    /**
+     * {@code orthoflow.voice.summary.base-url} applies to the primary vendor,
+     * so a deployment that pointed it elsewhere keeps working; fallbacks use
+     * their vendor's own endpoint.
+     */
+    private String baseUrl(Route route) {
+        if (route.vendor().equalsIgnoreCase(properties.getProvider())
+                && properties.getBaseUrl() != null && !properties.getBaseUrl().isBlank()) {
+            return properties.getBaseUrl().replaceAll("/+$", "");
+        }
+        VoiceProviderProperties.Vendor vendor = vendors.vendor(route.vendor());
+        return vendor == null ? "" : vendor.base();
     }
 }

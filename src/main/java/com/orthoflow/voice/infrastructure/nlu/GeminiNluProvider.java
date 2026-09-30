@@ -3,6 +3,8 @@ package com.orthoflow.voice.infrastructure.nlu;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.voice.application.dto.InterpretRequest;
+import com.orthoflow.voice.infrastructure.provider.VoiceProviderProperties;
+import com.orthoflow.voice.infrastructure.stt.GeminiTranscriptionClient;
 import com.orthoflow.voice.infrastructure.stt.SpeechToTextProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -42,18 +44,29 @@ public class GeminiNluProvider implements NluProvider {
 
     private final VoiceNluProperties properties;
     private final SpeechToTextProperties sttProperties;
+    private final VoiceProviderProperties vendors;
     private final NluPromptBuilder promptBuilder;
     private final NluResponseParser responseParser;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
+    /**
+     * Epoch ms until which a rate-limited model is not asked again. A free-tier
+     * key allows a handful of requests a minute, or a day; without this every
+     * interpretation would spend a round trip on a refusal before the
+     * fallback got the question.
+     */
+    volatile long cooldownUntil = 0;
+
     public GeminiNluProvider(VoiceNluProperties properties,
                              SpeechToTextProperties sttProperties,
+                             VoiceProviderProperties vendors,
                              NluPromptBuilder promptBuilder,
                              NluResponseParser responseParser,
                              ObjectMapper objectMapper) {
         this.properties = properties;
         this.sttProperties = sttProperties;
+        this.vendors = vendors;
         this.promptBuilder = promptBuilder;
         this.responseParser = responseParser;
         this.objectMapper = objectMapper;
@@ -79,6 +92,9 @@ public class GeminiNluProvider implements NluProvider {
             return NluInterpretation.unavailable(name(),
                     "Gemini NLU selected but API key or base URL is not set. "
                     + "Set orthoflow.voice.nlu.gemini-api-key or orthoflow.voice.stt.api-key.");
+        }
+        if (System.currentTimeMillis() < cooldownUntil) {
+            return NluInterpretation.unavailable(name(), "NLU rate-limited");
         }
         try {
             List<Map<String, Object>> input = new ArrayList<>();
@@ -121,6 +137,10 @@ public class GeminiNluProvider implements NluProvider {
             if (response.statusCode() / 100 != 2) {
                 log.warn("Gemini NLU returned HTTP {} — body: {}",
                         response.statusCode(), truncate(response.body()));
+                if (response.statusCode() == 429) {
+                    cooldownUntil = System.currentTimeMillis()
+                            + GeminiTranscriptionClient.rateLimitCooldown(response.body());
+                }
                 return NluInterpretation.unavailable(name(), "NLU HTTP " + response.statusCode());
             }
 
@@ -159,16 +179,16 @@ public class GeminiNluProvider implements NluProvider {
     }
 
     /**
-     * Falls back to the STT API key when no NLU-specific key is set, so a
-     * single Gemini key in .env drives both STT and NLU.
+     * An NLU-specific key, else the shared Gemini vendor key, else the STT key
+     * when Gemini is the STT provider — so a single Gemini key in .env drives
+     * both STT and NLU.
      */
     private String resolveApiKey() {
         String nluKey = properties.getNlu().getGeminiApiKey();
         if (nluKey != null && !nluKey.isBlank()) {
             return nluKey;
         }
-        // Fall back to the shared STT key — common when one Gemini key covers everything.
-        return sttProperties.getApiKey();
+        return vendors.keyFor(name(), sttProperties.getProvider(), sttProperties.getApiKey());
     }
 
     private String resolveBaseUrl() {

@@ -63,6 +63,11 @@ public class NluPromptBuilder {
                    unsure of the tooth, the confidence is low.
                 7. Never include patient names, identifiers, or record contents in "clarification"
                    beyond what the utterance itself contained.
+                8. The utterance comes from speech recognition in a noisy surgery. A word that sounds
+                   close to a dental term ("carie récurante", "absès", "parodontalle") means that term.
+                   A misheard tooth number is NOT repairable: if the tooth is unclear, ask.
+                9. Write "clarification" in the language of the utterance — French for a French
+                   utterance — as one short spoken question; it is read aloud to the dentist.
                 """);
 
         sb.append("\n\nCONTEXT\n");

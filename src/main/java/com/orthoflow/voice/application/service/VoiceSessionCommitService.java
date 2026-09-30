@@ -7,6 +7,8 @@ import com.orthoflow.voice.application.dto.CommitVoiceSessionResponse;
 import com.orthoflow.voice.application.dto.CompleteVoiceSessionRequest;
 import com.orthoflow.voice.application.dto.RecordVoiceCommandRequest;
 import com.orthoflow.voice.application.dto.VoiceCommandAuditResponse;
+import com.orthoflow.voice.domain.model.CommandOutcome;
+import com.orthoflow.voice.domain.model.ConfirmationStatus;
 import com.orthoflow.voice.domain.model.VoiceCommandAudit;
 import com.orthoflow.voice.domain.model.VoiceSession;
 import com.orthoflow.voice.domain.model.VoiceSessionStatus;
@@ -16,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,6 +52,19 @@ import java.util.UUID;
  * every approved command actually wrote; if any failed it stays in
  * PENDING_REVIEW with the failures named, and the review page shows the
  * dentist what is still outstanding rather than telling them they are done.
+ *
+ * <h2>What "done" means</h2>
+ *
+ * <p>A session completes only when every command the dentist approved is
+ * actually in the record. A command that failed is <em>not</em> dropped from
+ * the next attempt: saving again retries it, and the dentist can instead
+ * remove it at review, which dismisses it. Without that, the second press of
+ * Save skipped the failed command because it was no longer pending, reported
+ * no failures, and marked the consultation complete with the finding missing.
+ *
+ * <p>Saving also takes the session first, through its version. Two commits of
+ * the same consultation — a double click, a second tab — would otherwise both
+ * run every command before either noticed the other.
  */
 @Service
 @RequiredArgsConstructor
@@ -70,6 +86,11 @@ public class VoiceSessionCommitService {
             // the whole consultation a second time.
             throw new ValidationException("This consultation has already been saved.");
         }
+        if (session.getStatus() == VoiceSessionStatus.ABANDONED) {
+            throw new ValidationException("This consultation was discarded and cannot be saved.");
+        }
+
+        claim(session);
 
         List<CommitVoiceSessionResponse.FailedCommand> failed = new ArrayList<>();
         int executed = 0;
@@ -86,15 +107,24 @@ public class VoiceSessionCommitService {
             if (isPending(audit)) {
                 voiceAuditService.markRejected(auditId);
                 rejected++;
+            } else if (hasFailed(audit)) {
+                // Removed at review after failing: the dentist is not retrying it.
+                voiceAuditService.markDismissed(auditId);
+                rejected++;
             }
         }
 
         for (CommitVoiceSessionRequest.Amendment amendment : request.getAmendments()) {
             VoiceCommandAudit original = requireSessionCommand(amendment.getOriginalAuditId(), sessionId);
+            // An amendment already applied by an earlier attempt must not be
+            // recorded a second time; its replacement is approved by id.
+            if (!isPending(original) && !hasFailed(original)) {
+                continue;
+            }
             VoiceCommandAuditResponse replacement =
                     recordAmendment(original, amendment, sessionId, actorId);
             amended++;
-            if (executeApproved(replacement.id(), sessionId, failed)) {
+            if (executeApproved(replacement.id(), sessionId, failed) == Attempt.EXECUTED) {
                 executed++;
             }
         }
@@ -103,7 +133,7 @@ public class VoiceSessionCommitService {
             if (discarded.contains(auditId)) {
                 continue;
             }
-            if (executeApproved(auditId, sessionId, failed)) {
+            if (executeApproved(auditId, sessionId, failed) == Attempt.EXECUTED) {
                 executed++;
             }
         }
@@ -135,17 +165,54 @@ public class VoiceSessionCommitService {
     }
 
     /**
-     * @return true when the command wrote; false when it failed, in which case
-     *         it has been added to {@code failed}
+     * Takes the session before anything runs. Saving it bumps its version, so
+     * a second commit that read the same version fails here with an optimistic
+     * lock error — a 409 — instead of running every command over again. The
+     * version was added for exactly this, but only checking it when the
+     * session was written back at the very end meant the check fired after
+     * every clinical write had already happened.
      */
-    private boolean executeApproved(UUID auditId, UUID sessionId,
+    private void claim(VoiceSession session) {
+        session.setEndedAt(OffsetDateTime.now());
+        voiceSessionRepository.save(session);
+    }
+
+    /** What happened to one approved command. */
+    private enum Attempt { EXECUTED, ALREADY_RECORDED, SKIPPED, FAILED }
+
+    /**
+     * Runs one approved command, or accounts for why it did not need running.
+     * Anything approved that is not in the record afterwards is added to
+     * {@code failed}, so the session cannot complete over it.
+     */
+    private Attempt executeApproved(UUID auditId, UUID sessionId,
                                     List<CommitVoiceSessionResponse.FailedCommand> failed) {
         VoiceCommandAudit audit = requireSessionCommand(auditId, sessionId);
-        if (!isPending(audit)) {
-            // Already confirmed or rejected — a double-submitted review, or a
-            // command the dentist confirmed mid-examination. Not an error.
-            return false;
+
+        if (audit.getOutcome() == CommandOutcome.EXECUTED) {
+            // Written by an earlier attempt or confirmed mid-examination.
+            return Attempt.ALREADY_RECORDED;
         }
+        if (audit.getConfirmationStatus() == ConfirmationStatus.REJECTED
+                || audit.getConfirmationStatus() == ConfirmationStatus.CANCELLED) {
+            // The dentist took it back; approving it now does not bring it back.
+            return Attempt.SKIPPED;
+        }
+
+        if (hasFailed(audit)) {
+            // A second Save is a retry. The failure may have been transient (a
+            // finding code the catalog now accepts, a dropped connection).
+            voiceAuditService.reopenFailed(auditId);
+        } else if (!isPending(audit)) {
+            failed.add(CommitVoiceSessionResponse.FailedCommand.builder()
+                    .auditId(auditId)
+                    .intent(audit.getIntent())
+                    .errorMessage("Not saved: the command is in an unexpected state ("
+                            + audit.getConfirmationStatus() + "/" + audit.getOutcome() + ").")
+                    .build());
+            return Attempt.FAILED;
+        }
+
         VoiceCommandAuditResponse result = voiceCommandService.confirm(auditId, audit.getActorId());
         if ("FAILED".equals(result.outcome())) {
             failed.add(CommitVoiceSessionResponse.FailedCommand.builder()
@@ -153,9 +220,9 @@ public class VoiceSessionCommitService {
                     .intent(result.intent())
                     .errorMessage(result.errorMessage())
                     .build());
-            return false;
+            return Attempt.FAILED;
         }
-        return true;
+        return Attempt.EXECUTED;
     }
 
     /**
@@ -200,6 +267,12 @@ public class VoiceSessionCommitService {
     }
 
     private static boolean isPending(VoiceCommandAudit audit) {
-        return audit.getConfirmationStatus() == com.orthoflow.voice.domain.model.ConfirmationStatus.PENDING;
+        return audit.getConfirmationStatus() == ConfirmationStatus.PENDING;
+    }
+
+    /** Confirmed, ran, and did not land — a command a later Save may retry. */
+    private static boolean hasFailed(VoiceCommandAudit audit) {
+        return audit.getConfirmationStatus() == ConfirmationStatus.CONFIRMED
+                && audit.getOutcome() == CommandOutcome.FAILED;
     }
 }
