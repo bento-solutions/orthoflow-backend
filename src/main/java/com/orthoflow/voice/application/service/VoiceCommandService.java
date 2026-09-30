@@ -203,20 +203,16 @@ public class VoiceCommandService {
                 if (patientId == null) throw new ValidationException("addFindings requires a patient");
                 String fdi = str(e, "fdi");
 
-                // Retract superseded findings atomically.
+                // Everything that can be wrong with the request is found before
+                // anything is written — a correction that withdrew the old
+                // findings and then discovered it had nothing to add would
+                // leave the tooth with neither.
+                List<Object> findings = listOf(e, "findings");
+                if (findings.isEmpty()) throw new ValidationException("addFindings requires at least one finding");
                 List<UUID> retractUuids = listOf(e, "retractIds").stream()
                         .map(id -> UUID.fromString(String.valueOf(id)))
                         .toList();
-                List<String> retracted = new ArrayList<>();
-                if (!retractUuids.isEmpty()) {
-                    retracted.addAll(clinicalRecordService.retractFindingsBatch(retractUuids, actorId)
-                            .stream().map(r -> r.findingCode()).toList());
-                }
 
-                List<Object> findings = listOf(e, "findings");
-                if (findings.isEmpty()) throw new ValidationException("addFindings requires at least one finding");
-
-                // Build all requests, then write them in one transaction.
                 List<AddToothFindingRequest> requests = new ArrayList<>();
                 for (Object item : findings) {
                     if (!(item instanceof Map<?, ?> raw)) {
@@ -237,7 +233,19 @@ public class VoiceCommandService {
                     requests.add(req);
                 }
 
-                var results = clinicalRecordService.addFindingsBatch(patientId, fdi, requests, actorId);
+                // `retractIds` carries the correction case ("no, actually crown
+                // replacement"): the superseded findings are withdrawn and the
+                // replacements recorded in one transaction.
+                List<String> retracted = List.of();
+                List<ToothFindingResponse> results;
+                if (retractUuids.isEmpty()) {
+                    results = clinicalRecordService.addFindingsBatch(patientId, fdi, requests, actorId);
+                } else {
+                    var replacement = clinicalRecordService.replaceFindings(
+                            patientId, fdi, retractUuids, requests, actorId);
+                    retracted = replacement.retracted().stream().map(r -> r.findingCode()).toList();
+                    results = replacement.added();
+                }
                 List<String> ids = results.stream().map(r -> r.id().toString()).toList();
                 List<String> codes = results.stream().map(r -> r.findingCode()).toList();
 

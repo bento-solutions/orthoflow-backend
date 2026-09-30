@@ -41,8 +41,9 @@ orthoflow:
     stt:
       # Stays off unless VOICE_STT_ENABLED=true is set explicitly for this
       # deployment. Turning it on sends consultation-room audio to the
-      # configured Whisper provider, which needs a DPA, a lawful basis and a
-      # CNDP notification (Law 09-08) — the same bar as the NLU fallback.
+      # configured recognisers (Gemini, AssemblyAI, Groq), which needs a DPA,
+      # a lawful basis and a CNDP notification (Law 09-08) — the same bar as
+      # the NLU fallback.
       # The browser's on-device / built-in recognition is used until then.
       enabled: ${VOICE_STT_ENABLED:false}
     audit:

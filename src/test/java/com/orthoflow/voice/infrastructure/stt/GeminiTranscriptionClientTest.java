@@ -1,6 +1,7 @@
 package com.orthoflow.voice.infrastructure.stt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orthoflow.voice.infrastructure.provider.VoiceProviderProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,7 @@ class GeminiTranscriptionClientTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         properties = new SpeechToTextProperties();
-        client = new GeminiTranscriptionClient(properties, objectMapper);
+        client = new GeminiTranscriptionClient(properties, new VoiceProviderProperties(), objectMapper);
     }
 
     /** A response whose single model_output step carries {@code text}. */
@@ -219,13 +220,36 @@ class GeminiTranscriptionClientTest {
     }
 
     @Test
-    void prefersTheFallbackWhileAnOverloadedPrimaryCoolsDown() {
+    void skipsAModelWhileItCoolsDownAndOffersNoneWhenAllAre() {
         properties.setGeminiModel("gemini-3.8-flash");
         properties.setGeminiFallbackModel("gemini-3.5-flash");
-        client.primaryCooldownUntil = 5_000;
+        client.cooldownUntil.put("gemini-3.8-flash", 5_000L);
 
-        assertThat(client.modelsToTry(1_000)).containsExactly("gemini-3.5-flash", "gemini-3.8-flash");
+        assertThat(client.modelsToTry(1_000)).containsExactly("gemini-3.5-flash");
         assertThat(client.modelsToTry(6_000)).containsExactly("gemini-3.8-flash", "gemini-3.5-flash");
+
+        // Every model rate-limited: nothing is tried, so the transcription
+        // chain moves on to the next vendor at once.
+        client.cooldownUntil.put("gemini-3.5-flash", 5_000L);
+        assertThat(client.modelsToTry(1_000)).isEmpty();
+    }
+
+    @Test
+    void honoursTheRetryDelayARateLimitNamesWithinBounds() {
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown(
+                "{\"error\":{\"message\":\"limit: 5 requests per minute. Please retry in 29.4s or upgrade\"}}"))
+                .isEqualTo(29_400);
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown("\"retryDelay\": \"41s\"")).isEqualTo(41_000);
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown("retry in 0.2s"))
+                .isEqualTo(GeminiTranscriptionClient.MIN_RATE_LIMIT_COOLDOWN_MS);
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown("retry in 86400s"))
+                .isEqualTo(GeminiTranscriptionClient.MAX_RATE_LIMIT_COOLDOWN_MS);
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown("quota exceeded"))
+                .isEqualTo(GeminiTranscriptionClient.OVERLOAD_COOLDOWN_MS);
+        // A daily cap is not worth re-asking in 11 s, whatever the body says.
+        assertThat(GeminiTranscriptionClient.rateLimitCooldown(
+                "Rate limit exceeded (limit: 20 requests per day on Free Tier). Please retry in 11s"))
+                .isEqualTo(GeminiTranscriptionClient.DAILY_QUOTA_COOLDOWN_MS);
     }
 
     @Test
@@ -260,10 +284,20 @@ class GeminiTranscriptionClientTest {
     @Test
     void isNotConfiguredWithoutAnApiKey() {
         SpeechToTextProperties unconfigured = new SpeechToTextProperties();
-        assertThat(new GeminiTranscriptionClient(unconfigured, objectMapper).isConfigured()).isFalse();
+        VoiceProviderProperties vendors = new VoiceProviderProperties();
+        unconfigured.setProvider("gemini");
+        assertThat(new GeminiTranscriptionClient(unconfigured, vendors, objectMapper).isConfigured()).isFalse();
 
+        // The STT key serves Gemini while Gemini is the primary…
         unconfigured.setApiKey("test-key");
-        assertThat(new GeminiTranscriptionClient(unconfigured, objectMapper).isConfigured()).isTrue();
+        assertThat(new GeminiTranscriptionClient(unconfigured, vendors, objectMapper).isConfigured()).isTrue();
+
+        // …but not once another vendor is, since that key is then theirs.
+        unconfigured.setProvider("groq");
+        assertThat(new GeminiTranscriptionClient(unconfigured, vendors, objectMapper).isConfigured()).isFalse();
+
+        vendors.getGemini().setApiKey("gemini-key");
+        assertThat(new GeminiTranscriptionClient(unconfigured, vendors, objectMapper).isConfigured()).isTrue();
     }
 
     @Test

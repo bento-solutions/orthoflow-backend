@@ -25,5 +25,12 @@ public record SessionSummaryResponse(
         int commandCount,
         /** True when the session was longer than the configured ceiling. */
         boolean truncated,
+        /**
+         * True for a model-written narrative that passed verification; false
+         * for the structured report rendered from the records themselves,
+         * which is what the review page gets when generation is off,
+         * unreachable, or produced something that did not match the records.
+         */
+        boolean generated,
         String error
 ) {}

@@ -1,5 +1,6 @@
 package com.orthoflow.voice.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.voice.application.dto.SessionSummaryResponse;
 import com.orthoflow.voice.application.dto.VoiceCommandAuditResponse;
 import com.orthoflow.voice.infrastructure.summary.SessionSummaryClient;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,13 +25,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * What the model is allowed to see, and what it must never be asked to
- * summarise.
+ * What the model is allowed to see, what it must never be asked to
+ * summarise, and what happens when its answer does not match the records.
  *
- * <p>The consequential case is the filtering: a command the dentist rejected,
- * or one that failed to write, is in the audit trail but did not happen
- * clinically. Feeding those to the summariser produces a narrative describing
- * treatment that was declined — which the dentist then signs.
+ * <p>The consequential cases are the filtering and the verification: a
+ * command the dentist rejected, an unrecognised utterance, or a summary that
+ * names a tooth nobody examined all end up in a narrative the dentist signs.
  */
 @ExtendWith(MockitoExtension.class)
 class SessionSummaryServiceTest {
@@ -51,30 +52,42 @@ class SessionSummaryServiceTest {
         properties.setEnabled(true);
         properties.setApiKey("test-key");
         lenient().when(client.isConfigured()).thenReturn(true);
-        service = new SessionSummaryService(properties, client, voiceAuditService);
+        service = new SessionSummaryService(properties, client, voiceAuditService, new ObjectMapper());
     }
 
-    private VoiceCommandAuditResponse audit(String intent, String outcome, String confirmation) {
+    private VoiceCommandAuditResponse audit(String intent, String entities, String outcome, String confirmation) {
         return VoiceCommandAuditResponse.builder()
                 .id(UUID.randomUUID())
                 .sessionId(SESSION)
                 .occurredAt(OffsetDateTime.now())
                 .intent(intent)
-                .entities("{\"fdi\":\"16\"}")
+                .entities(entities)
+                .transcript("Calypso, dent seize, carie récurante")
                 .outcome(outcome)
                 .confirmationStatus(confirmation)
                 .build();
     }
 
-    @Test
-    void whenDisabledReportsSoWithoutCallingTheProvider() {
-        properties.setEnabled(false);
+    private VoiceCommandAuditResponse finding(String fdi, String code) {
+        return audit("clinical.addFindings",
+                "{\"fdi\":\"" + fdi + "\",\"findings\":[{\"code\":\"" + code + "\"}]}", "CLARIFICATION", "PENDING");
+    }
 
-        SessionSummaryResponse response = service.summarise(SESSION);
+    @SuppressWarnings("unchecked")
+    private String acceptedByModel(String text) {
+        when(client.summarise(any(), any(), any())).thenAnswer(invocation -> {
+            Function<String, String> accept = invocation.getArgument(2);
+            return accept.apply(text) == null
+                    ? new SessionSummaryClient.Generated(text, new SessionSummaryClient.Route("groq", "m"))
+                    : null;
+        });
+        return text;
+    }
 
-        assertThat(response.error()).isEqualTo("summary-disabled");
-        assertThat(response.summary()).isEmpty();
-        verify(client, never()).summarise(any(), any());
+    private String userPrompt() {
+        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+        verify(client).summarise(any(), prompt.capture(), any());
+        return prompt.getValue();
     }
 
     @Test
@@ -84,92 +97,164 @@ class SessionSummaryServiceTest {
         SessionSummaryResponse response = service.summarise(SESSION);
 
         assertThat(response.error()).isEqualTo("summary-nothing-recorded");
-        verify(client, never()).summarise(any(), any());
+        verify(client, never()).summarise(any(), any(), any());
     }
 
     @Test
-    void excludesRejectedFailedAndUndoneCommandsFromWhatTheModelSees() {
+    void feedsTheModelClinicalLabelsInsteadOfCodesOrTheRawTranscript() {
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(audit("clinical.addFindings",
+                "{\"fdi\":\"16\",\"findings\":[{\"code\":\"recurrent_caries\",\"surface\":\"occlusal\"},"
+                        + "{\"code\":\"crown_replacement_required\"}]}", "CLARIFICATION", "PENDING")));
+        acceptedByModel("Dent 16 : carie récurrente occlusale, couronne à remplacer.");
+
+        service.summarise(SESSION);
+
+        assertThat(userPrompt())
+                .contains("Dent 16 : carie récurrente (face occlusale) ; couronne à remplacer")
+                .doesNotContain("recurrent_caries")
+                // What the recogniser heard is not what was recorded.
+                .doesNotContain("récurante");
+    }
+
+    @Test
+    void summarisesOnlyClinicalWritesThatHappenedOrAreStaged() {
         VoiceCommandAuditResponse undone = VoiceCommandAuditResponse.builder()
                 .id(UUID.randomUUID())
                 .sessionId(SESSION)
-                .occurredAt(OffsetDateTime.now())
-                .intent("clinical.undoneFinding")
+                .intent("clinical.addFindings")
+                .entities("{\"fdi\":\"11\",\"findings\":[{\"code\":\"fracture\"}]}")
                 .outcome("EXECUTED")
                 .confirmationStatus("CONFIRMED")
                 .undoneAt(OffsetDateTime.now())
                 .build();
 
         when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(
-                audit("clinical.keptFinding", "EXECUTED", "CONFIRMED"),
-                audit("clinical.rejectedFinding", "REJECTED", "REJECTED"),
-                audit("clinical.failedFinding", "FAILED", "CONFIRMED"),
-                audit("clinical.pendingFinding", "CLARIFICATION", "PENDING"),
+                finding("16", "caries"),
+                audit("clinical.addFindings", "{\"fdi\":\"26\",\"findings\":[{\"code\":\"abscess\"}]}",
+                        "REJECTED", "REJECTED"),
+                audit("clinical.addFindings", "{\"fdi\":\"36\",\"findings\":[{\"code\":\"missing\"}]}",
+                        "FAILED", "CONFIRMED"),
+                // Unrecognised speech and the assistant's questions are audited
+                // as PENDING clarifications. They are not findings.
+                audit("unknown", "{}", "CLARIFICATION", "PENDING"),
+                audit("clarification", "{\"fdi\":\"46\"}", "CLARIFICATION", "PENDING"),
+                // A read, not a write.
+                audit("chart.readTooth", "{\"fdi\":\"47\"}", "EXECUTED", "AUTO"),
                 undone));
-        when(client.summarise(any(), any())).thenReturn("Résumé de la consultation");
+        acceptedByModel("Dent 16 : carie.");
 
         SessionSummaryResponse response = service.summarise(SESSION);
 
-        ArgumentCaptor<String> userPrompt = ArgumentCaptor.forClass(String.class);
-        verify(client).summarise(any(), userPrompt.capture());
+        assertThat(userPrompt()).contains("Dent 16").doesNotContain("26").doesNotContain("36")
+                .doesNotContain("46").doesNotContain("47").doesNotContain("11");
+        assertThat(response.commandCount()).isEqualTo(1);
+        assertThat(response.generated()).isTrue();
+    }
 
-        assertThat(userPrompt.getValue())
-                .contains("clinical.keptFinding")
-                // Still awaiting the dentist's confirmation, but it is part of
-                // what the consultation recorded.
-                .contains("clinical.pendingFinding")
-                .doesNotContain("clinical.rejectedFinding")
-                .doesNotContain("clinical.failedFinding")
-                .doesNotContain("clinical.undoneFinding");
-        assertThat(response.summary()).isEqualTo("Résumé de la consultation");
-        assertThat(response.commandCount()).isEqualTo(2);
+    @Test
+    void coversOnlyTheEntriesStillIncludedAtReview() {
+        VoiceCommandAuditResponse kept = finding("16", "caries");
+        VoiceCommandAuditResponse removed = finding("26", "abscess");
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(kept, removed));
+        acceptedByModel("Dent 16 : carie.");
+
+        SessionSummaryResponse response = service.summarise(SESSION, List.of(kept.id()));
+
+        assertThat(userPrompt()).contains("Dent 16").doesNotContain("Dent 26");
+        assertThat(response.commandCount()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsASummaryThatNamesAToothNobodyExaminedAndFallsBackToTheRecords() {
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(finding("16", "recurrent_caries")));
+        // The model "helpfully" moved the finding to 26 — every route did.
+        acceptedByModel("Dent 26 : carie récurrente.");
+
+        SessionSummaryResponse response = service.summarise(SESSION);
+
+        assertThat(response.generated()).isFalse();
+        assertThat(response.summary()).contains("Dent 16 : carie récurrente").doesNotContain("26");
         assertThat(response.error()).isNull();
     }
 
     @Test
+    void rejectsASummaryThatLeavesOutAToothWithAFinding() {
+        String summary = "Dent 16 : carie.";
+        assertThat(SessionSummaryService.verify(
+                com.orthoflow.voice.infrastructure.summary.ConsultationRecords.of(List.of(
+                        java.util.Map.entry("clinical.addFindings", "{\"fdi\":\"16\",\"findings\":[{\"code\":\"caries\"}]}"),
+                        java.util.Map.entry("clinical.addFindings", "{\"fdi\":\"36\",\"findings\":[{\"code\":\"abscess\"}]}")),
+                        "French", new ObjectMapper()),
+                summary)).contains("36");
+    }
+
+    @Test
+    void whenGenerationIsOffTheRecordsAreStillSummarisedWithoutCallingAModel() {
+        properties.setEnabled(false);
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(
+                finding("16", "caries"),
+                audit("clinical.addAllergy", "{\"substance\":\"pénicilline\"}", "CLARIFICATION", "PENDING")));
+
+        SessionSummaryResponse response = service.summarise(SESSION);
+
+        verify(client, never()).summarise(any(), any(), any());
+        assertThat(response.generated()).isFalse();
+        assertThat(response.error()).isNull();
+        assertThat(response.summary())
+                .contains("Constatations par dent")
+                .contains("Dent 16 : carie")
+                .contains("Allergie : pénicilline");
+    }
+
+    @Test
     void asksForTheSummaryInTheConfiguredLanguage() {
-        when(voiceAuditService.forSession(SESSION))
-                .thenReturn(List.of(audit("clinical.addFindings", "EXECUTED", "CONFIRMED")));
-        when(client.summarise(any(), any())).thenReturn("Résumé");
+        properties.setLanguage("English");
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(finding("16", "caries")));
+        acceptedByModel("Tooth 16: caries.");
 
         service.summarise(SESSION);
 
         ArgumentCaptor<String> systemPrompt = ArgumentCaptor.forClass(String.class);
-        verify(client).summarise(systemPrompt.capture(), any());
-        assertThat(systemPrompt.getValue()).contains("French");
+        verify(client).summarise(systemPrompt.capture(), any(), any());
+        assertThat(systemPrompt.getValue()).contains("in English");
+        assertThat(userPrompt()).contains("Tooth 16: caries");
     }
 
     @Test
     void truncatesALongSessionAndSaysSoRatherThanTimingOut() {
         properties.setMaxCommands(2);
         when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(
-                audit("clinical.first", "EXECUTED", "CONFIRMED"),
-                audit("clinical.second", "EXECUTED", "CONFIRMED"),
-                audit("clinical.third", "EXECUTED", "CONFIRMED")));
-        when(client.summarise(any(), any())).thenReturn("Résumé partiel");
+                finding("11", "fracture"),
+                finding("12", "caries"),
+                finding("13", "abscess")));
+        acceptedByModel("Dent 12 : carie. Dent 13 : abcès.");
 
         SessionSummaryResponse response = service.summarise(SESSION);
-
-        ArgumentCaptor<String> userPrompt = ArgumentCaptor.forClass(String.class);
-        verify(client).summarise(any(), userPrompt.capture());
 
         assertThat(response.truncated()).isTrue();
         assertThat(response.commandCount()).isEqualTo(2);
         // The most recent survive, and the model is told the view is partial.
-        assertThat(userPrompt.getValue())
-                .contains("only the most recent")
-                .contains("clinical.third")
-                .doesNotContain("clinical.first");
+        assertThat(userPrompt())
+                .contains("seuls les derniers")
+                .contains("Dent 13")
+                .doesNotContain("Dent 11");
     }
 
     @Test
-    void anUpstreamFailureReportsAnErrorRatherThanAnEmptySummaryThatLooksReal() {
-        when(voiceAuditService.forSession(SESSION))
-                .thenReturn(List.of(audit("clinical.addFindings", "EXECUTED", "CONFIRMED")));
-        when(client.summarise(any(), any())).thenReturn(null);
+    void stripsMarkdownTheReviewBoxWouldShowAsStrayCharacters() {
+        assertThat(SessionSummaryService.plainText("**Constatations par dent**  \n* 16 : carie  \n\n\n## Notes\n- anxieux"))
+                .isEqualTo("Constatations par dent\n- 16 : carie\n\nNotes\n- anxieux");
+    }
+
+    @Test
+    void anUpstreamFailureFallsBackToTheRecordsRatherThanAnEmptySummary() {
+        when(voiceAuditService.forSession(SESSION)).thenReturn(List.of(finding("16", "caries")));
+        when(client.summarise(any(), any(), any())).thenReturn(null);
 
         SessionSummaryResponse response = service.summarise(SESSION);
 
-        assertThat(response.error()).isEqualTo("summary-request-failed");
-        assertThat(response.summary()).isEmpty();
+        assertThat(response.error()).isNull();
+        assertThat(response.generated()).isFalse();
+        assertThat(response.summary()).contains("Dent 16 : carie");
     }
 }

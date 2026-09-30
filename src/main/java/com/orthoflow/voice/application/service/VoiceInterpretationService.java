@@ -40,8 +40,8 @@ public class VoiceInterpretationService {
         String configured = properties.getNlu().getProvider();
         NluProvider provider = selectProvider();
         if (provider.isAvailable()) {
-            log.info("Voice NLU fallback enabled: provider={} model={}",
-                    provider.name(), properties.getNlu().getModel());
+            log.info("Voice NLU enabled: provider={} fallbacks={}",
+                    provider.name(), fallbacks(provider).stream().map(NluProvider::name).toList());
         } else if (!"disabled".equalsIgnoreCase(configured)) {
             log.warn("Voice NLU provider '{}' is selected but not usable — check "
                             + "orthoflow.voice.nlu.api-key / base-url. Falling back to grammar-only.",
@@ -66,23 +66,49 @@ public class VoiceInterpretationService {
                     .provider(provider.name())
                     .confidence(0)
                     .entities(Map.of())
-                    .clarification("That was too long for me to interpret in one go. "
-                            + "Could you break it into shorter findings?")
+                    .clarification(french(request)
+                            ? "C'était trop long pour moi. Dictez les constatations une par une."
+                            : "That was too long for me to interpret in one go. "
+                              + "Could you break it into shorter findings?")
                     .build();
         }
 
         if (!provider.isAvailable()) {
-            return InterpretResponse.builder()
-                    .resolver("llm")
-                    .provider(provider.name())
-                    .confidence(0)
-                    .entities(Map.of())
-                    .clarification("I didn't catch that. Try naming the tooth and the finding, "
-                            + "for example \"upper right first molar, recurrent caries\".")
-                    .build();
+            // A primary with no key but a working fallback is still a working
+            // NLU; only a disabled or fully unconfigured one becomes a question.
+            List<NluProvider> alternatives = fallbacks(provider);
+            if (alternatives.isEmpty()) {
+                return InterpretResponse.builder()
+                        .resolver("llm")
+                        .provider(provider.name())
+                        .confidence(0)
+                        .entities(Map.of())
+                        .clarification(french(request)
+                                ? "Je n'ai pas compris. Donnez la dent et la constatation, "
+                                  + "par exemple « dent 16, carie récurrente »."
+                                : "I didn't catch that. Try naming the tooth and the finding, "
+                                  + "for example \"upper right first molar, recurrent caries\".")
+                        .build();
+            }
+            provider = alternatives.get(0);
         }
 
         NluInterpretation interpretation = provider.interpret(request);
+
+        // Unavailable is not the same as "didn't understand": an overloaded
+        // primary says nothing about the utterance, so the next provider gets
+        // the same question. A clarification is an answer and is kept.
+        if (interpretation.error() != null && !interpretation.hasIntent()) {
+            for (NluProvider fallback : fallbacks(provider)) {
+                NluInterpretation retried = fallback.interpret(request);
+                if (retried.error() == null || retried.hasIntent()) {
+                    log.info("Voice NLU answered by fallback '{}' after {} failed: {}",
+                            fallback.name(), provider.name(), interpretation.error());
+                    interpretation = retried;
+                    break;
+                }
+            }
+        }
 
         return InterpretResponse.builder()
                 .intent(interpretation.intent())
@@ -93,6 +119,31 @@ public class VoiceInterpretationService {
                 .provider(interpretation.providerName())
                 .error(interpretation.error())
                 .build();
+    }
+
+    private static boolean french(InterpretRequest request) {
+        return request.getLocale() != null && request.getLocale().toLowerCase().startsWith("fr");
+    }
+
+    /**
+     * The configured fallbacks that are usable, excluding the primary. Empty
+     * while the primary is {@code disabled}: a fallback is not a way to send
+     * transcripts to a vendor nobody chose.
+     */
+    private List<NluProvider> fallbacks(NluProvider primary) {
+        if ("disabled".equals(primary.name())) {
+            return List.of();
+        }
+        List<String> names = properties.getNlu().getFallbacks();
+        if (names == null) {
+            return List.of();
+        }
+        return names.stream()
+                .map(String::trim)
+                .filter(name -> !name.equalsIgnoreCase(primary.name()))
+                .flatMap(name -> providers.stream().filter(p -> p.name().equalsIgnoreCase(name)).limit(1))
+                .filter(NluProvider::isAvailable)
+                .toList();
     }
 
     private NluProvider selectProvider() {

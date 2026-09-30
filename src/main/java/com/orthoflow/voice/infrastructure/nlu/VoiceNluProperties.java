@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Configuration for the natural-language fallback and for how much of an
  * utterance is retained.
@@ -34,8 +37,23 @@ public class VoiceNluProperties {
     @Getter
     @Setter
     public static class Nlu {
-        /** disabled | anthropic | openai-compatible | gemini */
+        /** disabled | anthropic | openai-compatible | gemini | groq | deepseek */
         private String provider = "disabled";
+
+        /**
+         * Tried in order when the primary is unavailable — overloaded, rate
+         * limited, unreachable. Each needs its vendor key under
+         * {@code orthoflow.voice.providers}. Ignored while the primary is
+         * {@code disabled}: turning the fallback on is not a way to send
+         * transcripts to a vendor without choosing to.
+         */
+        private List<String> fallbacks = new ArrayList<>(List.of("groq", "gemini", "deepseek"));
+
+        /** Model for the {@code groq} provider. */
+        private String groqModel = "qwen/qwen3.8-27b";
+
+        /** Model for the {@code deepseek} provider. */
+        private String deepseekModel = "deepseek-flash";
         private String model = "claude-haiku-4-5-20251001";
         private String apiKey = "";
         /** Required for openai-compatible, e.g. http://localhost:11434/v1 for Ollama. */

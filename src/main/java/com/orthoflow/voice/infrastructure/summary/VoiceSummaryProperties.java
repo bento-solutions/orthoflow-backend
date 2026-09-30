@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The end-of-consultation narrative summary.
  *
@@ -36,22 +39,31 @@ import org.springframework.stereotype.Component;
 public class VoiceSummaryProperties {
 
     /**
-     * When false, {@code POST /voice/sessions/{id}/summarize} answers 200 with
-     * an empty summary and {@code error: "summary-disabled"}. The review page
-     * still works — the doctor gets the structured findings and writes their
-     * own observation — so this degrades rather than blocks.
+     * When false, no model is called: {@code POST /voice/sessions/{id}/summarize}
+     * answers with the records rendered deterministically instead, which
+     * sends nothing to a third party and is always exact.
      */
     private boolean enabled = false;
 
-    /** Reported in the response and the log; the endpoint shape is fixed. */
+    /** The primary route's vendor: {@code groq} or {@code deepseek}. */
     private String provider = "groq";
+
+    /**
+     * Tried in order, as {@code vendor:model}, when the primary fails or
+     * produces a summary that does not match the records. Each vendor needs
+     * its key under {@code orthoflow.voice.providers}.
+     */
+    private List<String> fallbacks = new ArrayList<>(List.of("groq:qwen/qwen3.8-27b", "deepseek:deepseek-flash"));
 
     private String apiKey = "";
 
     private String model = "openai/gpt-oss-120b";
 
-    /** OpenAI-compatible chat root, no trailing slash. */
-    private String baseUrl = "https://api.groq.com/openai/v1";
+    /**
+     * OpenAI-compatible chat root for the primary vendor, no trailing slash.
+     * Blank uses that vendor's endpoint from {@code orthoflow.voice.providers}.
+     */
+    private String baseUrl = "";
 
     /**
      * Consultations are short and a summary is not a reasoning task, but a

@@ -115,6 +115,48 @@ public class VoiceAuditService {
         return toResponse(auditRepository.save(entry));
     }
 
+    /**
+     * Puts a command that failed back in the queue so a second attempt can
+     * run it. Only a command that was confirmed and then failed qualifies;
+     * anything else being "reopened" would be a way to re-run a write that
+     * already happened.
+     *
+     * <p>The failure is not erased: it stays in the message as history, so the
+     * row reads "Retried after: …" whatever the second attempt did.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public VoiceCommandAuditResponse reopenFailed(UUID auditId) {
+        VoiceCommandAudit entry = require(auditId);
+        requireFailed(entry);
+        String previous = entry.getErrorMessage();
+        entry.setConfirmationStatus(ConfirmationStatus.PENDING);
+        entry.setOutcome(CommandOutcome.CLARIFICATION);
+        entry.setErrorMessage(previous == null || previous.isBlank() ? "Retried." : "Retried after: " + previous);
+        return toResponse(auditRepository.save(entry));
+    }
+
+    /**
+     * The dentist chose not to retry a command that failed. It keeps its FAILED
+     * outcome and its error — the trail still says the write was attempted and
+     * did not land — and is marked CANCELLED so the consultation is no longer
+     * waiting on it.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public VoiceCommandAuditResponse markDismissed(UUID auditId) {
+        VoiceCommandAudit entry = require(auditId);
+        requireFailed(entry);
+        entry.setConfirmationStatus(ConfirmationStatus.CANCELLED);
+        return toResponse(auditRepository.save(entry));
+    }
+
+    private static void requireFailed(VoiceCommandAudit entry) {
+        if (entry.getConfirmationStatus() != ConfirmationStatus.CONFIRMED
+                || entry.getOutcome() != CommandOutcome.FAILED) {
+            throw new ValidationException("Voice command " + entry.getId() + " did not fail ("
+                    + entry.getConfirmationStatus() + "/" + entry.getOutcome() + ").");
+        }
+    }
+
     private VoiceCommandAudit require(UUID auditId) {
         return auditRepository.findById(auditId)
                 .orElseThrow(() -> new NotFoundException("Voice audit entry not found: " + auditId));
