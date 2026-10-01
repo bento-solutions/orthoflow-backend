@@ -1,5 +1,6 @@
 package com.orthoflow.voice.application.service;
 
+import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.patient.domain.repository.PatientRepository;
 import com.orthoflow.voice.application.dto.CommitVoiceSessionRequest;
@@ -31,7 +32,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -51,11 +56,14 @@ class VoiceSessionCommitServiceTest {
     private final List<String> events = new ArrayList<>();
     private final Set<UUID> failing = new HashSet<>();
     private final Map<UUID, Integer> attempts = new HashMap<>();
+    /** Makes the command a correction recorded fail when it is run. */
+    private boolean failAnyReplacement;
 
     private InMemoryAudits audits;
     private InMemorySessions sessions;
     private VoiceAuditService auditService;
     private VoiceSessionCommitService service;
+    private ClinicalRecordService clinical;
     private UUID sessionId;
 
     @BeforeEach
@@ -70,14 +78,16 @@ class VoiceSessionCommitServiceTest {
             UUID id = invocation.getArgument(0);
             events.add("confirm " + id);
             attempts.merge(id, 1, Integer::sum);
-            return failing.contains(id)
+            boolean replacement = audits.store.get(id).getResolver() == ResolverKind.manual;
+            return failing.contains(id) || (failAnyReplacement && replacement)
                     ? auditService.markFailed(id, "Finding code no longer accepted")
                     : auditService.markExecuted(id, "ToothFinding", UUID.randomUUID().toString(), null, "16: caries");
         });
         when(commands.record(any(), any())).thenAnswer(invocation ->
                 auditService.record(invocation.getArgument(0), invocation.getArgument(1)));
 
-        service = new VoiceSessionCommitService(sessions, audits, commands, auditService, sessionService);
+        clinical = mock(ClinicalRecordService.class);
+        service = new VoiceSessionCommitService(sessions, audits, commands, auditService, sessionService, clinical);
 
         VoiceSession session = VoiceSession.builder()
                 .id(UUID.randomUUID())
@@ -230,6 +240,259 @@ class VoiceSessionCommitServiceTest {
         assertThat(result.session().status()).isEqualTo("COMPLETED");
     }
 
+    // ── Correcting a tooth at review ────────────────────────────────────
+
+    private CommitVoiceSessionRequest.Amendment amendmentOf(UUID original, String fdi) {
+        CommitVoiceSessionRequest.Amendment amendment = new CommitVoiceSessionRequest.Amendment();
+        amendment.setOriginalAuditId(original);
+        amendment.setIntent("clinical.addFindings");
+        amendment.setEntities("{\"fdi\":\"" + fdi + "\",\"findings\":[{\"code\":\"caries\"}]}");
+        return amendment;
+    }
+
+    private CommitVoiceSessionResponse commitWith(List<UUID> approved, List<UUID> rejected,
+                                                   CommitVoiceSessionRequest.Amendment... amendments) {
+        CommitVoiceSessionRequest request = new CommitVoiceSessionRequest();
+        request.setApprovedAuditIds(approved);
+        request.setRejectedAuditIds(rejected);
+        request.setAmendments(List.of(amendments));
+        request.setSummary("Compte rendu");
+        return service.commit(sessionId, request, ACTOR);
+    }
+
+    /** The command a correction recorded: the only one made by hand (resolver manual). */
+    private VoiceCommandAudit replacementOf(UUID original) {
+        return audits.store.values().stream()
+                .filter(a -> a.getResolver() == ResolverKind.manual)
+                .findFirst().orElseThrow();
+    }
+
+    @Test
+    void aCorrectedTeethIsSavedAsTheCorrectionAndTheOriginalIsNot() {
+        UUID original = stagedFinding();
+
+        CommitVoiceSessionResponse result = commitWith(List.of(), List.of(), amendmentOf(original, "26"));
+
+        // The original was taken for an amendment already applied and skipped,
+        // so the finding was rejected and never replaced: lost without a word.
+        VoiceCommandAudit replacement = replacementOf(original);
+        assertThat(result.amended()).isEqualTo(1);
+        assertThat(result.executed()).isEqualTo(1);
+        assertThat(replacement.getOutcome()).isEqualTo(CommandOutcome.EXECUTED);
+        assertThat(replacement.getEntities()).contains("\"fdi\":\"26\"");
+        assertThat(replacement.getResolver()).isEqualTo(ResolverKind.manual);
+        assertThat(row(original).getConfirmationStatus()).isEqualTo(ConfirmationStatus.REJECTED);
+        assertThat(attempts).doesNotContainKey(original);
+        assertThat(result.session().status()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void theOriginalIsNotWrittenEvenIfItIsAlsoApproved() {
+        UUID original = stagedFinding();
+
+        commitWith(List.of(original), List.of(), amendmentOf(original, "26"));
+
+        assertThat(attempts).doesNotContainKey(original);
+    }
+
+    @Test
+    void aCorrectionThatFailsKeepsTheExaminationOpenAndNamesTheReplacement() {
+        UUID original = stagedFinding();
+        failAnyReplacement = true;
+
+        CommitVoiceSessionResponse result = commitWith(List.of(), List.of(), amendmentOf(original, "26"));
+
+        UUID replacement = replacementOf(original).getId();
+        assertThat(result.session().status()).isEqualTo("PENDING_REVIEW");
+        assertThat(result.failed()).extracting(CommitVoiceSessionResponse.FailedCommand::auditId)
+                .containsExactly(replacement);
+    }
+
+    @Test
+    void savingAgainRetriesTheReplacementWithoutMakingAnother() {
+        UUID original = stagedFinding();
+        failAnyReplacement = true;
+        commitWith(List.of(), List.of(), amendmentOf(original, "26"));
+        UUID replacement = replacementOf(original).getId();
+
+        failAnyReplacement = false;
+        // The page sends the correction again, and approves the replacement it was told about.
+        CommitVoiceSessionResponse second = commitWith(List.of(replacement), List.of(), amendmentOf(original, "26"));
+
+        assertThat(second.session().status()).isEqualTo("COMPLETED");
+        assertThat(second.amended()).isZero();
+        assertThat(audits.store.values().stream().filter(a -> a.getResolver() == ResolverKind.manual)).hasSize(1);
+        assertThat(row(replacement).getOutcome()).isEqualTo(CommandOutcome.EXECUTED);
+    }
+
+    @Test
+    void aFailedReplacementTheReloadedPageNeverSawStillBlocksCompletion() {
+        UUID original = stagedFinding();
+        failAnyReplacement = true;
+        commitWith(List.of(), List.of(), amendmentOf(original, "26"));
+        UUID replacement = replacementOf(original).getId();
+
+        // A reloaded page knows nothing of the replacement and lists only what it has.
+        CommitVoiceSessionResponse second = commitWith(List.of(), List.of());
+
+        assertThat(second.session().status()).isEqualTo("PENDING_REVIEW");
+        assertThat(second.failed()).extracting(CommitVoiceSessionResponse.FailedCommand::auditId)
+                .containsExactly(replacement);
+    }
+
+    @Test
+    void aCorrectionCannotReachAnotherExaminationsCommand() {
+        UUID foreign = UUID.randomUUID();
+        audits.save(VoiceCommandAudit.builder()
+                .id(foreign).actorId(ACTOR).patientId(PATIENT).sessionId(UUID.randomUUID())
+                .occurredAt(OffsetDateTime.now()).intent("clinical.addFindings").entities("{}")
+                .resolver(ResolverKind.grammar).riskTier(RiskTier.CONFIRM)
+                .confirmationStatus(ConfirmationStatus.PENDING).outcome(CommandOutcome.CLARIFICATION).build());
+
+        assertThatThrownBy(() -> commitWith(List.of(), List.of(), amendmentOf(foreign, "26")))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    // ── Commands that cannot be run again ───────────────────────────────
+
+    @Test
+    void aCommandStartedAndNeverFinishedBlocksCompletionUntilItIsRemoved() {
+        UUID good = stagedFinding();
+        UUID stuck = audit(ConfirmationStatus.CONFIRMED, CommandOutcome.CLARIFICATION);
+
+        CommitVoiceSessionResponse first = commit(List.of(good), List.of());
+
+        assertThat(first.session().status()).isEqualTo("PENDING_REVIEW");
+        assertThat(first.failed()).extracting(CommitVoiceSessionResponse.FailedCommand::auditId).containsExactly(stuck);
+        assertThat(first.failed().get(0).errorMessage()).contains("never finished");
+
+        // Removing it from the list the page cannot otherwise correct lets the
+        // examination complete, and the trail keeps what happened to it.
+        CommitVoiceSessionResponse second = commit(List.of(good), List.of(stuck));
+
+        assertThat(second.failed()).isEmpty();
+        assertThat(second.session().status()).isEqualTo("COMPLETED");
+        assertThat(row(stuck).getConfirmationStatus()).isEqualTo(ConfirmationStatus.CANCELLED);
+        assertThat(row(stuck).getOutcome()).isEqualTo(CommandOutcome.FAILED);
+        assertThat(row(stuck).getErrorMessage()).contains("Never finished");
+    }
+
+    @Test
+    void aFailedReplacementCanBeRemovedWithoutTheOriginalOrAnyEntry() {
+        UUID original = stagedFinding();
+        failAnyReplacement = true;
+        commitWith(List.of(), List.of(), amendmentOf(original, "26"));
+        UUID replacement = replacementOf(original).getId();
+
+        CommitVoiceSessionResponse second = commitWith(List.of(), List.of(replacement));
+
+        assertThat(second.session().status()).isEqualTo("COMPLETED");
+        assertThat(row(replacement).getConfirmationStatus()).isEqualTo(ConfirmationStatus.CANCELLED);
+        assertThat(row(replacement).getOutcome()).isEqualTo(CommandOutcome.FAILED);
+    }
+
+    // ── What the review page never showed ───────────────────────────────
+
+    @Test
+    void aDictatedCommandOnNeitherListIsCancelledNotLeftToBeConfirmedLater() {
+        UUID shown = stagedFinding();
+        UUID unlisted = stagedFinding();
+
+        CommitVoiceSessionResponse result = commit(List.of(shown), List.of());
+
+        assertThat(result.session().status()).isEqualTo("COMPLETED");
+        assertThat(result.notReviewed()).isEqualTo(1);
+        // Not written, and no longer pending: a later call to /confirm cannot
+        // put it into the chart under a consultation that is already closed.
+        assertThat(attempts).doesNotContainKey(unlisted);
+        assertThat(row(unlisted).getConfirmationStatus()).isEqualTo(ConfirmationStatus.CANCELLED);
+        assertThat(row(unlisted).getOutcome()).isEqualTo(CommandOutcome.REJECTED);
+        assertThat(row(unlisted).getErrorMessage()).startsWith("Not reviewed");
+    }
+
+    @Test
+    void nothingIsCancelledWhileTheConsultationStillHasFailures() {
+        UUID bad = stagedFinding();
+        UUID unlisted = stagedFinding();
+        failing.add(bad);
+
+        CommitVoiceSessionResponse result = commit(List.of(bad), List.of());
+
+        assertThat(result.session().status()).isEqualTo("PENDING_REVIEW");
+        assertThat(result.notReviewed()).isZero();
+        assertThat(row(unlisted).getConfirmationStatus()).isEqualTo(ConfirmationStatus.PENDING);
+    }
+
+    @Test
+    void aFullyReviewedConsultationReportsNothingUnreviewed() {
+        UUID a = stagedFinding();
+        UUID b = stagedFinding();
+
+        CommitVoiceSessionResponse result = commit(List.of(a), List.of(b));
+
+        assertThat(result.notReviewed()).isZero();
+    }
+
+    // ── The report the dentist signs ────────────────────────────────────
+
+    @Test
+    void theReportIsSavedToTheRecordWhenTheConsultationCompletes() {
+        UUID finding = stagedFinding();
+
+        commit(List.of(finding), List.of());
+
+        // Saved as a clinical note. Left on voice_sessions.summary alone it
+        // reached no screen, while the review page said it was saved.
+        verify(clinical).saveConsultationReport(PATIENT, sessionId, "Compte rendu", ACTOR);
+    }
+
+    @Test
+    void theReportIsNotSavedWhileAFindingIsStillOutstanding() {
+        UUID bad = stagedFinding();
+        failing.add(bad);
+
+        commit(List.of(bad), List.of());
+
+        verify(clinical, never()).saveConsultationReport(any(), any(), any(), any());
+    }
+
+    @Test
+    void theReportIsSavedOnceTheOutstandingFindingLands() {
+        UUID bad = stagedFinding();
+        failing.add(bad);
+        commit(List.of(bad), List.of());
+
+        failing.clear();
+        commit(List.of(bad), List.of());
+
+        verify(clinical, times(1)).saveConsultationReport(PATIENT, sessionId, "Compte rendu", ACTOR);
+    }
+
+    @Test
+    void anEmptyReportIsNotSaved() {
+        UUID finding = stagedFinding();
+        CommitVoiceSessionRequest request = new CommitVoiceSessionRequest();
+        request.setApprovedAuditIds(List.of(finding));
+        request.setSummary("   ");
+
+        service.commit(sessionId, request, ACTOR);
+
+        verify(clinical, never()).saveConsultationReport(any(), any(), any(), any());
+    }
+
+    @Test
+    void aReportThatCannotBeSavedLeavesTheConsultationOpenToSaveAgain() {
+        UUID finding = stagedFinding();
+        doThrow(new IllegalStateException("database unavailable"))
+                .when(clinical).saveConsultationReport(any(), any(), any(), any());
+
+        assertThatThrownBy(() -> commit(List.of(finding), List.of()))
+                .isInstanceOf(IllegalStateException.class);
+
+        // Not marked complete, so a second Save is still possible.
+        assertThat(sessions.store.get(sessionId).getStatus()).isEqualTo(VoiceSessionStatus.PENDING_REVIEW);
+    }
+
     // ── Two commits of the same consultation ────────────────────────────
 
     @Test
@@ -326,6 +589,28 @@ class VoiceSessionCommitServiceTest {
         @Override
         public List<VoiceCommandAudit> findBySession(UUID sessionId) {
             return store.values().stream().filter(a -> sessionId.equals(a.getSessionId())).toList();
+        }
+
+        @Override
+        public boolean transitionConfirmation(UUID id, ConfirmationStatus from, ConfirmationStatus to) {
+            VoiceCommandAudit entry = store.get(id);
+            if (entry == null || entry.getConfirmationStatus() != from) return false;
+            entry.setConfirmationStatus(to);
+            return true;
+        }
+
+        @Override
+        public int scrubPatientData(UUID patientId) {
+            List<VoiceCommandAudit> mine = findByPatient(patientId);
+            mine.forEach(a -> {
+                a.setTranscript(null);
+                a.setEntities(null);
+                a.setPreviousValue(null);
+                a.setNewValue(null);
+                a.setErrorMessage(null);
+                a.setTargetId(null);
+            });
+            return mine.size();
         }
     }
 

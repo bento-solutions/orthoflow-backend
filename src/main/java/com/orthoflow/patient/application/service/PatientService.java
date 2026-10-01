@@ -1,9 +1,11 @@
 package com.orthoflow.patient.application.service;
 
 import com.orthoflow.patient.application.dto.CreatePatientRequest;
+import com.orthoflow.patient.application.dto.PatientDemographicsUpdate;
 import com.orthoflow.patient.application.dto.PatientResponse;
 import com.orthoflow.patient.application.dto.UpdatePatientRequest;
 import com.orthoflow.patient.application.port.InvoiceLinkGuard;
+import com.orthoflow.patient.application.port.PatientErasureListener;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.patient.domain.repository.PatientRepository;
 import com.orthoflow.common.exception.ConflictException;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,6 +26,7 @@ public class PatientService {
 
     private final PatientRepository patientRepository;
     private final InvoiceLinkGuard invoiceLinkGuard;
+    private final List<PatientErasureListener> erasureListeners;
 
     /**
      * A CIN matching an existing (non-archived) patient is almost always the
@@ -105,6 +109,38 @@ public class PatientService {
     }
 
     /**
+     * Applies only the fields {@code changes} sets, leaving everything else as
+     * it was. See {@link PatientDemographicsUpdate}.
+     *
+     * <p>A CIN already held by a different patient is refused, as it is at
+     * registration: it is almost always the same person entered twice, and
+     * silently giving two patients one identity card is worse than telling the
+     * doctor at review.
+     */
+    @Transactional
+    public PatientResponse applyDemographics(UUID id, PatientDemographicsUpdate changes) {
+        Patient existing = getPatientById(id);
+        if (changes.isEmpty()) {
+            return PatientResponse.from(existing);
+        }
+        String cin = blankToNull(changes.cin());
+        if (cin != null && !cin.equalsIgnoreCase(existing.getCin() == null ? "" : existing.getCin())
+                && patientRepository.existsByCin(cin)) {
+            throw new ConflictException("A different patient already has CIN " + cin
+                    + ". Correct it, or open that patient's file.");
+        }
+        if (blankToNull(changes.firstName()) != null) existing.setFirstName(changes.firstName().trim());
+        if (blankToNull(changes.lastName()) != null) existing.setLastName(changes.lastName().trim());
+        if (changes.dateOfBirth() != null) existing.setDateOfBirth(changes.dateOfBirth());
+        if (blankToNull(changes.gender()) != null) existing.setGender(normaliseGender(changes.gender()));
+        if (blankToNull(changes.phone()) != null) existing.setPhone(changes.phone().trim());
+        if (cin != null) existing.setCin(cin);
+        if (blankToNull(changes.insuranceProvider()) != null) existing.setInsuranceProvider(changes.insuranceProvider().trim());
+        if (blankToNull(changes.insuranceNumber()) != null) existing.setInsuranceNumber(changes.insuranceNumber().trim());
+        return PatientResponse.from(patientRepository.save(existing));
+    }
+
+    /**
      * Archives a patient (deleted_at/deleted_by) instead of deleting the
      * row. A real DELETE cascaded to appointments and treatment history with
      * no way to satisfy a statutory retention obligation afterwards (audit
@@ -144,6 +180,10 @@ public class PatientService {
                     + "accounting-law retention obligation and are not removed by an erasure request. "
                     + "Anonymise or archive those invoices first, then retry the erasure.");
         }
+
+        // What the database cascade does not reach (see PatientErasureListener),
+        // inside this transaction so a failure undoes the erasure as a whole.
+        erasureListeners.forEach(listener -> listener.onPatientErased(id));
 
         patientRepository.deleteById(id);
     }

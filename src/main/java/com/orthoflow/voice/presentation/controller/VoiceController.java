@@ -112,7 +112,9 @@ public class VoiceController {
     public SessionSummaryResponse summariseSession(
             @PathVariable UUID sessionId,
             @RequestBody(required = false) SummarizeSessionRequest request) {
-        return sessionSummaryService.summarise(sessionId, request != null ? request.getAuditIds() : null);
+        return sessionSummaryService.summarise(sessionId,
+                request != null ? request.getAuditIds() : null,
+                request != null ? request.getCorrectedTeeth() : null);
     }
 
     /**

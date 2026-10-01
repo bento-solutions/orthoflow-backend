@@ -30,6 +30,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClinicalRecordService {
 
+    /** How the tooth audit trail names a change made by the voice pipeline. */
+    private static final String VOICE_SOURCE = "voice";
+
     private final DentalChartRepository dentalChartRepository;
     private final ToothFindingRepository toothFindingRepository;
     private final ClinicalNoteRepository clinicalNoteRepository;
@@ -115,6 +118,7 @@ public class ClinicalRecordService {
                     "Unknown finding code '" + replacement.getFindingCode()
                             + "'. It is not in the clinical finding catalog."));
             parseSeverity(replacement.getSeverity());
+            normaliseSurface(replacement.getSurface());
         }
 
         List<ToothFinding> superseded = new java.util.ArrayList<>();
@@ -133,7 +137,7 @@ public class ClinicalRecordService {
 
         List<ToothFindingResponse> retracted = new java.util.ArrayList<>();
         for (ToothFinding finding : superseded) {
-            retracted.add(applyFindingStatus(finding, FindingStatus.RETRACTED, actorId));
+            retracted.add(applyFindingStatus(finding, FindingStatus.RETRACTED, actorId, VOICE_SOURCE));
         }
         List<ToothFindingResponse> added = new java.util.ArrayList<>();
         for (AddToothFindingRequest request : replacements) {
@@ -167,7 +171,7 @@ public class ClinicalRecordService {
                         .build());
 
         finding.setKind(definition.kind());
-        finding.setSurface(blankToNull(request.getSurface()));
+        finding.setSurface(normaliseSurface(request.getSurface()));
         finding.setSeverity(parseSeverity(request.getSeverity()));
         if (blankToNull(request.getNote()) != null) {
             finding.setNote(request.getNote());
@@ -198,20 +202,24 @@ public class ClinicalRecordService {
                 .orElseThrow(() -> new NotFoundException("Finding not found: " + findingId));
         assertBelongsToPatient(patientId, finding.getChart() == null ? null : finding.getChart().getPatientId(),
                 "Finding not found: " + findingId);
-        return applyFindingStatus(finding, newStatus, actorId);
+        // Someone used the chart screen: that is a manual change, and the tooth
+        // audit trail must not say a voice command made it.
+        return applyFindingStatus(finding, newStatus, actorId, "manual");
     }
 
+    /** The voice pipeline's overload — see the note on the REST one above. */
     @Transactional
     public ToothFindingResponse changeFindingStatus(UUID findingId, FindingStatus newStatus, UUID actorId) {
         ToothFinding finding = toothFindingRepository.findById(findingId)
                 .orElseThrow(() -> new NotFoundException("Finding not found: " + findingId));
-        return applyFindingStatus(finding, newStatus, actorId);
+        return applyFindingStatus(finding, newStatus, actorId, VOICE_SOURCE);
     }
 
-    private ToothFindingResponse applyFindingStatus(ToothFinding finding, FindingStatus newStatus, UUID actorId) {
+    private ToothFindingResponse applyFindingStatus(ToothFinding finding, FindingStatus newStatus, UUID actorId,
+                                                    String source) {
         finding.setStatus(newStatus);
         ToothFinding saved = toothFindingRepository.save(finding);
-        recomputePrimaryStatus(finding.getChart(), finding.getFdi(), actorId, "voice", null);
+        recomputePrimaryStatus(finding.getChart(), finding.getFdi(), actorId, source, null);
         return toResponse(saved);
     }
 
@@ -286,6 +294,16 @@ public class ClinicalRecordService {
     public ClinicalNoteResponse addNote(UUID patientId, CreateClinicalNoteRequest request, UUID actorId) {
         requirePatient(patientId);
         NoteCategory category = parseEnum(NoteCategory.class, request.getCategory(), "note category");
+        if (category == NoteCategory.CONSULTATION_REPORT) {
+            // Written by saving a dictated examination, so a report in the
+            // record is always one a dentist reviewed — not a note that says so.
+            throw new ValidationException("A consultation report is created by saving a dictated examination.");
+        }
+        if (category == NoteCategory.CONSULTATION_TRANSCRIPT) {
+            // Same reasoning: a transcript in the record is the one the system
+            // captured and the dentist saved, never text typed in as one.
+            throw new ValidationException("A consultation transcript is created by saving a recorded consultation.");
+        }
         String fdi = blankToNull(request.getFdi());
         if (fdi != null) validateFdi(fdi);
 
@@ -300,6 +318,70 @@ public class ClinicalRecordService {
                 .build());
 
         return toResponse(note);
+    }
+
+    /**
+     * Saves the narrative of a dictated examination to the record, as the note
+     * the review page says it becomes.
+     *
+     * <p>One report per examination. Saving the same examination again — a
+     * retry after a failure part-way through the commit — replaces the text
+     * instead of filing the report twice.
+     */
+    @Transactional
+    public ClinicalNoteResponse saveConsultationReport(UUID patientId, UUID sessionId, String content, UUID actorId) {
+        return saveSessionNote(patientId, sessionId, NoteCategory.CONSULTATION_REPORT, content, actorId);
+    }
+
+    /** The categories a consultation save files, one note each per session. */
+    private static final java.util.Set<NoteCategory> SESSION_NOTE_CATEGORIES = java.util.EnumSet.of(
+            NoteCategory.CONSULTATION_REPORT, NoteCategory.CONSULTATION_TRANSCRIPT,
+            NoteCategory.TREATMENT_PLAN, NoteCategory.CHIEF_COMPLAINT);
+
+    /**
+     * Files a note that belongs to one consultation or dictated examination,
+     * replacing the one of the same category it filed before.
+     *
+     * <p>A save that fails part-way is retried, and a retry must not leave two
+     * transcripts or two treatment plans on the record. The note is found by
+     * the session it came from and its category, so the same save is safe to
+     * run again.
+     */
+    @Transactional
+    public ClinicalNoteResponse saveSessionNote(UUID patientId, UUID sessionId, NoteCategory category,
+                                                String content, UUID actorId) {
+        return saveSessionNote(patientId, sessionId, category, content, actorId, VOICE_SOURCE);
+    }
+
+    /**
+     * As above, saying what produced the note — a dictated examination
+     * ({@code voice}) or a recorded consultation ({@code consultation}) — so
+     * the record's provenance column tells the truth.
+     */
+    @Transactional
+    public ClinicalNoteResponse saveSessionNote(UUID patientId, UUID sessionId, NoteCategory category,
+                                                String content, UUID actorId, String source) {
+        requirePatient(patientId);
+        if (!SESSION_NOTE_CATEGORIES.contains(category)) {
+            throw new ValidationException("A " + category + " note is not filed per consultation.");
+        }
+        String text = blankToNull(content);
+        if (text == null) {
+            throw new ValidationException("A " + category.name().toLowerCase(Locale.ROOT).replace('_', ' ')
+                    + " needs some text.");
+        }
+        ClinicalNote note = clinicalNoteRepository.findBySession(sessionId).stream()
+                .filter(existing -> existing.getCategory() == category)
+                .findFirst()
+                .orElseGet(() -> ClinicalNote.builder()
+                        .patientId(patientId)
+                        .category(category)
+                        .authorId(actorId)
+                        .sessionId(sessionId)
+                        .build());
+        note.setSource(source);
+        note.setContent(text);
+        return toResponse(clinicalNoteRepository.save(note));
     }
 
     @Transactional
@@ -460,6 +542,23 @@ public class ClinicalRecordService {
      * was happy, because this is the last point before it becomes a clinical
      * record.
      */
+    /**
+     * A surface is one face of the tooth or up to three joined by hyphens —
+     * "occlusal", "mesial-occlusal-distal". It arrives from the browser or a
+     * model, so its shape is checked rather than stored as given: anything else
+     * is refused here instead of failing on the column or reading oddly on a
+     * chart.
+     */
+    private String normaliseSurface(String surface) {
+        String value = blankToNull(surface);
+        if (value == null) return null;
+        value = value.toLowerCase(java.util.Locale.ROOT);
+        if (!value.matches("[a-z]+(?:-[a-z]+){0,2}")) {
+            throw new ValidationException("Invalid tooth surface: " + surface);
+        }
+        return value;
+    }
+
     private void validateFdi(String fdi) {
         if (fdi == null || !fdi.matches("[1-8][1-8]")) {
             throw new ValidationException("Invalid FDI tooth code: " + fdi);

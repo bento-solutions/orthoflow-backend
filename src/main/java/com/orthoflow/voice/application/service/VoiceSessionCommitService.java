@@ -1,5 +1,6 @@
 package com.orthoflow.voice.application.service;
 
+import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.voice.application.dto.CommitVoiceSessionRequest;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,6 +78,7 @@ public class VoiceSessionCommitService {
     private final VoiceCommandService voiceCommandService;
     private final VoiceAuditService voiceAuditService;
     private final VoiceSessionService voiceSessionService;
+    private final ClinicalRecordService clinicalRecordService;
 
     public CommitVoiceSessionResponse commit(UUID sessionId, CommitVoiceSessionRequest request, UUID actorId) {
         VoiceSession session = voiceSessionRepository.findById(sessionId)
@@ -97,33 +100,35 @@ public class VoiceSessionCommitService {
         int rejected = 0;
         int amended = 0;
 
-        // Rejections first: a command the dentist removed must not be written
-        // even if the same id also appears on the approved list by mistake.
+        // What the dentist took out, or replaced, must not be written even if
+        // the same id also appears on the approved list by mistake.
         Set<UUID> discarded = new LinkedHashSet<>(request.getRejectedAuditIds());
         request.getAmendments().forEach(a -> discarded.add(a.getOriginalAuditId()));
 
-        for (UUID auditId : discarded) {
-            VoiceCommandAudit audit = requireSessionCommand(auditId, sessionId);
-            if (isPending(audit)) {
-                voiceAuditService.markRejected(auditId);
-                rejected++;
-            } else if (hasFailed(audit)) {
-                // Removed at review after failing: the dentist is not retrying it.
-                voiceAuditService.markDismissed(auditId);
+        for (UUID auditId : request.getRejectedAuditIds()) {
+            if (retire(requireSessionCommand(auditId, sessionId))) {
                 rejected++;
             }
         }
 
+        // A correction is recorded and run BEFORE the command it replaces is
+        // retired. The other way round, the original is already gone by the
+        // time its amendment is looked at, the amendment is taken for one an
+        // earlier attempt had applied, and the finding is lost: the original
+        // rejected, the replacement never made.
         for (CommitVoiceSessionRequest.Amendment amendment : request.getAmendments()) {
             VoiceCommandAudit original = requireSessionCommand(amendment.getOriginalAuditId(), sessionId);
-            // An amendment already applied by an earlier attempt must not be
-            // recorded a second time; its replacement is approved by id.
+            // An amendment an earlier attempt already applied has had its
+            // original retired; its replacement is approved by id instead.
             if (!isPending(original) && !hasFailed(original)) {
                 continue;
             }
             VoiceCommandAuditResponse replacement =
                     recordAmendment(original, amendment, sessionId, actorId);
             amended++;
+            if (retire(original)) {
+                rejected++;
+            }
             if (executeApproved(replacement.id(), sessionId, failed) == Attempt.EXECUTED) {
                 executed++;
             }
@@ -142,7 +147,47 @@ public class VoiceSessionCommitService {
         CompleteVoiceSessionRequest completion = new CompleteVoiceSessionRequest();
         completion.setSummary(request.getSummary());
 
+        // A command that failed and is on no list — a correction's replacement
+        // made at an earlier Save, which a reloaded review page has never seen —
+        // is still outstanding. Completing over it would lose it without a word.
+        Set<UUID> reported = new HashSet<>();
+        failed.forEach(f -> reported.add(f.auditId()));
+        for (VoiceCommandAudit left : auditRepository.findBySession(sessionId)) {
+            boolean unfinished = VoiceAuditService.isUnfinished(left);
+            if ((hasFailed(left) || unfinished) && reported.add(left.getId())) {
+                failed.add(CommitVoiceSessionResponse.FailedCommand.builder()
+                        .auditId(left.getId())
+                        .intent(left.getIntent())
+                        .errorMessage(unfinished
+                                ? "Not saved: it was started and never finished. Remove it, or discard the examination."
+                                : left.getErrorMessage())
+                        .build());
+            }
+        }
+
+        int notReviewed = 0;
         if (failed.isEmpty()) {
+            // Whatever is still pending now was on no list at all. Left alone
+            // it could be confirmed later through the command API and written
+            // into a chart under a consultation that is already closed.
+            for (VoiceCommandAudit left : auditRepository.findBySession(sessionId)) {
+                if (isPending(left)) {
+                    voiceAuditService.markNotReviewed(left.getId());
+                    notReviewed++;
+                }
+            }
+            if (notReviewed > 0) {
+                log.warn("Voice session {} saved with {} dictated command(s) that were never on the review list.",
+                        sessionId, notReviewed);
+            }
+        }
+
+        if (failed.isEmpty()) {
+            // The review page tells the dentist this text is saved to the
+            // record as a note. Before the session is marked complete, so a
+            // report that fails to save leaves the consultation open to be
+            // saved again — the save is idempotent per examination.
+            saveReport(refreshed, request.getSummary(), actorId);
             completion.setStatus(VoiceSessionStatus.COMPLETED.name());
             completion.setConfirmed(true);
         } else {
@@ -160,8 +205,20 @@ public class VoiceSessionCommitService {
                 .executed(executed)
                 .rejected(rejected)
                 .amended(amended)
+                .notReviewed(notReviewed)
                 .failed(failed)
                 .build();
+    }
+
+    /**
+     * The narrative as a clinical note. Nothing to save when the dentist left
+     * it empty, or when the examination was not about a patient.
+     */
+    private void saveReport(VoiceSession session, String summary, UUID actorId) {
+        if (session.getPatientId() == null || summary == null || summary.isBlank()) {
+            return;
+        }
+        clinicalRecordService.saveConsultationReport(session.getPatientId(), session.getId(), summary, actorId);
     }
 
     /**
@@ -175,6 +232,24 @@ public class VoiceSessionCommitService {
     private void claim(VoiceSession session) {
         session.setEndedAt(OffsetDateTime.now());
         voiceSessionRepository.save(session);
+    }
+
+    /**
+     * Takes a command out of the examination: a pending one is rejected, one
+     * that failed is dismissed (its failure stays in the trail). True when it
+     * was one of those; anything else — already written, already retired — is
+     * left as it is.
+     */
+    private boolean retire(VoiceCommandAudit audit) {
+        if (isPending(audit)) {
+            voiceAuditService.markRejected(audit.getId());
+            return true;
+        }
+        if (hasFailed(audit) || VoiceAuditService.isUnfinished(audit)) {
+            voiceAuditService.markDismissed(audit.getId());
+            return true;
+        }
+        return false;
     }
 
     /** What happened to one approved command. */

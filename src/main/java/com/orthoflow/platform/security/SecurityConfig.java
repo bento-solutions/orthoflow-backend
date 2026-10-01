@@ -108,6 +108,10 @@ public class SecurityConfig {
             // on whether the users table is empty, not on the path.
             .requestMatchers(HttpMethod.POST,
                     "/auth/login", "/auth/register", "/auth/forgot-password", "/auth/reset-password").permitAll()
+            // Renewing a session needs a session: any signed-in user, whatever
+            // their role. Not public — a token that is already refused (expired,
+            // deactivated account, issued before a password reset) gets a 401.
+            .requestMatchers(HttpMethod.POST, "/auth/refresh").hasAnyRole(EVERYONE)
             // Reachable only from inside the Docker network — Traefik proxies
             // /api/v1/** and nothing else (docker-compose.production.yml).
             .requestMatchers("/actuator/**").permitAll()
@@ -126,6 +130,9 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/clinical/finding-catalog").hasAnyRole(EVERYONE)
             // Voice dictates into the clinical record, so it inherits its floor.
             .requestMatchers("/voice/**").hasAnyRole(CLINICAL)
+            // A consultation holds the whole conversation and what was
+            // extracted from it: the same floor as the clinical record.
+            .requestMatchers("/consultations/**").hasAnyRole(CLINICAL)
 
             // ── Compliance: data-subject rights are the operator's duty ──────
             .requestMatchers("/patients/*/compliance/**").hasRole(ADMIN)

@@ -43,6 +43,17 @@ public class VoiceProviderProperties {
         private String apiKey = "";
         /** No trailing slash. */
         private String baseUrl;
+        /**
+         * The operator's attestation that this key is on a plan whose terms
+         * keep submitted audio and text out of the vendor's own model
+         * training and product improvement, and that a data-processing
+         * agreement is in place. The code cannot verify that — it is a
+         * statement about a contract — so it defaults to false and a vendor
+         * without it is named in a startup warning whenever patient audio or
+         * text is routed to it. A free-tier key is the usual case where it
+         * is not true.
+         */
+        private boolean dataProtected = false;
 
         public Vendor(String baseUrl) {
             this.baseUrl = baseUrl;

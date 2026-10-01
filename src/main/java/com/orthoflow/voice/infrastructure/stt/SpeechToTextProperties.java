@@ -56,7 +56,7 @@ public class SpeechToTextProperties {
      * {@code groq}. A name that matches no provider disables transcription
      * rather than silently picking another vendor.
      */
-    private String provider = "groq";
+    private String provider = "assemblyai";
 
     /**
      * Tried in order when the primary fails — a 429, a 5xx, a timeout, a
@@ -64,7 +64,7 @@ public class SpeechToTextProperties {
      * vendor, and a clip that fails every provider is a finding they have to
      * repeat. Each vendor needs its key under {@code orthoflow.voice.providers}.
      */
-    private List<String> fallbacks = new ArrayList<>(List.of("gemini", "assemblyai", "groq"));
+    private List<String> fallbacks = new ArrayList<>(List.of("gemini", "groq"));
 
     /** Held server-side only. Supplied via {@code VOICE_STT_API_KEY}. */
     private String apiKey = "";

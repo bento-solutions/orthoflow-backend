@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -15,6 +16,18 @@ import java.util.UUID;
 @Setter
 public class SummarizeSessionRequest {
 
-    /** Null or empty: every clinical entry the session staged. */
+    /**
+     * Absent: every clinical entry the session staged. Present and empty:
+     * none of them — the dentist excluded everything.
+     */
     private List<UUID> auditIds;
+
+    /**
+     * Teeth the dentist corrected at review, by audit id. The narrative is
+     * written from what the session recorded, so without this a finding moved
+     * from 16 to 26 at review would still be described on 16 while being saved
+     * on 26. Only the tooth can be changed this way; everything else in the
+     * narrative still comes from the recorded command.
+     */
+    private Map<UUID, String> correctedTeeth;
 }

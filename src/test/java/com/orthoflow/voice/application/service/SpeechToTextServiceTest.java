@@ -47,8 +47,8 @@ class SpeechToTextServiceTest {
     @BeforeEach
     void setUp() {
         properties = new SpeechToTextProperties();
-        // The default provider name, so the existing cases exercise selection
-        // as well as everything they exercised before.
+        // The mocked client is the primary, named as the provider it stands in for.
+        properties.setProvider("groq");
         lenient().when(client.name()).thenReturn("groq");
         lenient().when(otherProvider.name()).thenReturn("gemini");
         lenient().when(client.isConfigured()).thenReturn(true);
@@ -60,6 +60,27 @@ class SpeechToTextServiceTest {
 
     private MockMultipartFile clip(byte[] bytes) {
         return new MockMultipartFile("file", "audio.webm", "audio/webm", bytes);
+    }
+
+    @Test
+    void theRecognisersNeverReceiveThePatientsName() {
+        properties.setEnabled(true);
+        when(client.transcribe(any(), any(), any(), any(), any()))
+                .thenReturn(TranscriptionResult.ofText("dent 16", null, "fr", 1.0, "m"));
+
+        service.transcribe(clip(new byte[] {1, 2, 3}), "fr", "Calypso; patient Karim Benali; dent 16; carie");
+
+        org.mockito.ArgumentCaptor<String> prompt = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(client).transcribe(any(), any(), any(), any(), prompt.capture());
+        assertThat(prompt.getValue()).isEqualTo("Calypso; dent 16; carie");
+    }
+
+    @Test
+    void theHintWithoutAPatientIsPassedOnUntouched() {
+        assertThat(SpeechToTextService.withoutPatientName("Calypso; dent 26; patiente zéro de carie"))
+                .isEqualTo("Calypso; dent 26; patiente zéro de carie");
+        assertThat(SpeechToTextService.withoutPatientName("  PATIENT  Ahmed;dent 26")).isEqualTo("dent 26");
+        assertThat(SpeechToTextService.withoutPatientName(null)).isNull();
     }
 
     @Test

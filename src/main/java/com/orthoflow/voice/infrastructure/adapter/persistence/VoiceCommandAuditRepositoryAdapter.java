@@ -1,5 +1,6 @@
 package com.orthoflow.voice.infrastructure.adapter.persistence;
 
+import com.orthoflow.voice.domain.model.ConfirmationStatus;
 import com.orthoflow.voice.domain.model.VoiceCommandAudit;
 import com.orthoflow.voice.domain.repository.VoiceCommandAuditRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +34,15 @@ public class VoiceCommandAuditRepositoryAdapter implements VoiceCommandAuditRepo
     @Override
     public List<VoiceCommandAudit> findBySession(UUID sessionId) {
         return jpaRepository.findBySessionIdOrderByOccurredAtAsc(sessionId);
+    }
+
+    @Override
+    public int scrubPatientData(UUID patientId) {
+        return jpaRepository.scrubPatientData(patientId);
+    }
+
+    @Override
+    public boolean transitionConfirmation(UUID id, ConfirmationStatus from, ConfirmationStatus to) {
+        return jpaRepository.transition(id, from, to) == 1;
     }
 }

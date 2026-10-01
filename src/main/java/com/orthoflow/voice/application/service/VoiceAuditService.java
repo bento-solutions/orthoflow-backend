@@ -64,6 +64,16 @@ public class VoiceAuditService {
     }
 
     /**
+     * Takes a PENDING command for this caller alone, in its own transaction so
+     * the claim is visible to everyone else the moment it is made. False when
+     * someone else already took it.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claim(UUID auditId, ConfirmationStatus to) {
+        return auditRepository.transitionConfirmation(auditId, ConfirmationStatus.PENDING, to);
+    }
+
+    /**
      * Records the outcome of a command that was confirmed and executed.
      *
      * <p>Runs in its own transaction ({@code REQUIRES_NEW}) for the same
@@ -101,6 +111,11 @@ public class VoiceAuditService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public VoiceCommandAuditResponse markFailed(UUID auditId, String errorMessage) {
         VoiceCommandAudit entry = require(auditId);
+        if (entry.getOutcome() == CommandOutcome.EXECUTED) {
+            // A write that landed is not un-landed by a second attempt that
+            // lost a race: the record has the finding, so the trail says so.
+            return toResponse(entry);
+        }
         entry.setConfirmationStatus(ConfirmationStatus.CONFIRMED);
         entry.setOutcome(CommandOutcome.FAILED);
         entry.setErrorMessage(errorMessage);
@@ -140,12 +155,47 @@ public class VoiceAuditService {
      * outcome and its error — the trail still says the write was attempted and
      * did not land — and is marked CANCELLED so the consultation is no longer
      * waiting on it.
+     *
+     * <p>A command that was taken for execution and never finished (the server
+     * stopped between the claim and the answer) can be dismissed the same way.
+     * It has no outcome to keep, so it is recorded as FAILED with the reason:
+     * what happened to it is not known, and the trail says that rather than
+     * leaving it looking undecided.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public VoiceCommandAuditResponse markDismissed(UUID auditId) {
         VoiceCommandAudit entry = require(auditId);
-        requireFailed(entry);
+        if (isUnfinished(entry)) {
+            entry.setOutcome(CommandOutcome.FAILED);
+            entry.setErrorMessage("Never finished — interrupted while it was running; dismissed at review.");
+        } else {
+            requireFailed(entry);
+        }
         entry.setConfirmationStatus(ConfirmationStatus.CANCELLED);
+        return toResponse(auditRepository.save(entry));
+    }
+
+    /** Confirmed, so claimed for execution, but with no outcome: the run never reported back. */
+    public static boolean isUnfinished(VoiceCommandAudit entry) {
+        return entry.getConfirmationStatus() == ConfirmationStatus.CONFIRMED
+                && entry.getOutcome() == CommandOutcome.CLARIFICATION;
+    }
+
+    /**
+     * A command still pending when its examination was saved, which the
+     * review list never mentioned. It cannot be written afterwards — by then
+     * the examination is closed — so it is cancelled, keeping what was said
+     * in the trail and recording why nothing came of it.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public VoiceCommandAuditResponse markNotReviewed(UUID auditId) {
+        VoiceCommandAudit entry = require(auditId);
+        if (entry.getConfirmationStatus() != ConfirmationStatus.PENDING) {
+            return toResponse(entry);
+        }
+        entry.setConfirmationStatus(ConfirmationStatus.CANCELLED);
+        entry.setOutcome(CommandOutcome.REJECTED);
+        entry.setErrorMessage("Not reviewed: it was not on the review list when the examination was saved.");
         return toResponse(auditRepository.save(entry));
     }
 

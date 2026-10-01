@@ -193,7 +193,7 @@ public class GroqTranscriptionClient implements TranscriptionProvider {
         }
 
         if (isPromptEcho(text)) {
-            log.info("Whisper recited its prompt instead of transcribing; dropped: {}", truncate(text));
+            log.info("Whisper recited its prompt instead of transcribing; dropped ({} chars)", text.length());
             text = "";
         }
         return TranscriptionResult.ofText(text, null, detected, duration, properties.getModel());

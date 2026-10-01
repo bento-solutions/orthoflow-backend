@@ -90,10 +90,10 @@ class FallbackTranscriptionClientsTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void assemblyGetsAScenarioAShortKeyTermListAndThePatientsName() {
+    void assemblyGetsAScenarioAndAShortKeyTermListButNeverThePatientsName() {
         Map<String, Object> config = assembly.config("Calypso; patient Karim Benali; dent 16; carie récurrente");
 
-        assertThat((String) config.get("prompt")).contains("dentiste").endsWith("Patient : Karim Benali.");
+        assertThat((String) config.get("prompt")).contains("dentiste").doesNotContain("Karim").doesNotContain("Benali");
         List<String> terms = (List<String>) config.get("keyterms_prompt");
         assertThat(terms).contains("Calypso", "carie récurrente").hasSizeLessThanOrEqualTo(100);
         // Common phrases made the model emit them from noise.

@@ -52,6 +52,12 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_ENABLED: "true"
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set (see .env.example)}
+      # A token lasts JWT_EXPIRATION_MINUTES (default 240) and is silently
+      # renewed while the person works, but never past this many minutes after
+      # they signed in (default 720, one clinic day). Set it at or below the
+      # token lifetime to turn renewal off.
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-240}
+      JWT_MAX_SESSION_MINUTES: ${JWT_MAX_SESSION_MINUTES:-720}
       FRONTEND_URL: ${FRONTEND_URL:-https://ortho.crmbento.com}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://ortho.crmbento.com}
       # /auth/register is public (it creates the first account). Keep this
@@ -70,8 +76,16 @@ services:
       VOICE_GROQ_API_KEY: ${VOICE_GROQ_API_KEY:-}
       VOICE_DEEPSEEK_API_KEY: ${VOICE_DEEPSEEK_API_KEY:-}
       VOICE_ASSEMBLYAI_API_KEY: ${VOICE_ASSEMBLYAI_API_KEY:-}
+      # Set a vendor's flag to true only after confirming its key is on a plan
+      # that excludes training on submitted content and that a DPA is signed.
+      # Until then the backend logs a warning at startup for every vendor that
+      # receives patient audio or text. Free-tier keys usually do not qualify.
+      VOICE_GEMINI_DATA_PROTECTED: ${VOICE_GEMINI_DATA_PROTECTED:-false}
+      VOICE_GROQ_DATA_PROTECTED: ${VOICE_GROQ_DATA_PROTECTED:-false}
+      VOICE_DEEPSEEK_DATA_PROTECTED: ${VOICE_DEEPSEEK_DATA_PROTECTED:-false}
+      VOICE_ASSEMBLYAI_DATA_PROTECTED: ${VOICE_ASSEMBLYAI_DATA_PROTECTED:-false}
       VOICE_STT_ENABLED: ${VOICE_STT_ENABLED:-false}
-      VOICE_STT_PROVIDER: ${VOICE_STT_PROVIDER:-groq}
+      VOICE_STT_PROVIDER: ${VOICE_STT_PROVIDER:-assemblyai}
       # Tried in order when the primary fails (429, 5xx, timeout).
       VOICE_STT_FALLBACKS: ${VOICE_STT_FALLBACKS:-gemini,groq}
       VOICE_STT_API_KEY: ${VOICE_STT_API_KEY:-}
@@ -103,6 +117,16 @@ services:
       VOICE_SUMMARY_BASE_URL: ${VOICE_SUMMARY_BASE_URL:-}
       VOICE_SUMMARY_FALLBACKS: ${VOICE_SUMMARY_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
       VOICE_SUMMARY_LANGUAGE: ${VOICE_SUMMARY_LANGUAGE:-French}
+      # Full-consultation recording: keeps the whole conversation, so it is a
+      # separate switch and off until a DPA, lawful basis and CNDP notice exist.
+      CONSULTATION_ENABLED: ${CONSULTATION_ENABLED:-false}
+      CONSULTATION_TIMEZONE: ${CONSULTATION_TIMEZONE:-Africa/Casablanca}
+      CONSULTATION_RETAIN_TRANSCRIPT: ${CONSULTATION_RETAIN_TRANSCRIPT:-false}
+      CONSULTATION_IDLE_DISCARD_HOURS: ${CONSULTATION_IDLE_DISCARD_HOURS:-24}
+      CONSULTATION_EXTRACTION_ENABLED: ${CONSULTATION_EXTRACTION_ENABLED:-false}
+      CONSULTATION_EXTRACTION_PROVIDER: ${CONSULTATION_EXTRACTION_PROVIDER:-groq}
+      CONSULTATION_EXTRACTION_MODEL: ${CONSULTATION_EXTRACTION_MODEL:-openai/gpt-oss-120b}
+      CONSULTATION_EXTRACTION_FALLBACKS: ${CONSULTATION_EXTRACTION_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
     healthcheck:
       # deploy.sh waits on this after a pull; BusyBox wget ships in the
       # temurin-alpine runtime image.

@@ -18,8 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Speech-to-text backed by AssemblyAI's synchronous API (Universal-3.5 Pro).
@@ -65,9 +63,9 @@ public class AssemblyAiTranscriptionClient implements TranscriptionProvider {
             "récession gingivale", "gingivite", "parodontite", "tartre", "détartrage", "obturation",
             "composite", "amalgame", "inlay core", "scellement de sillons", "facette", "racine résiduelle",
             "occlusale", "mésiale", "distale", "vestibulaire", "linguale", "palatine", "pénicilline",
-            "antécédents médicaux");
+            "antécédents médicaux", "pulpite", "nécrose pulpaire", "granulome", "avulsion", "inlay", "onlay",
+            "mésio-occlusale", "occluso-distale", "anticoagulants");
 
-    private static final Pattern PATIENT = Pattern.compile("(?i)\\bpatient\\s+([^;]{2,60})");
 
     private final SpeechToTextProperties properties;
     private final VoiceProviderProperties vendors;
@@ -155,22 +153,14 @@ public class AssemblyAiTranscriptionClient implements TranscriptionProvider {
 
     Map<String, Object> config(String hint) {
         Map<String, Object> config = new LinkedHashMap<>();
-        String scenario = SCENARIO;
-        String patient = patientName(hint);
-        if (patient != null) {
-            scenario += " Patient : " + patient + ".";
-        }
-        config.put("prompt", scenario);
+        // The scenario is fixed text. The patient's name used to be lifted from
+        // the browser's hint and appended here; it is personal data and helps
+        // nothing a dictated tooth or finding needs, so it is never sent.
+        config.put("prompt", SCENARIO);
         config.put("keyterms_prompt", KEY_TERMS);
         return config;
     }
 
-    /** The patient's name from the browser's hint, so it is spelled right if said. */
-    static String patientName(String hint) {
-        if (hint == null) return null;
-        Matcher m = PATIENT.matcher(hint);
-        return m.find() ? m.group(1).trim() : null;
-    }
 
     TranscriptionResult parse(JsonNode root, String language) {
         String text = root.path("text").asText("").trim();

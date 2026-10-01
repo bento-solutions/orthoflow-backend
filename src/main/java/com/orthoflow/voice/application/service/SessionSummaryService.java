@@ -86,11 +86,24 @@ public class SessionSummaryService {
     }
 
     /**
-     * @param includedAuditIds the entries still included at review, or
-     *                         null/empty for everything the session staged
+     * @param includedAuditIds the entries still included at review. Null means
+     *                         everything the session staged; an empty list means
+     *                         the dentist excluded everything, so there is
+     *                         nothing to summarise — it must not silently turn
+     *                         into the whole session.
      */
     public SessionSummaryResponse summarise(UUID sessionId, Collection<UUID> includedAuditIds) {
-        boolean narrowed = includedAuditIds != null && !includedAuditIds.isEmpty();
+        return summarise(sessionId, includedAuditIds, null);
+    }
+
+    /**
+     * @param correctedTeeth tooth corrections made at review, by audit id, so
+     *                       the narrative describes the tooth that will be saved
+     */
+    public SessionSummaryResponse summarise(UUID sessionId, Collection<UUID> includedAuditIds,
+                                            Map<UUID, String> correctedTeeth) {
+        Map<UUID, String> corrections = validatedTeeth(correctedTeeth);
+        boolean narrowed = includedAuditIds != null;
         List<VoiceCommandAuditResponse> commands = voiceAuditService.forSession(sessionId).stream()
                 .filter(SessionSummaryService::isClinicallyRelevant)
                 .filter(audit -> !narrowed || includedAuditIds.contains(audit.id()))
@@ -105,7 +118,8 @@ public class SessionSummaryService {
         ConsultationRecords records = ConsultationRecords.of(
                 used.stream()
                         .map(audit -> (Map.Entry<String, String>)
-                                new AbstractMap.SimpleImmutableEntry<>(audit.intent(), audit.entities()))
+                                new AbstractMap.SimpleImmutableEntry<>(audit.intent(),
+                                        withTooth(audit.entities(), corrections.get(audit.id()))))
                         .toList(),
                 properties.getLanguage(), objectMapper);
 
@@ -250,6 +264,30 @@ public class SessionSummaryService {
                 : "Examination records, in order:\n\n");
         text.append(records.asPromptLines());
         return text.toString();
+    }
+
+    /** Rejects a corrected tooth that is not a real one, before it reaches a prompt. */
+    private static Map<UUID, String> validatedTeeth(Map<UUID, String> corrected) {
+        if (corrected == null || corrected.isEmpty()) return Map.of();
+        corrected.forEach((id, fdi) -> {
+            if (fdi == null || !fdi.matches("[1-4][1-8]|[5-8][1-5]")) {
+                throw new com.orthoflow.common.exception.ValidationException("Invalid FDI tooth code: " + fdi);
+            }
+        });
+        return corrected;
+    }
+
+    /** The entity JSON with its tooth replaced; unchanged when there is no correction or it is unreadable. */
+    private String withTooth(String entities, String fdi) {
+        if (fdi == null || entities == null) return entities;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(entities, Map.class);
+            parsed.put("fdi", fdi);
+            return objectMapper.writeValueAsString(parsed);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return entities;
+        }
     }
 
     private SessionSummaryResponse failed(String error) {

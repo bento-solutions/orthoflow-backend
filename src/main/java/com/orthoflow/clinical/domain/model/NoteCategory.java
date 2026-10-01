@@ -14,5 +14,21 @@ public enum NoteCategory {
     MEDICAL_HISTORY,
     DIAGNOSIS,
     FOLLOW_UP,
-    TREATMENT_PLAN
+    TREATMENT_PLAN,
+
+    /**
+     * The narrative of a whole dictated examination, as the dentist edited and
+     * signed it at review. Written by the commit step, never dictated as a
+     * command: one per examination, replaced rather than duplicated if the
+     * examination is saved again.
+     */
+    CONSULTATION_REPORT,
+
+    /**
+     * Everything that was said in a full-consultation recording, as
+     * transcribed — kept so the doctor can review it later. Written by the
+     * consultation commit, never dictated as a command: one per consultation,
+     * replaced rather than duplicated if the consultation is saved again.
+     */
+    CONSULTATION_TRANSCRIPT
 }

@@ -1,9 +1,13 @@
 package com.orthoflow.compliance.application.dto;
 
 import com.orthoflow.billing.domain.model.Invoice;
+import com.orthoflow.clinical.application.dto.PatientClinicalRecordResponse;
+import com.orthoflow.consultation.application.dto.ConsultationResponse;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.scheduling.domain.model.Appointment;
 import com.orthoflow.treatment.domain.model.PatientTreatment;
+import com.orthoflow.voice.application.dto.VoiceCommandAuditResponse;
+import com.orthoflow.voice.application.dto.VoiceSessionResponse;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -30,4 +34,16 @@ public class PatientDataExport {
     private List<Appointment> appointments;
     private List<PatientTreatment> treatments;
     private List<Invoice> invoices;
+    /** Findings, notes (including dictated consultation reports), allergies and history. */
+    private PatientClinicalRecordResponse clinicalRecord;
+    /** Dictated examinations: when, by whom, and the narrative that was signed. */
+    private List<VoiceSessionResponse> voiceSessions;
+    /** What was dictated and what it was understood to mean. */
+    private List<VoiceCommandAuditResponse> voiceCommands;
+    /**
+     * Recorded consultations, with whatever transcript and draft each still
+     * holds (an open one always does; a saved one only where retention is on)
+     * and what the doctor validated.
+     */
+    private List<ConsultationResponse> consultations;
 }

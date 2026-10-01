@@ -45,6 +45,28 @@ class ConsultationRecordsTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void nameEveryFaceOfACompoundSurface() {
+        ConsultationRecords records = records("French",
+                Map.entry("clinical.addFindings", "{\"fdi\":\"16\",\"findings\":[{\"code\":\"caries\","
+                        + "\"surface\":\"mesial-occlusal\"}]}"));
+
+        // Not "face mésiale" alone: the occlusal face is part of the finding.
+        assertThat(records.entries()).extracting(ConsultationRecords.Entry::line)
+                .containsExactly("Dent 16 : carie (face mésiale + face occlusale)");
+    }
+
+    @Test
+    void hasAWrittenNameForEveryFindingTheCatalogAccepts() {
+        // A code the catalog accepts but this lacks would be summarised as its
+        // own underscored identifier — "necrosis", "existing inlay" — in a
+        // report the dentist signs.
+        for (String code : com.orthoflow.clinical.domain.model.FindingCatalog.codes()) {
+            assertThat(ConsultationRecords.hasLabel(code)).as(code).isTrue();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void flagsTeethASummaryInventsOrLeavesOut() {
         ConsultationRecords records = records("French",
                 Map.entry("clinical.addFindings", "{\"fdi\":\"16\",\"findings\":[{\"code\":\"caries\"}]}"),

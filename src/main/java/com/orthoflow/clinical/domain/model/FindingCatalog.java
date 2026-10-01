@@ -55,6 +55,7 @@ public final class FindingCatalog {
         def("existing_post",        FindingKind.EXISTING, "post",       35);
         def("existing_sealant",     FindingKind.EXISTING, null,          0);
         def("existing_deciduous",   FindingKind.EXISTING, "deciduous",  30);
+        def("existing_inlay",       FindingKind.EXISTING, "composite",  40);
 
         // ── Conditions / pathology ──────────────────────────────────────
         def("extracted",            FindingKind.CONDITION, "extracted", 100);
@@ -79,6 +80,13 @@ public final class FindingCatalog {
         def("plaque_calculus",      FindingKind.CONDITION, null,          0);
         def("malposition",          FindingKind.CONDITION, null,          0);
         def("crown_defective",      FindingKind.CONDITION, "crown",      71);
+        def("avulsion",             FindingKind.CONDITION, "missing",    95);
+        def("extensive_destruction",FindingKind.CONDITION, null,          0);
+        def("pulpitis",             FindingKind.CONDITION, null,          0);
+        def("necrosis",             FindingKind.CONDITION, null,          0);
+        def("periapical_lesion",    FindingKind.CONDITION, null,          0);
+        def("bleeding",             FindingKind.CONDITION, null,          0);
+        def("swelling",             FindingKind.CONDITION, null,          0);
 
         // ── Treatment required ──────────────────────────────────────────
         def("crown_replacement_required", FindingKind.TREATMENT_REQUIRED, null, 0);

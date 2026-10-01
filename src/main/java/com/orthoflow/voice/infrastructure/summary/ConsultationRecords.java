@@ -51,6 +51,11 @@ public final class ConsultationRecords {
             "MODERATE", new String[] {"modérée", "moderate"},
             "SEVERE", new String[] {"sévère", "severe"});
 
+    /** Whether a finding code has a written name in both languages, rather than its code as a fallback. */
+    static boolean hasLabel(String code) {
+        return FINDINGS.containsKey(code);
+    }
+
     private static void f(String code, String fr, String en) {
         FINDINGS.put(code, new String[] {fr, en});
     }
@@ -67,6 +72,7 @@ public final class ConsultationRecords {
         f("existing_post", "inlay core / tenon", "post and core");
         f("existing_sealant", "scellement de sillons", "existing sealant");
         f("existing_deciduous", "dent de lait persistante", "retained deciduous tooth");
+        f("existing_inlay", "inlay / onlay", "inlay / onlay");
         f("extracted", "extraite", "extracted");
         f("missing", "absente", "missing");
         f("impacted", "incluse", "impacted");
@@ -89,6 +95,13 @@ public final class ConsultationRecords {
         f("plaque_calculus", "plaque / tartre", "plaque / calculus");
         f("malposition", "malposition", "malposition");
         f("crown_defective", "couronne défectueuse", "defective crown");
+        f("avulsion", "avulsion", "avulsion");
+        f("extensive_destruction", "dent délabrée", "extensively broken-down tooth");
+        f("pulpitis", "pulpite", "pulpitis");
+        f("necrosis", "nécrose pulpaire", "pulp necrosis");
+        f("periapical_lesion", "lésion périapicale", "periapical lesion");
+        f("bleeding", "saignement", "bleeding");
+        f("swelling", "gonflement", "swelling");
         f("crown_replacement_required", "couronne à remplacer", "crown replacement required");
         f("crown_required", "couronne à poser", "crown required");
         f("filling_required", "obturation à faire", "filling required");
@@ -266,7 +279,7 @@ public final class ConsultationRecords {
             String severity = text(finding, "severity");
             if (severity != null) qualifiers.add(pick(SEVERITIES.get(severity.toUpperCase(Locale.ROOT)), severity));
             String surface = text(finding, "surface");
-            if (surface != null) qualifiers.add(pick(SURFACES.get(surface.toLowerCase(Locale.ROOT)), surface));
+            if (surface != null) qualifiers.add(surfaceText(surface));
             String note = text(finding, "note");
             if (note != null) qualifiers.add(french ? "« " + note + " »" : "\"" + note + "\"");
             if (!qualifiers.isEmpty()) part.append(" (").append(String.join(", ", qualifiers)).append(')');
@@ -328,6 +341,15 @@ public final class ConsultationRecords {
     /** French puts a space before the colon; English does not. */
     private String colon() {
         return french ? " : " : ": ";
+    }
+
+    /** "mesial-occlusal" is two surfaces; each is said in full, joined, never dropped. */
+    private String surfaceText(String surface) {
+        List<String> parts = new ArrayList<>();
+        for (String part : surface.toLowerCase(Locale.ROOT).split("-")) {
+            if (!part.isBlank()) parts.add(pick(SURFACES.get(part), part));
+        }
+        return String.join(french ? " + " : " + ", parts);
     }
 
     private String label(String code) {

@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Server-side capture-to-text. The browser records a clip and posts it here;
@@ -66,6 +69,8 @@ public class SpeechToTextService {
             "sous-titrage st' 501", "sous-titres realises par la communaute d'amara.org",
             "sous-titres realises para la communaute d'amara.org", "abonnez-vous", "musique",
             "thank you", "thanks for watching", "thank you for watching", "you", "bye", "hmm", "euh", "...", "[music]", "[musique]", "(musique)", "[silence]", "[bruit]");
+
+    private static final Pattern PATIENT_SEGMENT = Pattern.compile("^\\s*patient\\b", Pattern.CASE_INSENSITIVE);
 
     private final SpeechToTextProperties properties;
     private final List<TranscriptionProvider> providers;
@@ -162,6 +167,9 @@ public class SpeechToTextService {
             return failed("stt-not-configured");
         }
 
+        // Whatever the browser sent, the patient's name does not go to a vendor.
+        prompt = withoutPatientName(prompt);
+
         byte[] bytes;
         try {
             bytes = audio.getBytes();
@@ -207,6 +215,21 @@ public class SpeechToTextService {
         // Not an exception: the client tells the doctor, audibly, that the
         // clip did not come through.
         return failed(lastError != null ? lastError : "stt-unavailable");
+    }
+
+    /**
+     * The recognition hint without any "patient …" segment. Current browsers
+     * no longer send one, but a tab still running an older bundle does, and
+     * the name would otherwise reach up to three outside recognisers with every
+     * clip. Enforced here, where the vendors are called, not trusted to the
+     * client.
+     */
+    static String withoutPatientName(String prompt) {
+        if (prompt == null) return null;
+        return Arrays.stream(prompt.split(";"))
+                .filter(part -> !PATIENT_SEGMENT.matcher(part).find())
+                .collect(Collectors.joining(";"))
+                .trim();
     }
 
     private boolean isCooling(TranscriptionProvider provider) {

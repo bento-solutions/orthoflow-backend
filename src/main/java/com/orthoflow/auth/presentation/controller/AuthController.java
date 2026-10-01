@@ -9,6 +9,7 @@ import com.orthoflow.auth.application.dto.UserResponse;
 import com.orthoflow.auth.application.service.AuthService;
 import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.common.exception.UnauthorizedException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final CurrentUserProvider currentUserProvider;
 
     // TRUE everywhere except throwaway dev environments (default is true in
     // application-prod.yml). When true, /auth/register only creates the very
@@ -34,6 +36,19 @@ public class AuthController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    /**
+     * Renews the session behind the presented token, up to the maximum session
+     * length. Authenticated like any other route — a deactivated account or a
+     * token issued before a password reset never reaches here — and answers 401
+     * once the sign-in is too old to extend, which is the caller's cue to warn
+     * that the session is ending.
+     */
+    @PostMapping("/refresh")
+    public LoginResponse refresh(@RequestHeader("Authorization") String authorization) {
+        String token = authorization.startsWith("Bearer ") ? authorization.substring(7) : authorization;
+        return authService.refresh(currentUserProvider.requireUserId(), token);
     }
 
     /**

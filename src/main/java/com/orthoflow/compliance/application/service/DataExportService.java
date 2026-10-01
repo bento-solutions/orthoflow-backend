@@ -1,12 +1,16 @@
 package com.orthoflow.compliance.application.service;
 
+import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.billing.domain.repository.InvoiceRepository;
 import com.orthoflow.patient.domain.repository.PatientRepository;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.compliance.application.dto.PatientDataExport;
+import com.orthoflow.consultation.application.service.ConsultationService;
 import com.orthoflow.scheduling.domain.repository.AppointmentRepository;
 import com.orthoflow.treatment.domain.repository.PatientTreatmentRepository;
+import com.orthoflow.voice.application.service.VoiceAuditService;
+import com.orthoflow.voice.application.service.VoiceSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +39,10 @@ public class DataExportService {
     private final AppointmentRepository appointmentRepository;
     private final PatientTreatmentRepository patientTreatmentRepository;
     private final InvoiceRepository invoiceRepository;
+    private final ClinicalRecordService clinicalRecordService;
+    private final VoiceSessionService voiceSessionService;
+    private final VoiceAuditService voiceAuditService;
+    private final ConsultationService consultationService;
 
     @Transactional(readOnly = true)
     public PatientDataExport exportPatientData(UUID patientId) {
@@ -47,6 +55,10 @@ public class DataExportService {
                 .appointments(appointmentRepository.findByPatientId(patientId))
                 .treatments(patientTreatmentRepository.findByPatientId(patientId))
                 .invoices(invoiceRepository.findByPatientId(patientId))
+                .clinicalRecord(clinicalRecordService.getRecord(patientId))
+                .voiceSessions(voiceSessionService.listByPatient(patientId))
+                .voiceCommands(voiceAuditService.forPatient(patientId))
+                .consultations(consultationService.forExport(patientId))
                 .build();
     }
 

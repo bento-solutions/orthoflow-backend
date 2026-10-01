@@ -1,6 +1,12 @@
 spring:
   application:
     name: orthoflow
+  profiles:
+    # A bare local run (no SPRING_PROFILES_ACTIVE) gets application-dev.yml:
+    # SQL and DEBUG logging. Any explicit profile — prod, a staging box —
+    # replaces it, so SQL is never logged somewhere just because the profile
+    # was not the exact word "prod".
+    default: dev
   datasource:
     url: jdbc:postgresql://localhost:5432/orthoflow
     username: ${DB_USERNAME:postgres}
@@ -8,10 +14,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -31,12 +37,17 @@ app:
     # Dev-only default (32+ bytes). ALWAYS override with JWT_SECRET in any
     # shared/production environment — see application-prod.yml.
     secret: ${JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
-    # 4h. There is no refresh token, so this is also the max a stolen token is
-    # useful for. Deactivation/demotion/password-reset are enforced per-request
-    # by JwtAuthFilter regardless of this value; shortening it only bounds the
-    # theft window. Raise via JWT_EXPIRATION_MINUTES if it proves too short in
-    # practice (a mid-consultation logout is disruptive).
+    # 4h per token. Deactivation/demotion/password-reset are enforced
+    # per-request by JwtAuthFilter regardless of this value; shortening it only
+    # bounds the theft window.
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:240}
+    # A token that expires mid-consultation logs the dentist out of the chart
+    # they are dictating onto. POST /auth/refresh therefore swaps a live token
+    # for a fresh one — but never past this many minutes after the person
+    # actually signed in (12h: one clinic day). It is the longest a stolen
+    # token can be kept alive by renewing it; past it only the password works.
+    # Set it at or below expiration-minutes to turn renewal off entirely.
+    max-session-minutes: ${JWT_MAX_SESSION_MINUTES:720}
   # Base origin used to build the password-reset link sent to users. Override
   # with FRONTEND_URL wherever the frontend isn't served from localhost:4200
   # (see application-prod.yml).
@@ -62,17 +73,28 @@ orthoflow:
     # vendor to another, so a key is held once per vendor rather than once
     # per stage. Server-side only; none of these ever reaches the browser.
     # Each stage's own api-key still works for its primary vendor.
+    #
+    # data-protected is the operator's statement, per vendor, that the key is
+    # on a plan whose terms keep submitted content out of the vendor's model
+    # training and that a DPA is in place. The code cannot check a contract, so
+    # it stays false until someone has read it, and a vendor that receives
+    # patient data without it is named in a startup warning. A free-tier key
+    # is the usual reason it is not true.
     providers:
       gemini:
         api-key: ${VOICE_GEMINI_API_KEY:}
+        data-protected: ${VOICE_GEMINI_DATA_PROTECTED:false}
       groq:
         api-key: ${VOICE_GROQ_API_KEY:}
         base-url: ${VOICE_GROQ_BASE_URL:https://api.groq.com/openai/v1}
+        data-protected: ${VOICE_GROQ_DATA_PROTECTED:false}
       deepseek:
         api-key: ${VOICE_DEEPSEEK_API_KEY:}
         base-url: ${VOICE_DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        data-protected: ${VOICE_DEEPSEEK_DATA_PROTECTED:false}
       assemblyai:
         api-key: ${VOICE_ASSEMBLYAI_API_KEY:}
+        data-protected: ${VOICE_ASSEMBLYAI_DATA_PROTECTED:false}
         # The EU data-residency endpoint: consultation audio is health data.
         base-url: ${VOICE_ASSEMBLYAI_BASE_URL:https://sync.eu.assemblyai.com/v1}
     nlu:
@@ -87,10 +109,11 @@ orthoflow:
       # keeping the data inside the same trust boundary as the database.
       # 'gemini' uses Google's Interactions API — fast, multilingual, and
       # excellent at clinical vocabulary in French/Darija code-switching.
-      # groq by default: a free-tier Gemini key allows 20 interpretations a day
-      # on gemini-3.5-flash; Groq answers in under a second with far more
-      # headroom. Gemini is still tried when Groq is unavailable.
-      provider: ${VOICE_NLU_PROVIDER:groq}
+      # When you do enable one, prefer groq over a free-tier Gemini key: that
+      # key allows 20 interpretations a day on gemini-3.5-flash, whereas Groq
+      # answers in under a second with far more headroom. Gemini is still tried
+      # when Groq is unavailable.
+      provider: ${VOICE_NLU_PROVIDER:disabled}
       # Used by anthropic and openai-compatible providers.
       model: ${VOICE_NLU_MODEL:claude-opus-5}
       api-key: ${VOICE_NLU_API_KEY:}
@@ -124,7 +147,7 @@ orthoflow:
     # read here and never sent to the browser. Point base-url at a
     # self-hosted faster-whisper server to keep audio on-premise.
     stt:
-      enabled: ${VOICE_STT_ENABLED:true}
+      enabled: ${VOICE_STT_ENABLED:false}
       # The primary recogniser, then each fallback in order, inside one time
       # budget: assemblyai (Universal-3.5 Pro, sync, EU) | gemini (Interactions
       # API) | groq (Whisper). Measured on noisy French dental dictation
@@ -172,6 +195,25 @@ orthoflow:
       # (AssemblyAI reports one). Measured: hallucinations 0.2-0.5, speech 0.7+.
       min-confidence: ${VOICE_STT_MIN_CONFIDENCE:0.55}
       max-audio-bytes: ${VOICE_STT_MAX_AUDIO_BYTES:15728640}
+    # ── Throttling of the paid routes ──────────────────────────────────
+    # Per signed-in user. A hands-free examination produces at most a dozen
+    # clips a minute and one summary per consultation, so these stop a runaway
+    # client or a stolen token spending the clinic's quota, not a busy doctor.
+    # Set enabled=false when the proxy already throttles.
+    rate-limit:
+      enabled: ${VOICE_RATE_LIMIT_ENABLED:true}
+      transcribe:
+        per-minute: ${VOICE_RATE_LIMIT_TRANSCRIBE_PER_MINUTE:40}
+        per-hour: ${VOICE_RATE_LIMIT_TRANSCRIBE_PER_HOUR:1200}
+        concurrent: ${VOICE_RATE_LIMIT_TRANSCRIBE_CONCURRENT:6}
+      interpret:
+        per-minute: ${VOICE_RATE_LIMIT_INTERPRET_PER_MINUTE:30}
+        per-hour: ${VOICE_RATE_LIMIT_INTERPRET_PER_HOUR:600}
+        concurrent: ${VOICE_RATE_LIMIT_INTERPRET_CONCURRENT:3}
+      summarize:
+        per-minute: ${VOICE_RATE_LIMIT_SUMMARIZE_PER_MINUTE:6}
+        per-hour: ${VOICE_RATE_LIMIT_SUMMARIZE_PER_HOUR:60}
+        concurrent: ${VOICE_RATE_LIMIT_SUMMARIZE_CONCURRENT:1}
     # ── End-of-consultation summary ────────────────────────────────────
     # The prose the dentist reads at review, generated from the session's own
     # audit trail. Distinct from GET /voice/sessions/{id}/summary, which reads
@@ -207,6 +249,40 @@ orthoflow:
       # beside patient identifiers (audit XII.5) — application-prod.yml turns
       # this off. The interpreted command is always retained either way.
       store-transcript: ${VOICE_STORE_TRANSCRIPT:true}
+  # ── Full-consultation recording ─────────────────────────────────────
+  # The doctor and the patient talk; the whole conversation is transcribed and
+  # kept, and what matters in it (identity, allergies, history, the treatment
+  # plan, the next appointment) is proposed for the doctor to validate before
+  # anything reaches the record. Unlike command dictation this KEEPS the raw
+  # transcript — on purpose, so it can be reviewed later — which is why it is
+  # its own switch, off by default. Turning it on needs a DPA with every vendor
+  # in the chain, a lawful basis and a CNDP notification (Law 09-08), and the
+  # doctor attests at the start of each consultation that the patient was told.
+  consultation:
+    enabled: ${CONSULTATION_ENABLED:false}
+    # "Today", and what "in 15 days" resolves against, is the clinic's day.
+    timezone: ${CONSULTATION_TIMEZONE:Africa/Casablanca}
+    # Keep the raw conversation once the consultation is saved (a
+    # CONSULTATION_TRANSCRIPT note, and on the consultation row). TESTING ONLY:
+    # production keeps no transcript, and the prod profile refuses to start
+    # with this on. Off, the transcript is held only while the consultation is
+    # open (crash recovery) and erased when it is saved or discarded.
+    retain-transcript: ${CONSULTATION_RETAIN_TRANSCRIPT:false}
+    # An open consultation untouched for this long is discarded, transcript and
+    # all (checked hourly). Runs even with the feature off.
+    idle-discard-hours: ${CONSULTATION_IDLE_DISCARD_HOURS:24}
+    extraction:
+      # Off: nothing is sent to a model; the side panel still shows what simple
+      # rules can read (phone, CIN, age, insurer, allergies).
+      enabled: ${CONSULTATION_EXTRACTION_ENABLED:false}
+      provider: ${CONSULTATION_EXTRACTION_PROVIDER:groq}
+      model: ${CONSULTATION_EXTRACTION_MODEL:openai/gpt-oss-120b}
+      # vendor:model, tried in order after provider/model. Keys: orthoflow.voice.providers.
+      fallbacks: ${CONSULTATION_EXTRACTION_FALLBACKS:groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      language: ${CONSULTATION_EXTRACTION_LANGUAGE:French}
+      timeout-ms: ${CONSULTATION_EXTRACTION_TIMEOUT_MS:25000}
+      max-output-tokens: ${CONSULTATION_EXTRACTION_MAX_OUTPUT_TOKENS:2200}
+      max-transcript-chars: ${CONSULTATION_EXTRACTION_MAX_TRANSCRIPT_CHARS:60000}
 
 server:
   port: 8080
@@ -245,6 +321,6 @@ logging:
     # line is emitted outside a request (startup, scheduled jobs).
     level: "%5p [%X{correlationId:--}]"
   level:
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    com.orthoflow: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    com.orthoflow: INFO

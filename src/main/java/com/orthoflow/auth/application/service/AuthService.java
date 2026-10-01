@@ -23,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.UUID;
 import java.util.HexFormat;
 
 @Service
@@ -56,6 +57,24 @@ public class AuthService {
         }
 
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+        return LoginResponse.builder()
+                .token(token)
+                .user(toResponse(user))
+                .build();
+    }
+
+    /**
+     * Exchanges a live token for a later one, keeping the original sign-in
+     * time so the bound in {@link JwtService} holds however often it is
+     * renewed. The account is re-read: a deactivated user is refused here as
+     * well as by the filter that let the request in.
+     */
+    @Transactional(readOnly = true)
+    public LoginResponse refresh(UUID userId, String presentedToken) {
+        User user = userRepository.findById(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new UnauthorizedException("This session is no longer valid. Sign in again."));
+        String token = jwtService.refreshToken(presentedToken, user.getId(), user.getEmail(), user.getRole().name());
         return LoginResponse.builder()
                 .token(token)
                 .user(toResponse(user))

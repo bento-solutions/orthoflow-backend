@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.clinical.application.dto.*;
 import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.clinical.domain.model.FindingStatus;
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.voice.application.dto.CompleteVoiceSessionRequest;
@@ -13,6 +14,7 @@ import com.orthoflow.voice.application.dto.InterpretResponse;
 import com.orthoflow.voice.application.dto.RecordVoiceCommandRequest;
 import com.orthoflow.voice.application.dto.StartVoiceSessionRequest;
 import com.orthoflow.voice.application.dto.VoiceCommandAuditResponse;
+import com.orthoflow.voice.domain.model.CommandOutcome;
 import com.orthoflow.voice.domain.model.ConfirmationStatus;
 import com.orthoflow.voice.domain.model.RiskTier;
 import com.orthoflow.voice.domain.model.VoiceCommandAudit;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -83,6 +86,19 @@ public class VoiceCommandService {
     private final VoiceSessionService voiceSessionService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Every intent {@link #execute} will act on. They are the writes, so the
+     * server — not the client that logs them — decides that they are
+     * CONFIRM-tier: a browser that declared one SAFE and EXECUTED would
+     * otherwise put a clinical entry in the trail (and in the summary, which
+     * trusts EXECUTED) that nothing ever wrote or confirmed.
+     */
+    static final Set<String> WRITE_INTENTS = Set.of(
+            "clinical.addFinding", "clinical.addFindings", "clinical.retractFindings",
+            "clinical.resolveFinding", "clinical.retractFinding", "clinical.addNote",
+            "clinical.addAllergy", "clinical.addMedicalHistory",
+            "voice.startSession", "voice.endSession");
+
     private record ExecutionResult(String targetType, String targetId, String previousValue, String newValue) {}
 
     // ── Recording ────────────────────────────────────────────────────────
@@ -101,11 +117,22 @@ public class VoiceCommandService {
     public VoiceCommandAuditResponse record(RecordVoiceCommandRequest request, UUID actorId) {
         boolean isConfirmTier = RiskTier.CONFIRM.name().equalsIgnoreCase(request.getRiskTier());
         boolean isPending = ConfirmationStatus.PENDING.name().equalsIgnoreCase(request.getConfirmationStatus());
+        if (WRITE_INTENTS.contains(request.getIntent()) && !isConfirmTier) {
+            // Whether a command is a write is a property of the command, not
+            // something the caller gets to declare.
+            throw new ValidationException("'" + request.getIntent() + "' writes to the record, so it must be "
+                    + "recorded at the CONFIRM risk tier.");
+        }
         if (isConfirmTier && !isPending) {
             // A CONFIRM-tier command must land here still awaiting its answer —
             // the write itself only ever happens through confirm().
             throw new ValidationException(
                     "A CONFIRM risk-tier command must be recorded as PENDING; the write happens on /confirm.");
+        }
+        if (isConfirmTier && !CommandOutcome.CLARIFICATION.name().equalsIgnoreCase(request.getOutcome())) {
+            // The outcome of a write is something only the server can report.
+            throw new ValidationException("A pending CONFIRM command has no outcome yet; "
+                    + "it is recorded as CLARIFICATION until /confirm runs it.");
         }
         return voiceAuditService.record(request, actorId);
     }
@@ -133,6 +160,14 @@ public class VoiceCommandService {
         VoiceCommandAudit audit = requirePending(auditId);
         Map<String, Object> entities = parseEntities(audit.getEntities());
 
+        // Check-then-act is not enough: two confirms can both read PENDING.
+        // Exactly one wins this atomic step, and only the winner writes, so a
+        // note or a history entry — which nothing de-duplicates — is written
+        // once however many times the request arrives.
+        if (!voiceAuditService.claim(auditId, ConfirmationStatus.CONFIRMED)) {
+            throw new ConflictException("Voice command " + auditId + " is already being handled.");
+        }
+
         try {
             ExecutionResult result = execute(audit.getIntent(), entities, audit.getPatientId(),
                     audit.getSessionId(), actorId);
@@ -148,6 +183,9 @@ public class VoiceCommandService {
 
     public VoiceCommandAuditResponse reject(UUID auditId, UUID actorId) {
         requirePending(auditId);
+        if (!voiceAuditService.claim(auditId, ConfirmationStatus.REJECTED)) {
+            throw new ConflictException("Voice command " + auditId + " is already being handled.");
+        }
         return voiceAuditService.markRejected(auditId);
     }
 

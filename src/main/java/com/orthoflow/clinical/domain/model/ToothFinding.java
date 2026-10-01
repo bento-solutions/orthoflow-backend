@@ -43,8 +43,13 @@ public class ToothFinding {
     @Column(nullable = false, length = 24)
     private FindingKind kind;
 
-    /** Optional tooth surface: occlusal, mesial, distal, buccal, lingual, incisal. */
-    @Column(length = 24)
+    /**
+     * Optional tooth surface: occlusal, mesial, distal, buccal, lingual,
+     * incisal or cervical — or up to three of them joined by hyphens
+     * ("mesial-occlusal-distal"). A compound cavity is said that way and must
+     * not be reduced to one of its faces.
+     */
+    @Column(length = 48)
     private String surface;
 
     @Enumerated(EnumType.STRING)

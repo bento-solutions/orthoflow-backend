@@ -397,7 +397,7 @@ public class GeminiTranscriptionClient implements TranscriptionProvider {
         JsonNode json = tryParseObject(raw);
         if (json == null) {
             if (looksLikeRefusal(raw)) {
-                log.warn("Gemini speech-to-text answered the audio instead of transcribing it: {}", truncate(raw));
+                log.warn("Gemini speech-to-text answered the audio instead of transcribing it ({} chars, not logged)", raw.length());
                 return TranscriptionResult.ofError("stt-non-transcript-response");
             }
             return TranscriptionResult.ofText(raw, null, language, null, model);
@@ -409,7 +409,7 @@ public class GeminiTranscriptionClient implements TranscriptionProvider {
             return TranscriptionResult.ofText("", null, language, null, model);
         }
         if (looksLikeRefusal(text)) {
-            log.warn("Gemini speech-to-text answered the audio instead of transcribing it: {}", truncate(text));
+            log.warn("Gemini speech-to-text answered the audio instead of transcribing it ({} chars, not logged)", text.length());
             return TranscriptionResult.ofError("stt-non-transcript-response");
         }
 

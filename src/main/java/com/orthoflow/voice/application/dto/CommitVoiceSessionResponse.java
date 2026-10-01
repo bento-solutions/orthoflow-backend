@@ -21,6 +21,13 @@ public record CommitVoiceSessionResponse(
         int executed,
         int rejected,
         int amended,
+        /**
+         * Commands that were still pending when the examination was saved but
+         * were on neither the approved nor the rejected list — dictated, never
+         * reviewed, so not written. Non-zero means the review page did not show
+         * everything that was dictated.
+         */
+        int notReviewed,
         /** Commands that were approved but could not be written. */
         List<FailedCommand> failed
 ) {

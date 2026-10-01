@@ -43,6 +43,7 @@ class ClinicalRecordServiceReplaceTest {
     private static final UUID ACTOR = UUID.randomUUID();
 
     private ToothFindingRepository findings;
+    private ToothStateEventRepository events;
     private ClinicalRecordService service;
     private DentalChart chart;
     private final List<ToothFinding> saved = new ArrayList<>();
@@ -66,9 +67,10 @@ class ClinicalRecordServiceReplaceTest {
             return finding;
         });
 
+        events = mock(ToothStateEventRepository.class);
         service = new ClinicalRecordService(charts, findings, mock(ClinicalNoteRepository.class),
                 mock(PatientAllergyRepository.class), mock(MedicalHistoryRepository.class),
-                mock(ToothStateEventRepository.class), patients);
+                events, patients);
     }
 
     private ToothFinding existing(String fdi, String code, UUID patientOfChart) {
@@ -158,5 +160,77 @@ class ClinicalRecordServiceReplaceTest {
                 .isInstanceOf(NotFoundException.class);
 
         verify(findings, never()).save(any());
+    }
+
+    // ── Who the tooth audit trail says made the change ──────────────────
+
+    private String sourceOfRecordedChange() {
+        org.mockito.ArgumentCaptor<com.orthoflow.clinical.domain.model.ToothStateEvent> event =
+                org.mockito.ArgumentCaptor.forClass(com.orthoflow.clinical.domain.model.ToothStateEvent.class);
+        verify(events).save(event.capture());
+        return event.getValue().getSource();
+    }
+
+    @Test
+    void aFindingWithdrawnFromTheChartScreenIsLoggedAsManual() {
+        ToothFinding finding = existing("16", "caries", PATIENT);
+
+        service.changeFindingStatus(PATIENT, finding.getId(), FindingStatus.RETRACTED, ACTOR);
+
+        // It used to say "voice" for every status change, whoever made it.
+        assertThat(sourceOfRecordedChange()).isEqualTo("manual");
+    }
+
+    @Test
+    void aFindingWithdrawnByAVoiceCommandIsLoggedAsVoice() {
+        ToothFinding finding = existing("16", "caries", PATIENT);
+
+        service.changeFindingStatus(finding.getId(), FindingStatus.RETRACTED, ACTOR);
+
+        assertThat(sourceOfRecordedChange()).isEqualTo("voice");
+    }
+
+    @Test
+    void aVoiceCorrectionIsLoggedAsVoice() {
+        ToothFinding old = existing("16", "caries", PATIENT);
+
+        service.replaceFindings(PATIENT, "16", List.of(old.getId()),
+                List.of(request("crown_replacement_required")), ACTOR);
+
+        org.mockito.ArgumentCaptor<com.orthoflow.clinical.domain.model.ToothStateEvent> event =
+                org.mockito.ArgumentCaptor.forClass(com.orthoflow.clinical.domain.model.ToothStateEvent.class);
+        verify(events, org.mockito.Mockito.atLeastOnce()).save(event.capture());
+        assertThat(event.getAllValues()).allMatch(e -> "voice".equals(e.getSource()));
+    }
+
+    // ── Surfaces ────────────────────────────────────────────────────────
+
+    private AddToothFindingRequest withSurface(String code, String surface) {
+        AddToothFindingRequest request = request(code);
+        request.setSurface(surface);
+        return request;
+    }
+
+    @Test
+    void aCompoundSurfaceIsStoredWhole() {
+        ToothFinding old = existing("16", "caries", PATIENT);
+
+        service.replaceFindings(PATIENT, "16", List.of(old.getId()),
+                List.of(withSurface("caries", "Mesial-Occlusal")), ACTOR);
+
+        assertThat(saved.stream().filter(f -> f != old).map(ToothFinding::getSurface))
+                .containsExactly("mesial-occlusal");
+    }
+
+    @Test
+    void aSurfaceThatIsNotOneOrMoreFacesWithdrawsNothing() {
+        ToothFinding old = existing("16", "caries", PATIENT);
+
+        for (String bad : List.of("mesial occlusal", "mesial-occlusal-distal-buccal", "occlusal;DROP", "12", "-")) {
+            assertThatThrownBy(() -> service.replaceFindings(PATIENT, "16", List.of(old.getId()),
+                    List.of(withSurface("caries", bad)), ACTOR))
+                    .as(bad).isInstanceOf(ValidationException.class);
+        }
+        assertThat(old.getStatus()).isEqualTo(FindingStatus.ACTIVE);
     }
 }

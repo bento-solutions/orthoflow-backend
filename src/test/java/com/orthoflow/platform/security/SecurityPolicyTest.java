@@ -187,6 +187,8 @@ class SecurityPolicyTest {
         return Stream.of(
                 // ── Public ────────────────────────────────────────────────
                 Case.pub(HttpMethod.POST, "/auth/login", "login is public"),
+                Case.restricted(HttpMethod.POST, "/auth/refresh",
+                        "renewing a session needs a session, from any role", ASSISTANT, DOCTOR, ADMIN),
                 Case.pub(HttpMethod.GET, "/actuator/health", "actuator is reachable inside the Docker network only, not gated further here"),
                 Case.pub(HttpMethod.GET, "/v3/api-docs", "API docs are public and disabled outright in prod"),
 
@@ -209,6 +211,16 @@ class SecurityPolicyTest {
                         "voice sessions inherit the clinical record's floor", DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/voice/transcribe",
                         "capture-to-text carries consultation audio and is clinician-only", DOCTOR, ADMIN),
+
+                // ── Consultations: the whole conversation, kept ──────────────
+                Case.restricted(HttpMethod.POST, "/consultations",
+                        "recording a consultation is a clinical act", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/consultations/" + ID,
+                        "a transcript is the most sensitive text in the system", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/consultations/" + ID + "/extract",
+                        "reading a conversation sends it to a model", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/consultations/" + ID + "/commit",
+                        "saving a consultation writes the clinical record", DOCTOR, ADMIN),
 
                 // ── Compliance: the operator's duty ──────────────────────────
                 Case.restricted(HttpMethod.GET, "/patients/" + ID + "/compliance/export",
