@@ -172,6 +172,9 @@ public class StockService {
         supplier.setEmail(request.getEmail());
         supplier.setPhone(request.getPhone());
         supplier.setAddress(request.getAddress());
+        if (request.getKind() != null) {
+            supplier.setKind(com.orthoflow.inventory.domain.model.SupplierKind.valueOf(request.getKind()));
+        }
         supplier.setActive(request.isActive());
         return supplierRepository.save(supplier);
     }

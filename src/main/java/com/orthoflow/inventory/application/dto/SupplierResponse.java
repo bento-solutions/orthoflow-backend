@@ -10,10 +10,12 @@ public record SupplierResponse(
         String contactName,
         String email,
         String phone,
-        String address
+        String address,
+        String kind
 ) {
     public static SupplierResponse from(Supplier s) {
         if (s == null) return null;
-        return new SupplierResponse(s.getId(), s.getName(), s.getContactName(), s.getEmail(), s.getPhone(), s.getAddress());
+        return new SupplierResponse(s.getId(), s.getName(), s.getContactName(), s.getEmail(), s.getPhone(), s.getAddress(),
+                s.getKind() == null ? "SUPPLIER" : s.getKind().name());
     }
 }

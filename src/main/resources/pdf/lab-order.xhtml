@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${'Bon de laboratoire'}">Fee note</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 14px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 14pt; font-weight: bold; color: #1d4ed8; }
+    .legal { font-size: 8pt; color: #52606d; }
+    h1 { font-size: 15pt; margin: 6px 0 2px 0; letter-spacing: 0.5px; }
+    .dup { color: #b91c1c; font-weight: bold; border: 2px solid #b91c1c; padding: 2px 8px; display: inline-block; margin-left: 8px; }
+    .meta { width: 100%; margin: 8px 0 14px 0; }
+    .meta td { vertical-align: top; width: 50%; padding-right: 10px; }
+    .box { border: 1px solid #c5d0ea; padding: 6px 8px; background: #f7f9fd; }
+    .label { color: #7b8794; font-size: 8pt; text-transform: uppercase; }
+    table.lines { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.lines th { background: #e8eefc; border: 1px solid #c5d0ea; padding: 4px 6px; font-size: 8.5pt; text-align: left; }
+    table.lines td { border: 1px solid #dde3ee; padding: 4px 6px; }
+    .right { text-align: right; } .center { text-align: center; }
+    [dir=rtl] table.lines th { text-align: right; }
+    table.totals { width: 55%; margin-left: auto; border-collapse: collapse; margin-top: 8px; }
+    [dir=rtl] table.totals { margin-left: 0; margin-right: auto; }
+    table.totals td { padding: 3px 6px; }
+    table.totals tr.grand td { font-weight: bold; border-top: 2px solid #1d4ed8; font-size: 11pt; }
+    .words { margin-top: 14px; padding: 8px; border: 1px dashed #9aa5b1; }
+    .sign { margin-top: 28px; width: 100%; }
+    .sign td { width: 50%; height: 60px; vertical-align: top; }
+    .foot { margin-top: 18px; font-size: 7.5pt; color: #7b8794; border-top: 1px solid #dde3ee; padding-top: 4px; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.legalName != null}" th:text="${letterhead.legalName}"></div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
+    </td>
+    <td class="right"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" alt=""/></td>
+  </tr></table>
+
+  <h1>BON DE LABORATOIRE <span th:text="${'N° ' + order.reference}">N° 1</span><span class="dup" th:if="${order.urgent}">URGENT</span></h1>
+  <div class="legal" th:text="${'Envoyé le ' + order.sentDate}">Date</div>
+
+  <table class="meta"><tr>
+    <td><div class="box">
+      <div class="label">Laboratoire</div>
+      <div><b th:text="${lab.name}">Lab</b></div>
+      <div th:if="${lab.contact != ''}" th:text="${lab.contact}"></div>
+    </div></td>
+    <td><div class="box">
+      <div class="label">Patient</div>
+      <div><b th:text="${patient.fullName}">Patient</b></div>
+      <div th:if="${patient.dateOfBirth != null}" th:text="${'Né(e) le ' + patient.dateOfBirth}"></div>
+      <div class="label" style="margin-top:6px;">Praticien</div>
+      <div th:text="${practitioner}">Dr</div>
+    </div></td>
+  </tr></table>
+
+  <table class="lines">
+    <thead><tr><th>Travail demandé</th><th>Description</th><th>À rendre pour le</th></tr></thead>
+    <tbody><tr>
+      <td><b th:text="${order.itemType}">ALIGNER</b></td>
+      <td th:text="${order.description}">…</td>
+      <td th:text="${order.dueDate != '' ? order.dueDate : '—'}">—</td>
+    </tr></tbody>
+  </table>
+
+  <div class="words" th:if="${order.notes != ''}"><b>Instructions :</b> <span th:text="${order.notes}">…</span></div>
+
+  <table class="sign"><tr>
+    <td><div class="label">Reçu par le laboratoire</div></td>
+    <td><div class="label">Cachet et signature du praticien</div></td>
+  </tr></table>
+</body>
+</html>

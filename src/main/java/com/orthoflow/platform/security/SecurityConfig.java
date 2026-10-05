@@ -225,6 +225,15 @@ public class SecurityConfig {
             // ── Recall lists: who to call (queries over what the clinic knows) ──
             .requestMatchers(HttpMethod.GET, "/recalls/**").hasAuthority(Permission.AGENDA_VIEW.name())
 
+            // ── Tasks and internal messages ─────────────────────────────────
+            .requestMatchers(HttpMethod.GET, "/tasks").hasAuthority(Permission.TASKS_ADMIN.name())
+            .requestMatchers("/tasks", "/tasks/**").hasAuthority(Permission.TASKS_MANAGE.name())
+            // A thread is visible to its participants only, which the service checks.
+            .requestMatchers("/staff-messages", "/staff-messages/**").hasAnyRole(EVERYONE)
+
+            // ── Lab orders ───────────────────────────────────────────────────
+            .requestMatchers("/lab-orders", "/lab-orders/**").hasAuthority(Permission.LAB_ORDERS_MANAGE.name())
+
             // ── Tax documents: fee notes and care forms ───────────────────────
             .requestMatchers(HttpMethod.GET, "/tax-documents", "/tax-documents/**").hasAuthority(Permission.BILLING_READ.name())
             .requestMatchers(HttpMethod.POST, "/tax-documents").hasAuthority(Permission.BILLING_WRITE.name())

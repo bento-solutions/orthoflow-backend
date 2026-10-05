@@ -29,4 +29,8 @@ public class SupplierRequest {
     private String address;
 
     private boolean active = true;
+
+    /** SUPPLIER (default) or LAB. */
+    @jakarta.validation.constraints.Pattern(regexp = "SUPPLIER|LAB", message = "kind must be SUPPLIER or LAB")
+    private String kind;
 }

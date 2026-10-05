@@ -344,6 +344,14 @@ class SecurityPolicyTest {
                 Case.restricted(HttpMethod.POST, "/tax-documents", "issuing a fee note is front-desk work", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/tax-documents/" + ID + "/void", "voiding a tax document is finance management", DOCTOR, ADMIN),
 
+                // ── Clinic operations (phase 3) ───────────────────────────────
+                Case.restricted(HttpMethod.GET, "/lab-orders", "lab orders are managed by whoever holds LAB_ORDERS_MANAGE", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/lab-orders/" + ID + "/status", "moving a lab order along", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/tasks/mine", "everyone has tasks of their own", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/tasks", "everyone's tasks is the administrator's view", ADMIN),
+                Case.restricted(HttpMethod.POST, "/tasks", "creating a task is open to staff", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/staff-messages/threads", "internal messages are for staff", ASSISTANT, DOCTOR, ADMIN),
+
                 // ── Inventory and procurement ────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/stock/items",
                         "browsing inventory is front-desk work", ASSISTANT, DOCTOR, ADMIN),

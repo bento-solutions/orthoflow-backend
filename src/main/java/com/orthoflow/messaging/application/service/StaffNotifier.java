@@ -44,6 +44,21 @@ public class StaffNotifier {
         return told;
     }
 
+    /** Everyone active in the clinic who holds this role. */
+    @Transactional
+    public int toRole(UUID practiceId, com.orthoflow.auth.domain.model.UserRole role, MessagePurpose purpose, String subject, String body,
+                      String relatedType, UUID relatedId) {
+        int told = 0;
+        for (var user : users.findAll()) {
+            if (user.isActive() && practiceId.equals(user.getPracticeId()) && user.getRole() == role) {
+                messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(MessageChannel.IN_APP).purpose(purpose)
+                        .recipientUserId(user.getId()).subject(subject).body(body).relatedType(relatedType).relatedId(relatedId).build());
+                told++;
+            }
+        }
+        return told;
+    }
+
     @Transactional
     public void toUser(UUID practiceId, UUID userId, MessagePurpose purpose, String subject, String body, String relatedType, UUID relatedId) {
         messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(MessageChannel.IN_APP).purpose(purpose)
