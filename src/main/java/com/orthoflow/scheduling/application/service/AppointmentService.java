@@ -1,14 +1,22 @@
 package com.orthoflow.scheduling.application.service;
 
+import com.orthoflow.activity.application.service.ActivityLog;
+import com.orthoflow.common.events.LiveEventPublisher;
+import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.common.exception.ValidationException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientSummary;
 import com.orthoflow.scheduling.application.dto.AppointmentRequest;
 import com.orthoflow.scheduling.application.dto.AppointmentResponse;
 import com.orthoflow.scheduling.domain.model.Appointment;
+import com.orthoflow.scheduling.domain.model.AppointmentStatus;
+import com.orthoflow.scheduling.domain.model.AppointmentType;
 import com.orthoflow.scheduling.domain.model.Chair;
 import com.orthoflow.scheduling.domain.repository.AppointmentRepository;
+import com.orthoflow.scheduling.infrastructure.adapter.persistence.AppointmentJpaRepository;
+import com.orthoflow.scheduling.infrastructure.adapter.persistence.AppointmentTypeJpaRepository;
 import com.orthoflow.scheduling.infrastructure.adapter.persistence.ChairJpaRepository;
-import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.team.application.service.PractitionerService;
 import com.orthoflow.team.domain.model.Practitioner;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,37 +38,70 @@ import java.util.stream.Collectors;
 public class AppointmentService {
 
     private static final int DEFAULT_DURATION_MINUTES = 30;
+    static final String ENTITY = "APPOINTMENT";
 
     private final AppointmentRepository appointmentRepository;
+    private final AppointmentJpaRepository appointments;
     private final PatientLookup patientLookup;
     private final ChairJpaRepository chairJpaRepository;
+    private final AppointmentTypeJpaRepository types;
     private final PractitionerService practitionerService;
+    private final SlotBlockChecker blocks;
+    private final ActivityLog activityLog;
+    private final LiveEventPublisher liveEvents;
+    private final CurrentUserProvider currentUser;
 
     @Transactional
     public AppointmentResponse createAppointment(AppointmentRequest request) {
+        return createAppointment(request, currentUser.requirePracticeId());
+    }
+
+    @Transactional
+    public AppointmentResponse createAppointment(AppointmentRequest request, UUID practiceId) {
         if (!patientLookup.exists(request.getPatientId())) {
             throw new NotFoundException("Patient not found");
         }
+        AppointmentType type = resolveType(practiceId, request.getAppointmentTypeId());
+        if (request.getPractitionerId() != null) {
+            practitionerService.require(practiceId, request.getPractitionerId());
+        }
+        String label = request.getType() != null && !request.getType().isBlank() ? request.getType().trim()
+                : type != null ? type.getNameFr() : null;
+        if (label == null) {
+            throw new ValidationException("An appointment needs a type");
+        }
+        int duration = request.getDurationMinutes() != null ? request.getDurationMinutes()
+                : type != null ? type.getDefaultDurationMinutes() : DEFAULT_DURATION_MINUTES;
+
+        if (!Boolean.TRUE.equals(request.getIgnoreBlocks())) {
+            blocks.assertFree(practiceId, request.getPractitionerId(), request.getChairId(),
+                    request.getDateTime(), request.getDateTime().plusMinutes(duration));
+        }
 
         Appointment appointment = Appointment.builder()
+                .practiceId(practiceId)
                 .patientId(request.getPatientId())
                 .dateTime(request.getDateTime())
                 .chairId(request.getChairId())
                 .practitionerId(request.getPractitionerId())
-                .durationMinutes(request.getDurationMinutes() != null ? request.getDurationMinutes() : DEFAULT_DURATION_MINUTES)
-                .type(request.getType())
+                .durationMinutes(duration)
+                .type(label)
+                .appointmentTypeId(type != null ? type.getId() : null)
                 .status(request.getStatus())
                 .notes(request.getNotes())
                 .applianceStep(request.getApplianceStep())
                 .build();
+        stampStatus(appointment, appointment.getStatus() == null ? AppointmentStatus.SCHEDULED : appointment.getStatus());
 
-        // A concurrent request booking the same chair/overlapping window is
-        // rejected by the database's exclusion constraint (V21), not caught
-        // here — this save is where that DataIntegrityViolationException
-        // surfaces, translated to a 409 by GlobalExceptionHandler.
-        Appointment saved = appointmentRepository.save(appointment);
-        return mapToResponse(saved, patientLookup.findSummary(saved.getPatientId()).orElse(null), chairName(saved.getChairId()),
-                practitionerOf(saved.getPractitionerId()));
+        // A concurrent request booking the same chair or practitioner in an
+        // overlapping window is rejected by the database's exclusion
+        // constraints (V21, V33), not caught here — the flush is where that
+        // DataIntegrityViolationException surfaces, translated to a 409 by
+        // GlobalExceptionHandler.
+        Appointment saved = appointments.saveAndFlush(appointment);
+        activityLog.record(practiceId, ENTITY, saved.getId(), "CREATED", snapshot(saved));
+        liveEvents.publish(practiceId, "appointment", saved.getId());
+        return mapOne(saved);
     }
 
     @Transactional(readOnly = true)
@@ -74,18 +118,25 @@ public class AppointmentService {
         return mapWithPatients(appointmentRepository.findByDateTimeBetween(start, end));
     }
 
+    /** The agenda: a window narrowed by any of practitioner, chair, status and type. The end is exclusive. */
+    @Transactional(readOnly = true)
+    public List<AppointmentResponse> agenda(UUID practiceId, OffsetDateTime from, OffsetDateTime to, UUID practitionerId,
+                                            UUID chairId, AppointmentStatus status, UUID typeId) {
+        return mapWithPatients(appointments.agenda(practiceId, from, to, practitionerId, chairId, status, typeId));
+    }
+
     @Transactional(readOnly = true)
     public AppointmentResponse getAppointmentById(UUID id) {
-        Appointment appointment = appointmentRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Appointment not found"));
-        return mapToResponse(appointment, patientLookup.findSummary(appointment.getPatientId()).orElse(null), chairName(appointment.getChairId()),
-                practitionerOf(appointment.getPractitionerId()));
+        return mapOne(appointmentRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Appointment not found")));
     }
 
     @Transactional
     public AppointmentResponse updateAppointment(UUID id, AppointmentRequest request) {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Appointment not found"));
+        UUID practiceId = appointment.getPracticeId();
+        Map<String, Object> before = snapshot(appointment);
 
         if (request.getPatientId() != null && !request.getPatientId().equals(appointment.getPatientId())) {
             if (!patientLookup.exists(request.getPatientId())) {
@@ -93,77 +144,163 @@ public class AppointmentService {
             }
             appointment.setPatientId(request.getPatientId());
         }
-
+        if (request.getAppointmentTypeId() != null) {
+            AppointmentType type = resolveType(practiceId, request.getAppointmentTypeId());
+            appointment.setAppointmentTypeId(type.getId());
+            if (request.getType() == null || request.getType().isBlank()) {
+                appointment.setType(type.getNameFr());
+            }
+        }
+        if (request.getPractitionerId() != null) {
+            practitionerService.require(practiceId, request.getPractitionerId());
+            appointment.setPractitionerId(request.getPractitionerId());
+        }
+        boolean moved = request.getDateTime() != null || request.getChairId() != null
+                || request.getDurationMinutes() != null || request.getPractitionerId() != null;
         if (request.getDateTime() != null) appointment.setDateTime(request.getDateTime());
         if (request.getChairId() != null) appointment.setChairId(request.getChairId());
-        if (request.getPractitionerId() != null) appointment.setPractitionerId(request.getPractitionerId());
         if (request.getDurationMinutes() != null) appointment.setDurationMinutes(request.getDurationMinutes());
-        if (request.getType() != null) appointment.setType(request.getType());
-        if (request.getStatus() != null) appointment.setStatus(request.getStatus());
+        if (request.getType() != null && !request.getType().isBlank()) appointment.setType(request.getType());
         if (request.getNotes() != null) appointment.setNotes(request.getNotes());
         if (request.getApplianceStep() != null) appointment.setApplianceStep(request.getApplianceStep());
+        if (request.getStatus() != null && request.getStatus() != appointment.getStatus()) {
+            stampStatus(appointment, request.getStatus());
+        }
+        if (moved && appointment.getStatus().holdsASlot() && !Boolean.TRUE.equals(request.getIgnoreBlocks())) {
+            blocks.assertFree(practiceId, appointment.getPractitionerId(), appointment.getChairId(),
+                    appointment.getDateTime(), appointment.getDateTime().plusMinutes(appointment.getDurationMinutes()));
+        }
 
-        Appointment updated = appointmentRepository.save(appointment);
-        return mapToResponse(updated, patientLookup.findSummary(updated.getPatientId()).orElse(null), chairName(updated.getChairId()),
-                practitionerOf(updated.getPractitionerId()));
+        Appointment updated = appointments.saveAndFlush(appointment);
+        Map<String, Object> changes = ActivityLog.diff(before, snapshot(updated));
+        if (!changes.isEmpty()) {
+            String action = changes.containsKey("status") && changes.size() == 1 ? "STATUS_CHANGED"
+                    : changes.containsKey("dateTime") ? "RESCHEDULED" : "UPDATED";
+            activityLog.record(practiceId, ENTITY, updated.getId(), action, changes);
+        }
+        liveEvents.publish(practiceId, "appointment", updated.getId());
+        return mapOne(updated);
     }
 
     @Transactional
     public void deleteAppointment(UUID id) {
+        Appointment existing = appointmentRepository.findById(id).orElse(null);
         appointmentRepository.deleteById(id);
+        if (existing != null) {
+            activityLog.record(existing.getPracticeId(), ENTITY, id, "DELETED", snapshot(existing));
+            liveEvents.publish(existing.getPracticeId(), "appointment", id);
+        }
     }
 
-    /** Batched patient + chair lookups so mapping a list of appointments stays two queries total, not two-per-row (audit II.9). */
-    private List<AppointmentResponse> mapWithPatients(List<Appointment> appointments) {
-        List<UUID> patientIds = appointments.stream().map(Appointment::getPatientId).distinct().toList();
+    /**
+     * Moves an appointment to a new status and stamps the moment, which is the
+     * raw material for waiting-time and doctor-time figures. The first arrival
+     * wins: re-marking someone arrived does not move their queue position.
+     */
+    void stampStatus(Appointment a, AppointmentStatus next) {
+        OffsetDateTime now = OffsetDateTime.now();
+        a.setStatus(next);
+        switch (next) {
+            case CONFIRMED -> {
+                if (a.getConfirmedAt() == null) a.setConfirmedAt(now);
+            }
+            case ARRIVED -> {
+                if (a.getArrivedAt() == null) a.setArrivedAt(now);
+                a.setSeatedAt(null);
+            }
+            case IN_CHAIR -> {
+                if (a.getArrivedAt() == null) a.setArrivedAt(now);
+                a.setSeatedAt(now);
+                a.setWaitingRoomId(null);
+            }
+            case COMPLETED -> {
+                if (a.getArrivedAt() == null) a.setArrivedAt(now);
+                if (a.getSeatedAt() == null) a.setSeatedAt(now);
+                a.setFinishedAt(now);
+                a.setWaitingRoomId(null);
+            }
+            case CANCELLED, NO_SHOW -> a.setWaitingRoomId(null);
+            default -> {
+            }
+        }
+    }
+
+    AppointmentType resolveType(UUID practiceId, UUID typeId) {
+        if (typeId == null) {
+            return null;
+        }
+        return types.findByIdAndPracticeId(typeId, practiceId)
+                .orElseThrow(() -> new NotFoundException("Appointment type not found"));
+    }
+
+    static Map<String, Object> snapshot(Appointment a) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("dateTime", a.getDateTime());
+        s.put("durationMinutes", a.getDurationMinutes());
+        s.put("type", a.getType());
+        s.put("status", a.getStatus());
+        s.put("practitionerId", a.getPractitionerId());
+        s.put("chairId", a.getChairId());
+        s.put("patientId", a.getPatientId());
+        s.put("notes", a.getNotes());
+        return s;
+    }
+
+    AppointmentResponse mapOne(Appointment a) {
+        return mapWithPatients(List.of(a)).get(0);
+    }
+
+    /** Batched patient, chair, practitioner and type lookups so mapping a list stays a handful of queries, not several per row (audit II.9). */
+    List<AppointmentResponse> mapWithPatients(List<Appointment> list) {
+        List<UUID> patientIds = list.stream().map(Appointment::getPatientId).distinct().toList();
         Map<UUID, PatientSummary> summaries = patientIds.isEmpty()
                 ? Collections.emptyMap()
                 : patientLookup.findSummaries(patientIds);
 
-        List<UUID> chairIds = appointments.stream().map(Appointment::getChairId).filter(java.util.Objects::nonNull).distinct().toList();
+        List<UUID> chairIds = list.stream().map(Appointment::getChairId).filter(Objects::nonNull).distinct().toList();
         Map<UUID, String> chairNames = chairIds.isEmpty()
                 ? Collections.emptyMap()
-                : chairJpaRepository.findAllById(chairIds).stream()
-                        .collect(Collectors.toMap(Chair::getId, Chair::getName));
+                : chairJpaRepository.findAllById(chairIds).stream().collect(Collectors.toMap(Chair::getId, Chair::getName));
 
-        Map<UUID, Practitioner> practitioners = practitionerService.byIds(appointments.stream()
-                .map(Appointment::getPractitionerId).filter(java.util.Objects::nonNull).collect(Collectors.toSet()));
+        Set<UUID> practitionerIds = list.stream().map(Appointment::getPractitionerId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<UUID, Practitioner> practitioners = practitionerService.byIds(practitionerIds);
 
-        return appointments.stream()
-                .map(a -> mapToResponse(a, summaries.get(a.getPatientId()), chairNames.get(a.getChairId()),
-                        practitioners.get(a.getPractitionerId())))
-                .collect(Collectors.toList());
+        Set<UUID> typeIds = list.stream().map(Appointment::getAppointmentTypeId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<UUID, AppointmentType> typeById = typeIds.isEmpty() ? Collections.emptyMap()
+                : types.findAllById(typeIds).stream().collect(Collectors.toMap(AppointmentType::getId, t -> t));
+
+        return list.stream().map(a -> toResponse(a, summaries.get(a.getPatientId()), chairNames.get(a.getChairId()),
+                practitioners.get(a.getPractitionerId()), typeById.get(a.getAppointmentTypeId()))).toList();
     }
 
-    private String chairName(UUID chairId) {
-        if (chairId == null) return null;
-        return chairJpaRepository.findById(chairId).map(Chair::getName).orElse(null);
-    }
-
-    private Practitioner practitionerOf(UUID practitionerId) {
-        if (practitionerId == null) return null;
-        return practitionerService.byIds(java.util.Set.of(practitionerId)).get(practitionerId);
-    }
-
-    private AppointmentResponse mapToResponse(Appointment appointment, PatientSummary patient, String chairName,
-                                              Practitioner practitioner) {
+    private AppointmentResponse toResponse(Appointment a, PatientSummary patient, String chairName,
+                                           Practitioner practitioner, AppointmentType type) {
         return AppointmentResponse.builder()
-                .id(appointment.getId())
-                .patientId(appointment.getPatientId())
+                .id(a.getId())
+                .patientId(a.getPatientId())
                 .patientName(patient != null ? patient.fullName() : null)
-                .dateTime(appointment.getDateTime())
-                .chairId(appointment.getChairId())
+                .patientPhone(patient != null ? patient.phone() : null)
+                .dateTime(a.getDateTime())
+                .chairId(a.getChairId())
                 .chairName(chairName)
-                .practitionerId(appointment.getPractitionerId())
+                .practitionerId(a.getPractitionerId())
                 .practitionerName(practitioner != null ? practitioner.getDisplayName() : null)
                 .practitionerColor(practitioner != null ? practitioner.getColor() : null)
-                .durationMinutes(appointment.getDurationMinutes())
-                .type(appointment.getType())
-                .status(appointment.getStatus())
-                .notes(appointment.getNotes())
-                .applianceStep(appointment.getApplianceStep())
-                .createdAt(appointment.getCreatedAt())
-                .updatedAt(appointment.getUpdatedAt())
+                .durationMinutes(a.getDurationMinutes())
+                .type(a.getType())
+                .appointmentTypeId(a.getAppointmentTypeId())
+                .typeColor(type != null ? type.getColor() : null)
+                .status(a.getStatus())
+                .notes(a.getNotes())
+                .applianceStep(a.getApplianceStep())
+                .confirmedAt(a.getConfirmedAt())
+                .arrivedAt(a.getArrivedAt())
+                .seatedAt(a.getSeatedAt())
+                .finishedAt(a.getFinishedAt())
+                .waitingRoomId(a.getWaitingRoomId())
+                .waitingPriority(a.getWaitingPriority())
+                .createdAt(a.getCreatedAt())
+                .updatedAt(a.getUpdatedAt())
                 .build();
     }
 }

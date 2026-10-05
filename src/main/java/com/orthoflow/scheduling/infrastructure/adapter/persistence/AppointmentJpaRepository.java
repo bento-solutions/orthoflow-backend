@@ -1,8 +1,10 @@
 package com.orthoflow.scheduling.infrastructure.adapter.persistence;
 
 import com.orthoflow.scheduling.domain.model.Appointment;
+import com.orthoflow.scheduling.domain.model.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
@@ -27,4 +29,51 @@ public interface AppointmentJpaRepository extends JpaRepository<Appointment, UUI
 
     @Query("SELECT a FROM Appointment a ORDER BY a.dateTime")
     List<Appointment> findAllOrderedByDateTime();
+
+    /** The agenda: a window, optionally narrowed to one practitioner, chair, status or type. */
+    @Query("""
+            SELECT a FROM Appointment a
+            WHERE a.practiceId = :practiceId AND a.dateTime >= :from AND a.dateTime < :to
+              AND (:practitionerId IS NULL OR a.practitionerId = :practitionerId)
+              AND (:chairId IS NULL OR a.chairId = :chairId)
+              AND (:status IS NULL OR a.status = :status)
+              AND (:typeId IS NULL OR a.appointmentTypeId = :typeId)
+            ORDER BY a.dateTime
+            """)
+    List<Appointment> agenda(@Param("practiceId") UUID practiceId, @Param("from") OffsetDateTime from,
+                             @Param("to") OffsetDateTime to, @Param("practitionerId") UUID practitionerId,
+                             @Param("chairId") UUID chairId, @Param("status") AppointmentStatus status,
+                             @Param("typeId") UUID typeId);
+
+    /** Today's live board: everyone who has arrived and not been called yet, in calling order. */
+    @Query("""
+            SELECT a FROM Appointment a
+            WHERE a.practiceId = :practiceId AND a.status = com.orthoflow.scheduling.domain.model.AppointmentStatus.ARRIVED
+            ORDER BY a.waitingPriority, a.arrivedAt
+            """)
+    List<Appointment> waiting(@Param("practiceId") UUID practiceId);
+
+    @Query("""
+            SELECT a FROM Appointment a
+            WHERE a.practiceId = :practiceId AND a.status = com.orthoflow.scheduling.domain.model.AppointmentStatus.IN_CHAIR
+            ORDER BY a.seatedAt
+            """)
+    List<Appointment> inChair(@Param("practiceId") UUID practiceId);
+
+    /** Visits whose arrival fell in the window, for wait-time statistics. */
+    @Query("""
+            SELECT a FROM Appointment a
+            WHERE a.practiceId = :practiceId AND a.arrivedAt >= :from AND a.arrivedAt < :to
+            """)
+    List<Appointment> arrivedBetween(@Param("practiceId") UUID practiceId, @Param("from") OffsetDateTime from,
+                                     @Param("to") OffsetDateTime to);
+
+    @Query("""
+            SELECT a FROM Appointment a
+            WHERE a.practiceId = :practiceId AND a.status IN :statuses AND a.dateTime >= :from AND a.dateTime < :to
+            ORDER BY a.dateTime
+            """)
+    List<Appointment> inStatuses(@Param("practiceId") UUID practiceId,
+                                 @Param("statuses") java.util.Collection<AppointmentStatus> statuses,
+                                 @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
 }

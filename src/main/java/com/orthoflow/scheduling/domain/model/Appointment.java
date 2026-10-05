@@ -24,6 +24,10 @@ public class Appointment {
     // A plain UUID rather than a @ManyToOne Patient — scheduling reads
     // patient data through PatientLookup, not by holding a JPA relation
     // into another module's entity graph (audit I.2).
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;
 
@@ -49,6 +53,10 @@ public class Appointment {
     @Column(nullable = false)
     private String type;
 
+    /** The catalogue entry behind {@code type}; the text stays as the label history was written with. */
+    @Column(name = "appointment_type_id")
+    private UUID appointmentTypeId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AppointmentStatus status;
@@ -58,6 +66,25 @@ public class Appointment {
 
     @Column(name = "appliance_step")
     private Integer applianceStep;
+
+    @Column(name = "confirmed_at")
+    private OffsetDateTime confirmedAt;
+
+    @Column(name = "arrived_at")
+    private OffsetDateTime arrivedAt;
+
+    @Column(name = "seated_at")
+    private OffsetDateTime seatedAt;
+
+    @Column(name = "finished_at")
+    private OffsetDateTime finishedAt;
+
+    @Column(name = "waiting_room_id")
+    private UUID waitingRoomId;
+
+    /** Order in the waiting room: lower is called first. */
+    @Column(name = "waiting_priority", nullable = false)
+    private int waitingPriority;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

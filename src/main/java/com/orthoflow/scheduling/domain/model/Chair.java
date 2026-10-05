@@ -18,8 +18,18 @@ public class Chair {
     @Id
     private UUID id;
 
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+
     @Column(nullable = false)
     private String name;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 
     @Column(nullable = false)
     @Builder.Default
@@ -36,5 +46,11 @@ public class Chair {
         if (createdAt == null) {
             createdAt = OffsetDateTime.now();
         }
+        updatedAt = OffsetDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = OffsetDateTime.now();
     }
 }

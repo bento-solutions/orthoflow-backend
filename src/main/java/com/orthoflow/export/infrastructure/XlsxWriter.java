@@ -89,9 +89,8 @@ public final class XlsxWriter {
             } else if (value instanceof OffsetDateTime d) {
                 cell.setCellValue(Cells.text(d));
             } else {
-                // A cell that starts with = would be evaluated as a formula when opened.
-                String text = Cells.text(value);
-                cell.setCellValue(!text.isEmpty() && "=+-@".indexOf(text.charAt(0)) >= 0 ? "'" + text : text);
+                // Written as a string cell, which Excel never evaluates as a formula.
+                cell.setCellValue(Cells.text(value));
             }
         }
     }

@@ -12,7 +12,7 @@ import java.util.UUID;
  * nothing it doesn't: the entity's {@code version} and the {@code deletedAt}/
  * {@code deletedBy} soft-delete markers are internal and are not serialised.
  */
-@Builder
+@Builder(toBuilder = true)
 public record PatientResponse(
         UUID id,
         String firstName,
@@ -31,7 +31,16 @@ public record PatientResponse(
         OffsetDateTime consentGivenAt,
         String consentNotes,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        String patientCode,
+        UUID photoFileId,
+        String occupation,
+        String referralSource,
+        java.math.BigDecimal globalDiscountPct,
+        String preferredLanguage,
+        UUID insurerId,
+        UUID primaryPractitionerId,
+        java.util.List<PatientExtras.PhoneEntry> phones) {
 
     public static PatientResponse from(Patient p) {
         return PatientResponse.builder()
@@ -53,6 +62,20 @@ public record PatientResponse(
                 .consentNotes(p.getConsentNotes())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
+                .patientCode(p.getPatientCode())
+                .photoFileId(p.getPhotoFileId())
+                .occupation(p.getOccupation())
+                .referralSource(p.getReferralSource())
+                .globalDiscountPct(p.getGlobalDiscountPct())
+                .preferredLanguage(p.getPreferredLanguage())
+                .insurerId(p.getInsurerId())
+                .primaryPractitionerId(p.getPrimaryPractitionerId())
+                .phones(java.util.List.of())
                 .build();
+    }
+
+    /** The same patient with their extra phone numbers, which a plain entity read does not carry. */
+    public PatientResponse withPhones(java.util.List<PatientExtras.PhoneEntry> numbers) {
+        return toBuilder().phones(numbers).build();
     }
 }

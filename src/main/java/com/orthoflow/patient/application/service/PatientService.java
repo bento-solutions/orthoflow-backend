@@ -9,6 +9,7 @@ import com.orthoflow.patient.application.port.PatientErasureListener;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.patient.domain.repository.PatientRepository;
 import com.orthoflow.common.exception.ConflictException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.common.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,11 +23,13 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class PatientService {
+public class PatientService implements com.orthoflow.patient.application.port.PatientRegistrar {
 
     private final PatientRepository patientRepository;
     private final InvoiceLinkGuard invoiceLinkGuard;
     private final List<PatientErasureListener> erasureListeners;
+    private final PatientExtrasApplier extras;
+    private final CurrentUserProvider currentUser;
 
     /**
      * A CIN matching an existing (non-archived) patient is almost always the
@@ -48,7 +51,9 @@ public class PatientService {
             throw new ConflictException("A patient with CIN " + request.getCin() + " already exists");
         }
 
+        UUID practiceId = currentUser.requirePracticeId();
         Patient patient = Patient.builder()
+                .practiceId(practiceId)
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .dateOfBirth(request.getDateOfBirth())
@@ -63,8 +68,28 @@ public class PatientService {
                 .insuranceNumber(request.getInsuranceNumber())
                 .status(request.getStatus() == null ? "ACTIVE" : request.getStatus())
                 .build();
+        extras.applyOnCreate(patient, request, practiceId);
 
-        return PatientResponse.from(patientRepository.save(patient));
+        Patient saved = patientRepository.save(patient);
+        extras.replacePhones(saved.getId(), request.getPhones());
+        return PatientResponse.from(saved).withPhones(extras.phonesOf(saved.getId()));
+    }
+
+    @Transactional
+    public void setPhoto(UUID patientId, UUID fileId) {
+        Patient patient = getPatientById(patientId);
+        patient.setPhotoFileId(fileId);
+        patientRepository.save(patient);
+    }
+
+    @Override
+    @Transactional
+    public UUID registerWalkIn(String firstName, String lastName, String phone) {
+        CreatePatientRequest request = new CreatePatientRequest();
+        request.setFirstName(firstName.trim());
+        request.setLastName(lastName.trim());
+        request.setPhone(blankToNull(phone));
+        return createPatient(request).id();
     }
 
     @Transactional(readOnly = true)
@@ -77,7 +102,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public PatientResponse getPatient(UUID id) {
-        return PatientResponse.from(getPatientById(id));
+        return PatientResponse.from(getPatientById(id)).withPhones(extras.phonesOf(id));
     }
 
     /** Entity accessor for callers inside the domain (delete, erase, update). */
@@ -105,7 +130,10 @@ public class PatientService {
         if (request.getStatus() != null) {
             existing.setStatus(request.getStatus());
         }
-        return PatientResponse.from(patientRepository.save(existing));
+        extras.applyOnUpdate(existing, request, existing.getPracticeId());
+        Patient saved = patientRepository.save(existing);
+        extras.replacePhones(saved.getId(), request.getPhones());
+        return PatientResponse.from(saved).withPhones(extras.phonesOf(saved.getId()));
     }
 
     /**

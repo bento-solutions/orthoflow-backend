@@ -45,7 +45,7 @@ public final class CsvWriter {
     /** Quotes a cell that needs it, and defuses spreadsheet formula injection from user-entered text. */
     static String escape(String raw) {
         String value = raw == null ? "" : raw;
-        if (!value.isEmpty() && "=+-@\t\r".indexOf(value.charAt(0)) >= 0 && !looksNumeric(value)) {
+        if (needsGuard(value)) {
             value = "'" + value;
         }
         if (value.contains(";") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
@@ -54,12 +54,21 @@ public final class CsvWriter {
         return value;
     }
 
-    private static boolean looksNumeric(String value) {
-        try {
-            Double.parseDouble(value.replace(',', '.'));
-            return true;
-        } catch (NumberFormatException e) {
+    /**
+     * A cell Excel could run as a formula: it starts with = or @ (always), or with
+     * + or - followed by anything beyond what a number or a phone number contains.
+     * "+212 661-123456" and "-1 500,50" are left alone — they hold only digits and
+     * separators, so there is nothing in them to execute — while "+cmd|'/c calc'!A0"
+     * is defused.
+     */
+    static boolean needsGuard(String value) {
+        if (value.isEmpty()) {
             return false;
         }
+        char first = value.charAt(0);
+        if ("=@\t\r".indexOf(first) >= 0) {
+            return true;
+        }
+        return (first == '+' || first == '-') && !value.substring(1).matches("[0-9 .,()\\-]*");
     }
 }

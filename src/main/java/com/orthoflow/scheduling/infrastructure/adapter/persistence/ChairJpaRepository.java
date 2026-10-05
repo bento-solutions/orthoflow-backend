@@ -8,4 +8,10 @@ import java.util.UUID;
 
 public interface ChairJpaRepository extends JpaRepository<Chair, UUID> {
     List<Chair> findByActiveTrue();
+
+    List<Chair> findByPracticeIdAndActiveTrueOrderByDisplayOrderAscNameAsc(UUID practiceId);
+
+    List<Chair> findByPracticeIdOrderByDisplayOrderAscNameAsc(UUID practiceId);
+
+    java.util.Optional<Chair> findByIdAndPracticeId(UUID id, UUID practiceId);
 }

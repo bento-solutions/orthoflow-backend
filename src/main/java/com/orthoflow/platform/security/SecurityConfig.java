@@ -149,15 +149,28 @@ public class SecurityConfig {
             // ── Patients ────────────────────────────────────────────────────
             // Erasure is irreversible and is a compliance decision.
             .requestMatchers(HttpMethod.DELETE, "/patients/*/erase").hasRole(ADMIN)
-            .requestMatchers(HttpMethod.DELETE, "/patients/*").hasRole(ADMIN)
-            .requestMatchers(HttpMethod.POST, "/patients").hasAnyRole(EVERYONE)
-            .requestMatchers(HttpMethod.PUT, "/patients/*").hasAnyRole(EVERYONE)
-            .requestMatchers(HttpMethod.GET, "/patients", "/patients/*").hasAnyRole(EVERYONE)
+            .requestMatchers(HttpMethod.DELETE, "/patients/*").hasAuthority(Permission.PATIENT_DELETE.name())
+            .requestMatchers(HttpMethod.POST, "/patients", "/patients/*/photo").hasAuthority(Permission.PATIENT_WRITE.name())
+            .requestMatchers(HttpMethod.PUT, "/patients/*").hasAuthority(Permission.PATIENT_WRITE.name())
+            .requestMatchers(HttpMethod.GET, "/patients", "/patients/*", "/patients/list", "/patients/kpis",
+                    "/patients/duplicates", "/patients/*/photo").hasAuthority(Permission.PATIENT_READ.name())
+            // The lists a patient form draws from; settings change them.
+            .requestMatchers(HttpMethod.GET, "/reference/**").hasAnyRole(EVERYONE)
+            .requestMatchers("/reference/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
 
             // ── Scheduling ──────────────────────────────────────────────────
-            // Wholly front-desk work, including cancellations.
-            .requestMatchers("/appointments/**").hasAnyRole(EVERYONE)
-            .requestMatchers(HttpMethod.GET, "/scheduling/chairs").hasAnyRole(EVERYONE)
+            // Wholly front-desk work, including cancellations. Reading the
+            // agenda and changing it are separate permissions.
+            .requestMatchers(HttpMethod.GET, "/appointments", "/appointments/**").hasAuthority(Permission.AGENDA_VIEW.name())
+            .requestMatchers("/appointments", "/appointments/**").hasAuthority(Permission.AGENDA_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/front-desk").hasAuthority(Permission.AGENDA_VIEW.name())
+            .requestMatchers("/front-desk/**").hasAuthority(Permission.WAITING_ROOM_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/scheduling/**").hasAuthority(Permission.AGENDA_VIEW.name())
+            // Types, rooms and chairs are clinic configuration; absences, events
+            // and the waiting list are the receptionist's own business.
+            .requestMatchers("/scheduling/appointment-types/**", "/scheduling/waiting-rooms/**", "/scheduling/chairs/**")
+                    .hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers("/scheduling/**").hasAuthority(Permission.AGENDA_MANAGE.name())
 
             // ── Billing ─────────────────────────────────────────────────────
             .requestMatchers(HttpMethod.POST, "/invoices/*/payments").hasAnyRole(EVERYONE)
@@ -195,6 +208,9 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.PUT, "/stock/**").hasAnyRole(EVERYONE)
             .requestMatchers(HttpMethod.GET, "/stock/**").hasAnyRole(EVERYONE)
 
+            // ── Recall lists: who to call (queries over what the clinic knows) ──
+            .requestMatchers(HttpMethod.GET, "/recalls/**").hasAuthority(Permission.AGENDA_VIEW.name())
+
             // ── Account, team and platform (Denteam parity, phase 0) ────────────
             // Permissions are the finer gate behind the role floor: a role holds
             // them by default and an admin can change that (ADR 0008).
@@ -208,9 +224,10 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/practitioners", "/practitioners/*").hasAnyRole(EVERYONE)
             .requestMatchers("/practitioners/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/settings/practice/profile", "/settings/practice/logo",
-                    "/settings/practice/opening-hours").hasAnyRole(EVERYONE)
+                    "/settings/practice/opening-hours", "/settings/practice/status-colors").hasAnyRole(EVERYONE)
             .requestMatchers("/settings/practice/profile", "/settings/practice/logo",
-                    "/settings/practice/opening-hours").hasAuthority(Permission.SETTINGS_MANAGE.name())
+                    "/settings/practice/opening-hours", "/settings/practice/status-colors")
+                    .hasAuthority(Permission.SETTINGS_MANAGE.name())
             .requestMatchers("/public-links/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
 
             // ── Messaging ───────────────────────────────────────────────────

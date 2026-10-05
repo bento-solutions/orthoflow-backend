@@ -23,7 +23,7 @@ import java.time.LocalDate;
  */
 @Getter
 @Setter
-public class CreatePatientRequest {
+public class CreatePatientRequest extends PatientExtras {
 
     @NotBlank
     @Size(max = 255)

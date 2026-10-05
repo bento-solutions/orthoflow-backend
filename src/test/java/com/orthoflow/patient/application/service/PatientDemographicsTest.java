@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.orthoflow.common.exception.ConflictException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.patient.application.dto.PatientDemographicsUpdate;
 import com.orthoflow.patient.application.dto.PatientResponse;
 import com.orthoflow.patient.application.port.InvoiceLinkGuard;
@@ -40,7 +41,7 @@ class PatientDemographicsTest {
                 .address("12 rue des Orangers").phone("0600000000").email("k@example.ma").build();
         when(patients.findById(id)).thenReturn(Optional.of(patient));
         when(patients.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        service = new PatientService(patients, mock(InvoiceLinkGuard.class), List.of());
+        service = new PatientService(patients, mock(InvoiceLinkGuard.class), List.of(), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class));
     }
 
     private static PatientDemographicsUpdate only(String phone, String cin) {

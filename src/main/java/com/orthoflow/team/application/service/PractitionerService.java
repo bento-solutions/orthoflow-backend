@@ -41,7 +41,8 @@ public class PractitionerService {
     @Transactional(readOnly = true)
     public Map<UUID, Practitioner> byIds(java.util.Collection<UUID> ids) {
         if (ids.isEmpty()) {
-            return Map.of();
+            // Not Map.of(): an immutable map throws on get(null), and a practitioner id is often null.
+            return java.util.Collections.emptyMap();
         }
         return practitioners.findAllById(ids).stream().collect(Collectors.toMap(Practitioner::getId, Function.identity()));
     }

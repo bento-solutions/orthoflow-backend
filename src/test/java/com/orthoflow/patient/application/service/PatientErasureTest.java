@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.orthoflow.common.exception.ConflictException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.patient.application.port.InvoiceLinkGuard;
 import com.orthoflow.patient.application.port.PatientErasureListener;
 import com.orthoflow.patient.domain.model.Patient;
@@ -40,7 +41,7 @@ class PatientErasureTest {
         invoices = mock(InvoiceLinkGuard.class);
         voice = mock(PatientErasureListener.class);
         when(patients.findById(id)).thenReturn(Optional.of(new Patient()));
-        service = new PatientService(patients, invoices, List.of(voice));
+        service = new PatientService(patients, invoices, List.of(voice), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class));
     }
 
     @Test

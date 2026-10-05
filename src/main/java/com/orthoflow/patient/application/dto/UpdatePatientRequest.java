@@ -19,7 +19,7 @@ import java.time.LocalDate;
  */
 @Getter
 @Setter
-public class UpdatePatientRequest {
+public class UpdatePatientRequest extends PatientExtras {
 
     @NotBlank
     @Size(max = 255)

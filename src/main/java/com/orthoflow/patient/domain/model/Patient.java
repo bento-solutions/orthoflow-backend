@@ -38,6 +38,14 @@ public class Patient {
     @Column(name = "version")
     private Long version;
 
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+
+    /** Human-friendly reference ("P-00042"), generated or typed by staff; unique within the clinic. */
+    @Column(name = "patient_code", nullable = false)
+    private String patientCode;
+
     @Column(name = "first_name", nullable = false)
     private String firstName;
 
@@ -68,6 +76,27 @@ public class Patient {
 
     @Column(name = "primary_practitioner_id")
     private UUID primaryPractitionerId;
+
+    @Column(name = "photo_file_id")
+    private UUID photoFileId;
+
+    private String occupation;
+
+    @Column(name = "referral_source")
+    private String referralSource;
+
+    /** A standing discount, applied by default when this patient is invoiced. */
+    @Column(name = "global_discount_pct", nullable = false)
+    @Builder.Default
+    private java.math.BigDecimal globalDiscountPct = java.math.BigDecimal.ZERO;
+
+    /** The language reminders and documents are written in. */
+    @Column(name = "preferred_language", nullable = false, length = 2)
+    @Builder.Default
+    private String preferredLanguage = "fr";
+
+    @Column(name = "insurer_id")
+    private UUID insurerId;
 
     @Column(name = "insurance_provider")
     private String insuranceProvider;

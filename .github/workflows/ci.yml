@@ -10,6 +10,27 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # A real Postgres for the *DbTest classes: the patient list, duplicate
+    # detection, recall lists and the exclusion constraints are SQL, and a mock
+    # cannot say whether SQL is right. They are skipped when this is not set.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: orthoflow_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ORTHOFLOW_TEST_DB_URL: jdbc:postgresql://localhost:5432/orthoflow_test
+      ORTHOFLOW_TEST_DB_USER: postgres
+      ORTHOFLOW_TEST_DB_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
 

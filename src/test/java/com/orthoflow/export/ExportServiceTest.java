@@ -59,14 +59,27 @@ class ExportServiceTest {
     }
 
     @Test
-    void xlsxKeepsNumbersNumericAndDefusesFormulas() throws Exception {
+    void csvLeavesPhoneNumbersAndNegativeAmountsAloneButDefusesRealFormulas() {
+        TableExport phones = new TableExport("t", null, List.of(TableExport.Column.text("a")),
+                List.of(List.of("+212 661-123456"), List.of("-1 500,50"), List.of("+cmd|'/c calc'!A0"), List.of("@SUM(1)"), List.of("-2+3")));
+
+        String text = new String(exports.render(phones, ExportFormat.CSV, UUID.randomUUID(), "fr"), StandardCharsets.UTF_8);
+
+        assertThat(text).contains("\n+212 661-123456\r\n").contains("\n-1 500,50\r\n");
+        assertThat(text).contains("'+cmd|").contains("'@SUM(1)").contains("'-2+3");
+    }
+
+    @Test
+    void xlsxKeepsNumbersNumericAndStoresTextAsText() throws Exception {
         byte[] xlsx = exports.render(table, ExportFormat.XLSX, UUID.randomUUID(), "fr");
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
             Sheet sheet = workbook.getSheetAt(0);
             assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Patient");
             assertThat(sheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(1500.5);
-            assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).startsWith("'=");
+            // A string cell is never evaluated, so the text is kept exactly as typed.
+            assertThat(sheet.getRow(2).getCell(0).getCellType()).isEqualTo(org.apache.poi.ss.usermodel.CellType.STRING);
+            assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).startsWith("=HYPERLINK");
             assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).isEqualTo("Total");
         }
     }

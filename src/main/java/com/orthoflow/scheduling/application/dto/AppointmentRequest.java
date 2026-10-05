@@ -13,7 +13,10 @@ public class AppointmentRequest {
     private UUID practitionerId;
     private Integer durationMinutes;
     private String type;
+    private UUID appointmentTypeId;
     private AppointmentStatus status;
     private String notes;
     private Integer applianceStep;
+    /** Book anyway when the slot falls on an absence or a calendar event; the caller has been told and confirmed. */
+    private Boolean ignoreBlocks;
 }
