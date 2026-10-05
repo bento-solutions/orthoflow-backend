@@ -70,6 +70,46 @@
 			<artifactId>anthropic-java</artifactId>
 			<version>2.34.0</version>
 		</dependency>
+		<!-- Exports (Denteam parity F4). PDFs are XHTML templates rendered by
+		     openhtmltopdf (its rtl-support module shapes and reorders Arabic);
+		     Excel through Apache POI's streaming writer; QR labels via zxing.
+		     jasperreports-fonts is used only for the DejaVu TTFs it carries —
+		     the PDF renderer must embed a font with Arabic glyphs, and the
+		     runtime image has none. -->
+		<dependency>
+			<groupId>org.thymeleaf</groupId>
+			<artifactId>thymeleaf</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.openhtmltopdf</groupId>
+			<artifactId>openhtmltopdf-pdfbox</artifactId>
+			<version>1.0.10</version>
+		</dependency>
+		<dependency>
+			<groupId>com.openhtmltopdf</groupId>
+			<artifactId>openhtmltopdf-rtl-support</artifactId>
+			<version>1.0.10</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.2.5</version>
+		</dependency>
+		<dependency>
+			<groupId>net.sf.jasperreports</groupId>
+			<artifactId>jasperreports-fonts</artifactId>
+			<version>6.20.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>core</artifactId>
+			<version>3.5.3</version>
+		</dependency>
+		<!-- Outbound email (messaging outbox, F6). Inert until spring.mail.host is set. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

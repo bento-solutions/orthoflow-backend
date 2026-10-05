@@ -2,6 +2,7 @@ package com.orthoflow.treatment.application.service;
 
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.team.application.service.PractitionerService;
 import com.orthoflow.treatment.application.dto.PatientTreatmentConsumableRequest;
 import com.orthoflow.treatment.application.dto.PatientTreatmentRequest;
 import com.orthoflow.inventory.domain.model.*;
@@ -36,6 +37,7 @@ public class PatientTreatmentService {
     private final TreatmentRepository treatmentRepository;
     private final StockItemRepository stockItemRepository;
     private final ConsumableLedger consumableLedger;
+    private final PractitionerService practitionerService;
 
     public List<PatientTreatment> getTreatmentsByPatient(UUID patientId) {
         return patientTreatmentRepository.findByPatientId(patientId);
@@ -58,6 +60,21 @@ public class PatientTreatmentService {
      * V.6, exploit A). `stockMovementsGenerated` is now computed here, never
      * client-supplied.
      */
+    /**
+     * The free-text name stays populated for screens that predate practitioners:
+     * a chosen practitioner's display name wins over whatever text was sent.
+     */
+    private String doctorNameFor(PatientTreatmentRequest request) {
+        if (request.getPractitionerId() == null) {
+            return request.getDoctorName();
+        }
+        var practitioner = practitionerService.byIds(Set.of(request.getPractitionerId())).get(request.getPractitionerId());
+        if (practitioner == null) {
+            throw new NotFoundException("Practitioner not found: " + request.getPractitionerId());
+        }
+        return practitioner.getDisplayName();
+    }
+
     @Transactional
     public PatientTreatment createPatientTreatment(UUID patientId, PatientTreatmentRequest request, UUID createdBy) {
         if (!patientLookup.exists(patientId)) {
@@ -74,7 +91,8 @@ public class PatientTreatmentService {
                 .status(request.getStatus())
                 .progress(request.getProgress())
                 .notes(request.getNotes())
-                .doctorName(request.getDoctorName())
+                .doctorName(doctorNameFor(request))
+                .practitionerId(request.getPractitionerId())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .consumables(new ArrayList<>())
@@ -101,7 +119,8 @@ public class PatientTreatmentService {
         existing.setTeeth(request.getTeeth());
         existing.setProgress(request.getProgress());
         existing.setNotes(request.getNotes());
-        existing.setDoctorName(request.getDoctorName());
+        existing.setDoctorName(doctorNameFor(request));
+        existing.setPractitionerId(request.getPractitionerId());
         existing.setStartDate(request.getStartDate());
         existing.setEndDate(request.getEndDate());
 

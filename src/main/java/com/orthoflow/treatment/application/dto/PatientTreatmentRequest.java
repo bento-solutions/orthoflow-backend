@@ -40,6 +40,8 @@ public class PatientTreatmentRequest {
 
     private String doctorName;
 
+    private UUID practitionerId;
+
     private LocalDate startDate;
 
     private LocalDate endDate;

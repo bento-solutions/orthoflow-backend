@@ -37,6 +37,11 @@ public class Appointment {
     @Column(name = "chair_id")
     private UUID chairId;
 
+    // The clinician the visit is with. Nullable for legacy rows; the DB
+    // exclusion constraint (V33) stops one practitioner being double-booked.
+    @Column(name = "practitioner_id")
+    private UUID practitionerId;
+
     @Column(name = "duration_minutes", nullable = false)
     @Builder.Default
     private int durationMinutes = 30;

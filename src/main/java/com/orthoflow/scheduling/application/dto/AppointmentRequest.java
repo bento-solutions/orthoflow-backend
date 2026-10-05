@@ -10,6 +10,7 @@ public class AppointmentRequest {
     private UUID patientId;
     private OffsetDateTime dateTime;
     private UUID chairId;
+    private UUID practitionerId;
     private Integer durationMinutes;
     private String type;
     private AppointmentStatus status;

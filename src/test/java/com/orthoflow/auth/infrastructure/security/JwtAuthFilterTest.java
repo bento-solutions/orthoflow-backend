@@ -1,5 +1,8 @@
 package com.orthoflow.auth.infrastructure.security;
 
+import com.orthoflow.auth.application.port.AuthorityResolver;
+import com.orthoflow.auth.application.port.SessionRegistry;
+import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.auth.domain.model.User;
 import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.auth.domain.repository.UserRepository;
@@ -33,6 +36,7 @@ class JwtAuthFilterTest {
 
     private JwtService jwtService;
     private UserRepository userRepository;
+    private SessionRegistry sessionRegistry;
     private JwtAuthFilter filter;
     private FilterChain chain;
 
@@ -42,7 +46,10 @@ class JwtAuthFilterTest {
     void setUp() {
         jwtService = mock(JwtService.class);
         userRepository = mock(UserRepository.class);
-        filter = new JwtAuthFilter(jwtService, userRepository);
+        sessionRegistry = mock(SessionRegistry.class);
+        when(sessionRegistry.isLive(any())).thenReturn(true);
+        AuthorityResolver resolver = (practiceId, role) -> Permission.defaultsFor(role);
+        filter = new JwtAuthFilter(jwtService, userRepository, resolver, sessionRegistry);
         chain = mock(FilterChain.class);
         SecurityContextHolder.clearContext();
 
@@ -64,6 +71,11 @@ class JwtAuthFilterTest {
                 .build();
     }
 
+    /** The role authorities only: permissions ride alongside them and have their own test. */
+    private static java.util.List<String> roles(Authentication auth) {
+        return auth.getAuthorities().stream().map(Object::toString).filter(a -> a.startsWith("ROLE_")).toList();
+    }
+
     private Authentication runFilter() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer any.token.here");
@@ -78,7 +90,7 @@ class JwtAuthFilterTest {
         Authentication auth = runFilter();
 
         assertThat(auth).isNotNull();
-        assertThat(auth.getAuthorities()).extracting("authority").containsExactly("ROLE_DOCTOR");
+        assertThat(roles(auth)).containsExactly("ROLE_DOCTOR");
         assertThat(((AuthenticatedUser) auth.getPrincipal()).id()).isEqualTo(userId);
     }
 
@@ -114,12 +126,45 @@ class JwtAuthFilterTest {
         Authentication auth = runFilter();
 
         assertThat(auth).isNotNull();
-        assertThat(auth.getAuthorities()).extracting("authority").containsExactly("ROLE_ADMIN");
+        assertThat(roles(auth)).containsExactly("ROLE_ADMIN");
     }
 
     @Test
     void invalidSignature_isNotAuthenticated() throws Exception {
         when(jwtService.isTokenValid(any())).thenReturn(false);
+
+        assertThat(runFilter()).isNull();
+    }
+
+    @Test
+    void permissionsAreAddedAsAuthoritiesAlongsideTheRole() throws Exception {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user(UserRole.ASSISTANT, true, null)));
+
+        Authentication auth = runFilter();
+
+        assertThat(auth.getAuthorities()).extracting(Object::toString)
+                .contains("ROLE_ASSISTANT", Permission.PATIENT_WRITE.name())
+                .doesNotContain(Permission.FINANCE_VIEW.name());
+    }
+
+    @Test
+    void principalCarriesTheUsersPractice() throws Exception {
+        UUID practice = UUID.randomUUID();
+        User row = user(UserRole.DOCTOR, true, null);
+        row.setPracticeId(practice);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(row));
+
+        AuthenticatedUser principal = (AuthenticatedUser) runFilter().getPrincipal();
+
+        assertThat(principal.practiceId()).isEqualTo(practice);
+    }
+
+    @Test
+    void aRevokedSession_isNotAuthenticatedEvenWithAValidToken() throws Exception {
+        UUID sid = UUID.randomUUID();
+        when(jwtService.extractSessionId(any())).thenReturn(Optional.of(sid));
+        when(sessionRegistry.isLive(sid)).thenReturn(false);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user(UserRole.DOCTOR, true, null)));
 
         assertThat(runFilter()).isNull();
     }

@@ -24,4 +24,12 @@ public interface PatientLookup {
     Map<UUID, PatientSummary> findSummaries(List<UUID> patientIds);
 
     boolean exists(UUID patientId);
+
+    /**
+     * The patient whose phone ends with the same nine digits as {@code digits}
+     * (a number as WhatsApp reports it, whatever formatting the clinic typed).
+     * Empty when none or when more than one patient shares the number, since a
+     * guess there could attach a reply to the wrong person.
+     */
+    Optional<UUID> findIdByPhoneDigits(String digits);
 }

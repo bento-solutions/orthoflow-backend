@@ -66,6 +66,9 @@ public class Patient {
     @Column(name = "guardian_phone")
     private String guardianPhone;
 
+    @Column(name = "primary_practitioner_id")
+    private UUID primaryPractitionerId;
+
     @Column(name = "insurance_provider")
     private String insuranceProvider;
 

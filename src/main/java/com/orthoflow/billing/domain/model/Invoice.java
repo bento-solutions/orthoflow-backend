@@ -34,6 +34,9 @@ public class Invoice {
     @Column(name = "treatment_plan_id")
     private UUID treatmentPlanId;
 
+    @Column(name = "practitioner_id")
+    private UUID practitionerId;
+
     @Column(name = "invoice_number", unique = true, nullable = false)
     private String invoiceNumber;
 

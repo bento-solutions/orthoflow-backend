@@ -127,6 +127,25 @@ services:
       CONSULTATION_EXTRACTION_PROVIDER: ${CONSULTATION_EXTRACTION_PROVIDER:-groq}
       CONSULTATION_EXTRACTION_MODEL: ${CONSULTATION_EXTRACTION_MODEL:-openai/gpt-oss-120b}
       CONSULTATION_EXTRACTION_FALLBACKS: ${CONSULTATION_EXTRACTION_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      # Uploaded files (patient photos, logo, receipts) live on a named volume.
+      STORAGE_LOCAL_ROOT: /data/files
+      # Outbound messages. Every channel is off until enabled here.
+      MESSAGING_RETENTION_DAYS: ${MESSAGING_RETENTION_DAYS:-90}
+      MESSAGING_EMAIL_ENABLED: ${MESSAGING_EMAIL_ENABLED:-false}
+      MESSAGING_EMAIL_FROM: ${MESSAGING_EMAIL_FROM:-no-reply@orthoflow.local}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS:-true}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_BASE_URL: ${WHATSAPP_BASE_URL:-http://whatsapp-bot:3000}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_SESSION_ID: ${WHATSAPP_SESSION_ID:-orthoflow}
+      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:-}
+    volumes:
+      - orthoflow_files:/data/files
     healthcheck:
       # deploy.sh waits on this after a pull; BusyBox wget ships in the
       # temurin-alpine runtime image.
@@ -178,6 +197,7 @@ services:
 
 volumes:
   postgres_data:
+  orthoflow_files:
 
 networks:
   internal:

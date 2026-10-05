@@ -9,6 +9,8 @@ import com.orthoflow.scheduling.domain.model.Chair;
 import com.orthoflow.scheduling.domain.repository.AppointmentRepository;
 import com.orthoflow.scheduling.infrastructure.adapter.persistence.ChairJpaRepository;
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.team.application.service.PractitionerService;
+import com.orthoflow.team.domain.model.Practitioner;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final PatientLookup patientLookup;
     private final ChairJpaRepository chairJpaRepository;
+    private final PractitionerService practitionerService;
 
     @Transactional
     public AppointmentResponse createAppointment(AppointmentRequest request) {
@@ -40,6 +43,7 @@ public class AppointmentService {
                 .patientId(request.getPatientId())
                 .dateTime(request.getDateTime())
                 .chairId(request.getChairId())
+                .practitionerId(request.getPractitionerId())
                 .durationMinutes(request.getDurationMinutes() != null ? request.getDurationMinutes() : DEFAULT_DURATION_MINUTES)
                 .type(request.getType())
                 .status(request.getStatus())
@@ -52,7 +56,8 @@ public class AppointmentService {
         // here — this save is where that DataIntegrityViolationException
         // surfaces, translated to a 409 by GlobalExceptionHandler.
         Appointment saved = appointmentRepository.save(appointment);
-        return mapToResponse(saved, patientLookup.findSummary(saved.getPatientId()).orElse(null), chairName(saved.getChairId()));
+        return mapToResponse(saved, patientLookup.findSummary(saved.getPatientId()).orElse(null), chairName(saved.getChairId()),
+                practitionerOf(saved.getPractitionerId()));
     }
 
     @Transactional(readOnly = true)
@@ -73,7 +78,8 @@ public class AppointmentService {
     public AppointmentResponse getAppointmentById(UUID id) {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Appointment not found"));
-        return mapToResponse(appointment, patientLookup.findSummary(appointment.getPatientId()).orElse(null), chairName(appointment.getChairId()));
+        return mapToResponse(appointment, patientLookup.findSummary(appointment.getPatientId()).orElse(null), chairName(appointment.getChairId()),
+                practitionerOf(appointment.getPractitionerId()));
     }
 
     @Transactional
@@ -90,6 +96,7 @@ public class AppointmentService {
 
         if (request.getDateTime() != null) appointment.setDateTime(request.getDateTime());
         if (request.getChairId() != null) appointment.setChairId(request.getChairId());
+        if (request.getPractitionerId() != null) appointment.setPractitionerId(request.getPractitionerId());
         if (request.getDurationMinutes() != null) appointment.setDurationMinutes(request.getDurationMinutes());
         if (request.getType() != null) appointment.setType(request.getType());
         if (request.getStatus() != null) appointment.setStatus(request.getStatus());
@@ -97,7 +104,8 @@ public class AppointmentService {
         if (request.getApplianceStep() != null) appointment.setApplianceStep(request.getApplianceStep());
 
         Appointment updated = appointmentRepository.save(appointment);
-        return mapToResponse(updated, patientLookup.findSummary(updated.getPatientId()).orElse(null), chairName(updated.getChairId()));
+        return mapToResponse(updated, patientLookup.findSummary(updated.getPatientId()).orElse(null), chairName(updated.getChairId()),
+                practitionerOf(updated.getPractitionerId()));
     }
 
     @Transactional
@@ -118,8 +126,12 @@ public class AppointmentService {
                 : chairJpaRepository.findAllById(chairIds).stream()
                         .collect(Collectors.toMap(Chair::getId, Chair::getName));
 
+        Map<UUID, Practitioner> practitioners = practitionerService.byIds(appointments.stream()
+                .map(Appointment::getPractitionerId).filter(java.util.Objects::nonNull).collect(Collectors.toSet()));
+
         return appointments.stream()
-                .map(a -> mapToResponse(a, summaries.get(a.getPatientId()), chairNames.get(a.getChairId())))
+                .map(a -> mapToResponse(a, summaries.get(a.getPatientId()), chairNames.get(a.getChairId()),
+                        practitioners.get(a.getPractitionerId())))
                 .collect(Collectors.toList());
     }
 
@@ -128,7 +140,13 @@ public class AppointmentService {
         return chairJpaRepository.findById(chairId).map(Chair::getName).orElse(null);
     }
 
-    private AppointmentResponse mapToResponse(Appointment appointment, PatientSummary patient, String chairName) {
+    private Practitioner practitionerOf(UUID practitionerId) {
+        if (practitionerId == null) return null;
+        return practitionerService.byIds(java.util.Set.of(practitionerId)).get(practitionerId);
+    }
+
+    private AppointmentResponse mapToResponse(Appointment appointment, PatientSummary patient, String chairName,
+                                              Practitioner practitioner) {
         return AppointmentResponse.builder()
                 .id(appointment.getId())
                 .patientId(appointment.getPatientId())
@@ -136,6 +154,9 @@ public class AppointmentService {
                 .dateTime(appointment.getDateTime())
                 .chairId(appointment.getChairId())
                 .chairName(chairName)
+                .practitionerId(appointment.getPractitionerId())
+                .practitionerName(practitioner != null ? practitioner.getDisplayName() : null)
+                .practitionerColor(practitioner != null ? practitioner.getColor() : null)
                 .durationMinutes(appointment.getDurationMinutes())
                 .type(appointment.getType())
                 .status(appointment.getStatus())

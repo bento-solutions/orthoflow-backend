@@ -18,6 +18,7 @@ public record PatientTreatmentResponse(
         int progress,
         String notes,
         String doctorName,
+        UUID practitionerId,
         LocalDate startDate,
         LocalDate endDate,
         List<PatientTreatmentConsumableResponse> consumables,
@@ -35,6 +36,7 @@ public record PatientTreatmentResponse(
                 pt.getProgress(),
                 pt.getNotes(),
                 pt.getDoctorName(),
+                pt.getPractitionerId(),
                 pt.getStartDate(),
                 pt.getEndDate(),
                 pt.getConsumables() == null ? List.of() :

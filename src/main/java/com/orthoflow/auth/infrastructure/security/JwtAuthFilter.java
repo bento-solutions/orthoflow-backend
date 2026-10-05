@@ -1,5 +1,8 @@
 package com.orthoflow.auth.infrastructure.security;
 
+import com.orthoflow.auth.application.port.AuthorityResolver;
+import com.orthoflow.auth.application.port.SessionRegistry;
+import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.auth.domain.model.User;
 import com.orthoflow.auth.domain.repository.UserRepository;
 import com.orthoflow.common.security.AuthenticatedUser;
@@ -10,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -17,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,6 +54,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final AuthorityResolver authorityResolver;
+    private final SessionRegistry sessionRegistry;
 
     @Override
     protected void doFilterInternal(
@@ -80,15 +87,27 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return Optional.empty();
         }
 
+        // A revoked sign-in is refused even though its token is still inside its
+        // expiry: "sign out this device" has to mean this device.
+        var sessionId = jwtService.extractSessionId(token);
+        if (sessionId.isPresent() && !sessionRegistry.isLive(sessionId.get())) {
+            return Optional.empty();
+        }
+
         return userRepository.findById(userId)
                 .filter(User::isActive)
                 .filter(user -> notInvalidated(user, issuedAt))
                 .map(user -> {
-                    var principal = new AuthenticatedUser(user.getId(), user.getEmail(), user.getRole().name());
-                    return new UsernamePasswordAuthenticationToken(
-                            principal,
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+                    var principal = new AuthenticatedUser(
+                            user.getId(), user.getEmail(), user.getRole().name(), user.getPracticeId());
+                    List<GrantedAuthority> authorities = new ArrayList<>();
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                    // Permissions are resolved per request, like the role, so an admin
+                    // removing one takes effect on the very next call.
+                    for (Permission permission : authorityResolver.permissionsFor(user.getPracticeId(), user.getRole())) {
+                        authorities.add(new SimpleGrantedAuthority(permission.name()));
+                    }
+                    return new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 });
     }
 

@@ -71,4 +71,9 @@ public class PatientRepositoryAdapter implements PatientRepository {
     public void deleteById(UUID id) {
         jpaRepository.hardDeleteById(id);
     }
+
+    @Override
+    public java.util.List<UUID> findIdsByPhoneSuffix(String lastDigits) {
+        return jpaRepository.findIdsByPhoneSuffix(lastDigits);
+    }
 }

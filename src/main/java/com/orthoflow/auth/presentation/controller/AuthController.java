@@ -10,6 +10,7 @@ import com.orthoflow.auth.application.service.AuthService;
 import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.common.exception.UnauthorizedException;
 import com.orthoflow.common.security.CurrentUserProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,8 +35,8 @@ public class AuthController {
     private boolean restrictRegistrationToBootstrap;
 
     @PostMapping("/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+    public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        return authService.login(request, http.getRemoteAddr(), http.getHeader("User-Agent"));
     }
 
     /**

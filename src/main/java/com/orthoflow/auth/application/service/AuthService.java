@@ -6,6 +6,7 @@ import com.orthoflow.auth.domain.model.PasswordResetToken;
 import com.orthoflow.auth.domain.model.User;
 import com.orthoflow.auth.domain.repository.PasswordResetTokenRepository;
 import com.orthoflow.auth.domain.repository.UserRepository;
+import com.orthoflow.auth.infrastructure.adapter.persistence.UserJpaRepository;
 import com.orthoflow.auth.infrastructure.security.JwtService;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.UnauthorizedException;
@@ -43,12 +44,20 @@ public class AuthService {
     private final PasswordResetNotifier passwordResetNotifier;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final SessionService sessionService;
+    private final UserJpaRepository userJpaRepository;
 
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
+        return login(request, null, null);
+    }
+
+    /** As {@link #login(LoginRequest)}, recording where the sign-in came from so "My account" can list it. */
+    @Transactional
+    public LoginResponse login(LoginRequest request, String ip, String userAgent) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
 
@@ -56,7 +65,10 @@ public class AuthService {
             throw new UnauthorizedException("Invalid email or password");
         }
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+        user.setLastLoginAt(OffsetDateTime.now());
+        userRepository.save(user);
+        var session = sessionService.open(user.getId(), ip, userAgent);
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name(), session.getId());
         return LoginResponse.builder()
                 .token(token)
                 .user(toResponse(user))
@@ -121,7 +133,16 @@ public class AuthService {
                 .ifPresent(this::issueResetToken);
     }
 
-    private void issueResetToken(User user) {
+    /**
+     * Mints a one-live-link reset token and tells the user. Returns the link so
+     * an admin who created the account (or forced a reset) can hand it over
+     * directly when no mail transport is configured.
+     */
+    public String issueResetLink(User user) {
+        return issueResetToken(user);
+    }
+
+    private String issueResetToken(User user) {
         // One live link per user: an old, forgotten link found later in an
         // inbox should not still work after a new one was requested.
         passwordResetTokenRepository.deleteAllForUser(user.getId());
@@ -143,6 +164,31 @@ public class AuthService {
             // reset request over a transport-layer problem.
             log.error("Failed to send password reset link to {}", user.getEmail(), e);
         }
+        return resetUrl;
+    }
+
+    /**
+     * Changing one's own password ends every other sign-in: whoever had the old
+     * password should not stay signed in. The current device keeps its session.
+     */
+    @Transactional
+    public void changePassword(UUID userId, UUID currentSessionId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("This session is no longer valid. Sign in again."));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ValidationException("The current password is not correct");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ValidationException("Choose a password different from the current one");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
+        if (currentSessionId != null) {
+            sessionService.revokeOthers(userId, currentSessionId);
+        } else {
+            sessionService.revokeAll(userId);
+        }
     }
 
     @Transactional
@@ -159,7 +205,9 @@ public class AuthService {
         // meaningful if it also logs out whoever knew the old password
         // (JwtAuthFilter checks token issuedAt against this).
         user.setSessionsValidAfter(OffsetDateTime.now());
+        user.setMustChangePassword(false);
         userRepository.save(user);
+        sessionService.revokeAll(user.getId());
 
         token.setUsedAt(OffsetDateTime.now());
         passwordResetTokenRepository.save(token);
@@ -187,6 +235,7 @@ public class AuthService {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .role(user.getRole())
+                .mustChangePassword(user.isMustChangePassword())
                 .build();
     }
 }

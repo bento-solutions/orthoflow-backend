@@ -284,6 +284,48 @@ orthoflow:
       max-output-tokens: ${CONSULTATION_EXTRACTION_MAX_OUTPUT_TOKENS:2200}
       max-transcript-chars: ${CONSULTATION_EXTRACTION_MAX_TRANSCRIPT_CHARS:60000}
 
+  # ── Files (Denteam parity F5) ───────────────────────────────────────
+  # Patient photos, the clinic logo, expense receipts, lab-order attachments.
+  # A local volume today; StorageService is the seam for an S3-compatible
+  # bucket later. Files are only ever served through authenticated endpoints.
+  storage:
+    local-root: ${STORAGE_LOCAL_ROOT:./data/files}
+
+  # ── Outbound messages (F6) ──────────────────────────────────────────
+  # Every channel is off until an operator turns it on; a message queued for a
+  # channel that is off is cancelled with that reason rather than retried.
+  # Message text is blanked after retention-days (Law 09-08); the delivery
+  # record stays.
+  messaging:
+    retention-days: ${MESSAGING_RETENTION_DAYS:90}
+    sender:
+      enabled: ${MESSAGING_SENDER_ENABLED:true}
+      batch-size: ${MESSAGING_BATCH_SIZE:20}
+      max-attempts: ${MESSAGING_MAX_ATTEMPTS:6}
+    email:
+      # Also needs SPRING_MAIL_HOST (and, usually, _PORT/_USERNAME/_PASSWORD).
+      enabled: ${MESSAGING_EMAIL_ENABLED:false}
+      from: ${MESSAGING_EMAIL_FROM:no-reply@orthoflow.local}
+    whatsapp:
+      # The self-hosted Baileys bridge (a second instance of the service the
+      # CRM uses). base-url is its address on the internal Docker network;
+      # api-key is its API_KEY; webhook-secret is its WEBHOOK_SECRET; the bridge
+      # posts receipts and replies to POST /api/v1/webhooks/whatsapp.
+      enabled: ${WHATSAPP_ENABLED:false}
+      base-url: ${WHATSAPP_BASE_URL:http://whatsapp-bot:3000}
+      api-key: ${WHATSAPP_API_KEY:}
+      session-id: ${WHATSAPP_SESSION_ID:orthoflow}
+      webhook-secret: ${WHATSAPP_WEBHOOK_SECRET:}
+      default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:212}
+
+  # ── Public pages (F7): online booking, self-registration, surveys ────
+  public:
+    # Per-IP ceilings in a window; writes are held far lower than reads.
+    rate-limit:
+      reads: ${PUBLIC_RATE_LIMIT_READS:120}
+      writes: ${PUBLIC_RATE_LIMIT_WRITES:20}
+      window-seconds: ${PUBLIC_RATE_LIMIT_WINDOW_SECONDS:300}
+
 server:
   port: 8080
   servlet:

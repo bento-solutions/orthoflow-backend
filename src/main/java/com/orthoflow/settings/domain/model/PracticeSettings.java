@@ -7,9 +7,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Singleton row (audit VIII.6 / P2 #29): the app is single-tenant-per-
- * deployment (ADR 0002), so there is exactly one practice's working hours
- * to configure, not a table keyed by practice id.
+ * The clinic-wide working hours (audit VIII.6 / P2 #29). One row per clinic;
+ * the existing singleton belongs to the default clinic. Per-weekday opening
+ * hours live in {@link OpeningHours} and keep these two numbers in step.
  */
 @Entity
 @Table(name = "practice_settings")
@@ -28,6 +28,10 @@ public class PracticeSettings {
     @Version
     @Column(name = "version")
     private Long version;
+
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
 
     @Column(name = "working_hours_start", nullable = false)
     private Short workingHoursStart;

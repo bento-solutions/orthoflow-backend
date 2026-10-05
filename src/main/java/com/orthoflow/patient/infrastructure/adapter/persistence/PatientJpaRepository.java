@@ -33,4 +33,8 @@ public interface PatientJpaRepository extends JpaRepository<Patient, UUID> {
     boolean existsByCin(String cin);
 
     boolean existsByPhone(String phone);
+
+    @Query(value = "SELECT id FROM patients WHERE deleted_at IS NULL AND phone IS NOT NULL "
+            + "AND right(regexp_replace(phone, '[^0-9]', '', 'g'), length(:lastDigits)) = :lastDigits", nativeQuery = true)
+    java.util.List<UUID> findIdsByPhoneSuffix(String lastDigits);
 }

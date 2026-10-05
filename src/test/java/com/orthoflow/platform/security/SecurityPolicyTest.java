@@ -1,5 +1,8 @@
 package com.orthoflow.platform.security;
 
+import com.orthoflow.auth.application.port.AuthorityResolver;
+import com.orthoflow.auth.application.port.SessionRegistry;
+import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.auth.domain.model.User;
 import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.auth.domain.repository.UserRepository;
@@ -111,6 +114,17 @@ class SecurityPolicyTest {
      */
     @Configuration
     static class StubUsers {
+        /** Permissions as a fresh install has them: the code-defined defaults. */
+        @org.springframework.context.annotation.Bean
+        AuthorityResolver authorityResolver() {
+            return (practiceId, role) -> Permission.defaultsFor(role);
+        }
+
+        @org.springframework.context.annotation.Bean
+        SessionRegistry sessionRegistry() {
+            return sessionId -> true;
+        }
+
         @org.springframework.context.annotation.Bean
         UserRepository userRepository() {
             Map<UUID, UserRole> byId = Map.of(
@@ -279,6 +293,25 @@ class SecurityPolicyTest {
                         "the price list is open to the front desk", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/stock/treatments",
                         "editing the price list is clinician-only", DOCTOR, ADMIN),
+
+                // ── Account, team, platform (phase 0) ────────────────────────
+                Case.restricted(HttpMethod.GET, "/me", "everyone may read their own account", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/me/change-password", "everyone may change their own password", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/events", "the live stream is for signed-in staff", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/notifications", "the bell is for signed-in staff", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/files/" + ID, "file access is further checked per owner type", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/admin/users", "user management is admin-only by default", ADMIN),
+                Case.restricted(HttpMethod.PUT, "/admin/permissions/DOCTOR", "editing permissions is admin-only", ADMIN),
+                Case.restricted(HttpMethod.GET, "/practitioners", "the agenda needs the doctors, so everyone reads", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/practitioners", "creating a practitioner is a settings change", ADMIN),
+                Case.restricted(HttpMethod.GET, "/settings/practice/profile", "the letterhead is readable by all", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/settings/practice/profile", "changing the letterhead is a settings change", ADMIN),
+                Case.restricted(HttpMethod.PUT, "/settings/practice/opening-hours", "opening hours are a settings change", ADMIN),
+                Case.restricted(HttpMethod.GET, "/messaging/logs", "the message log is for staff who may message", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/messaging/templates", "templates are a settings change", ADMIN),
+                Case.restricted(HttpMethod.POST, "/messaging/send-test", "a test message is a settings action", ADMIN),
+                Case.restricted(HttpMethod.PUT, "/patients/" + ID + "/consent", "recording consent is patient maintenance", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/public-links/shared/BOOKING/rotate", "rotating the booking link is a settings change", ADMIN),
 
                 // ── Inventory and procurement ────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/stock/items",

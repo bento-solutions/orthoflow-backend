@@ -15,6 +15,9 @@ public class AppointmentResponse {
     private OffsetDateTime dateTime;
     private UUID chairId;
     private String chairName;
+    private UUID practitionerId;
+    private String practitionerName;
+    private String practitionerColor;
     private int durationMinutes;
     private String type;
     private AppointmentStatus status;

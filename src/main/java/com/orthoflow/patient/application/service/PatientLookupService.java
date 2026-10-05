@@ -44,6 +44,16 @@ public class PatientLookupService implements PatientLookup {
         return patientRepository.existsById(patientId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findIdByPhoneDigits(String digits) {
+        if (digits == null || digits.length() < 9) {
+            return Optional.empty();
+        }
+        List<UUID> matches = patientRepository.findIdsByPhoneSuffix(digits.substring(digits.length() - 9));
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
     private static PatientSummary toSummary(Patient patient) {
         return new PatientSummary(
                 patient.getId(),

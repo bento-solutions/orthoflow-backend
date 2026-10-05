@@ -60,6 +60,10 @@ public class GlobalExceptionHandler {
             return problem(HttpStatus.CONFLICT,
                     "This chair is already booked for an overlapping time slot.", request);
         }
+        if (message.contains("appointments_no_practitioner_overlap")) {
+            return problem(HttpStatus.CONFLICT,
+                    "This practitioner already has an appointment at an overlapping time.", request);
+        }
         return problem(HttpStatus.CONFLICT, "This action conflicts with existing data.", request);
     }
 

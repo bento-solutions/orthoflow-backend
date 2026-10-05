@@ -1,5 +1,6 @@
 package com.orthoflow.auth.domain.model;
 
+import com.orthoflow.common.tenancy.Practices;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -41,6 +42,17 @@ public class User {
     @Column(nullable = false)
     private boolean active;
 
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = Practices.DEFAULT_ID;
+
+    /** Set when an admin created the account or forced a reset; cleared once the person picks their own password. */
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
+    @Column(name = "last_login_at")
+    private OffsetDateTime lastLoginAt;
+
     /**
      * Tokens issued before this instant are rejected by {@code JwtAuthFilter},
      * even if still within their expiry. Stamped with {@code now()} on a
@@ -66,6 +78,9 @@ public class User {
         }
         if (updatedAt == null) {
             updatedAt = OffsetDateTime.now();
+        }
+        if (practiceId == null) {
+            practiceId = Practices.DEFAULT_ID;
         }
     }
 

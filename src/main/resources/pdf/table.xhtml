@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${title}">Report</title>
+  <style>
+    @page { size: A4 landscape; margin: 14mm 12mm 16mm 12mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 6px; margin-bottom: 10px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 13pt; font-weight: bold; color: #1d4ed8; }
+    .legal { font-size: 7.5pt; color: #52606d; }
+    h1 { font-size: 14pt; margin: 0 0 2px 0; }
+    .subtitle { color: #52606d; margin: 0 0 8px 0; }
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data th { background: #e8eefc; text-align: left; padding: 4px 5px; border: 1px solid #c5d0ea; font-size: 8.5pt; }
+    table.data td { padding: 3px 5px; border: 1px solid #dde3ee; }
+    table.data tr.alt td { background: #f7f9fd; }
+    table.data tr.total td { font-weight: bold; background: #eef2fb; border-top: 2px solid #1d4ed8; }
+    .right { text-align: right; } .center { text-align: center; } .left { text-align: left; }
+    [dir=rtl] table.data th { text-align: right; }
+    .foot { margin-top: 8px; font-size: 7.5pt; color: #7b8794; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.legalName != null}" th:text="${letterhead.legalName}"></div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
+    </td>
+    <td class="right legal">
+      <div th:if="${letterhead.ice != null}" th:text="${'ICE ' + letterhead.ice}"></div>
+      <div th:if="${letterhead.taxId != null}" th:text="${'IF ' + letterhead.taxId}"></div>
+      <div th:if="${letterhead.patente != null}" th:text="${'Patente ' + letterhead.patente}"></div>
+    </td>
+  </tr></table>
+  <h1 th:text="${title}">Title</h1>
+  <p class="subtitle" th:if="${subtitle != null}" th:text="${subtitle}"></p>
+  <table class="data">
+    <thead><tr>
+      <th th:each="c : ${columns}" th:class="${#strings.toLowerCase(c.align)}" th:text="${c.header}">Col</th>
+    </tr></thead>
+    <tbody>
+      <tr th:each="row, st : ${rows}" th:class="${st.odd} ? 'alt' : ''">
+        <td th:each="cell, ci : ${row}" th:class="${#strings.toLowerCase(columns[ci.index].align)}" th:text="${cell}">x</td>
+      </tr>
+      <tr class="total" th:if="${totals != null}">
+        <td th:each="cell, ci : ${totals}" th:class="${#strings.toLowerCase(columns[ci.index].align)}" th:text="${cell}">x</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="foot" th:text="${generatedAt}">date</div>
+</body>
+</html>

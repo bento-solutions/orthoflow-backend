@@ -6,5 +6,6 @@ import lombok.Builder;
 import java.util.UUID;
 
 @Builder
-public record UserResponse(UUID id, String email, String firstName, String lastName, UserRole role) {
+public record UserResponse(UUID id, String email, String firstName, String lastName, UserRole role,
+                           boolean mustChangePassword) {
 }

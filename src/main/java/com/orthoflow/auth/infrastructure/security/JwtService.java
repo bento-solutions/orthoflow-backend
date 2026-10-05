@@ -36,6 +36,7 @@ import java.util.function.Function;
 public class JwtService {
 
     private static final String AUTH_TIME = "auth_time";
+    private static final String SESSION_ID = "sid";
 
     private final SecretKey key;
     private final long expirationMillis;
@@ -58,8 +59,13 @@ public class JwtService {
     }
 
     public String generateToken(UUID userId, String email, String role) {
+        return generateToken(userId, email, role, null);
+    }
+
+    /** A token tied to a tracked sign-in, so that sign-in can be listed and revoked on its own. */
+    public String generateToken(UUID userId, String email, String role, UUID sessionId) {
         Instant now = clock.instant();
-        return build(userId, email, role, now, now);
+        return build(userId, email, role, sessionId, now, now);
     }
 
     /** Whether a valid token can be exchanged for a later one at all. */
@@ -82,24 +88,26 @@ public class JwtService {
         if (!now.isBefore(authTime.plusMillis(maxSessionMillis))) {
             throw new UnauthorizedException("This session has reached its maximum length. Sign in again.");
         }
-        return build(userId, email, role, authTime, now);
+        return build(userId, email, role, extractSessionId(presented).orElse(null), authTime, now);
     }
 
-    private String build(UUID userId, String email, String role, Instant authTime, Instant now) {
+    private String build(UUID userId, String email, String role, UUID sessionId, Instant authTime, Instant now) {
         Instant expiry = now.plusMillis(expirationMillis);
         Instant ceiling = authTime.plusMillis(Math.max(maxSessionMillis, expirationMillis));
         if (expiry.isAfter(ceiling)) {
             expiry = ceiling;
         }
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
                 .claim("role", role)
                 .claim(AUTH_TIME, authTime.getEpochSecond())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
-                .signWith(key)
-                .compact();
+                .expiration(Date.from(expiry));
+        if (sessionId != null) {
+            builder.claim(SESSION_ID, sessionId.toString());
+        }
+        return builder.signWith(key).compact();
     }
 
     /**
@@ -109,6 +117,12 @@ public class JwtService {
     public Instant extractAuthTime(String token) {
         Object claim = extractAllClaims(token).get(AUTH_TIME);
         return claim instanceof Number seconds ? Instant.ofEpochSecond(seconds.longValue()) : extractIssuedAt(token);
+    }
+
+    /** The tracked sign-in this token belongs to; empty for a token issued before sessions were tracked. */
+    public java.util.Optional<UUID> extractSessionId(String token) {
+        String sid = extractClaim(token, claims -> claims.get(SESSION_ID, String.class));
+        return sid == null ? java.util.Optional.empty() : java.util.Optional.of(UUID.fromString(sid));
     }
 
     public UUID extractUserId(String token) {

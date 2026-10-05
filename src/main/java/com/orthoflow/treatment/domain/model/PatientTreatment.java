@@ -59,6 +59,10 @@ public class PatientTreatment {
     @Column(name = "doctor_name")
     private String doctorName;
 
+    /** The real record behind {@code doctorName}; the name is kept in step for screens that predate it. */
+    @Column(name = "practitioner_id")
+    private UUID practitionerId;
+
     @Column(name = "start_date")
     private LocalDate startDate;
 

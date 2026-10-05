@@ -18,5 +18,6 @@ public interface PatientRepository {
     boolean existsByEmailIgnoreCase(String email);
     boolean existsByCin(String cin);
     boolean existsByPhone(String phone);
+    List<UUID> findIdsByPhoneSuffix(String lastDigits);
     void deleteById(UUID id);
 }

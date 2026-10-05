@@ -1,11 +1,13 @@
 package com.orthoflow.platform.security;
 
+import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.auth.infrastructure.security.JwtAuthFilter;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -73,6 +75,7 @@ public class SecurityConfig {
     private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -191,6 +194,35 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/stock/**").hasAnyRole(EVERYONE)
             .requestMatchers(HttpMethod.PUT, "/stock/**").hasAnyRole(EVERYONE)
             .requestMatchers(HttpMethod.GET, "/stock/**").hasAnyRole(EVERYONE)
+
+            // ── Account, team and platform (Denteam parity, phase 0) ────────────
+            // Permissions are the finer gate behind the role floor: a role holds
+            // them by default and an admin can change that (ADR 0008).
+            .requestMatchers("/me", "/me/**").hasAnyRole(EVERYONE)
+            .requestMatchers("/events").hasAnyRole(EVERYONE)
+            .requestMatchers("/notifications", "/notifications/**").hasAnyRole(EVERYONE)
+            // Each file is checked against the permission of the record it belongs to.
+            .requestMatchers("/files", "/files/**").hasAnyRole(EVERYONE)
+            .requestMatchers(HttpMethod.GET, "/activity").hasAnyRole(EVERYONE)
+            .requestMatchers("/admin/**").hasAuthority(Permission.USERS_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/practitioners", "/practitioners/*").hasAnyRole(EVERYONE)
+            .requestMatchers("/practitioners/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/settings/practice/profile", "/settings/practice/logo",
+                    "/settings/practice/opening-hours").hasAnyRole(EVERYONE)
+            .requestMatchers("/settings/practice/profile", "/settings/practice/logo",
+                    "/settings/practice/opening-hours").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers("/public-links/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
+
+            // ── Messaging ───────────────────────────────────────────────────
+            .requestMatchers(HttpMethod.PUT, "/messaging/templates").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers(HttpMethod.DELETE, "/messaging/templates/**").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers("/messaging/send-test").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers(HttpMethod.POST, "/messaging/logs/**", "/messaging/inbox/**")
+                    .hasAuthority(Permission.MESSAGING_SEND.name())
+            .requestMatchers(HttpMethod.GET, "/messaging/**").hasAuthority(Permission.MESSAGING_VIEW.name())
+            .requestMatchers(HttpMethod.POST, "/messaging/templates/preview").hasAuthority(Permission.MESSAGING_VIEW.name())
+            .requestMatchers(HttpMethod.GET, "/patients/*/consent").hasAuthority(Permission.PATIENT_READ.name())
+            .requestMatchers(HttpMethod.PUT, "/patients/*/consent").hasAuthority(Permission.PATIENT_WRITE.name())
 
             // ── Fail closed ─────────────────────────────────────────────────
             // Anything not named above is unreachable, including endpoints
