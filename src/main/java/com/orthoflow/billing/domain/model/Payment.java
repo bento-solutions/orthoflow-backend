@@ -27,6 +27,10 @@ public class Payment {
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
 
+    /** The receipt this allocation was taken from. Null only on rows nothing has touched since receipts began. */
+    @Column(name = "receipt_id")
+    private UUID receiptId;
+
     @Column(nullable = false)
     private BigDecimal amount;
 

@@ -49,7 +49,8 @@ class BillingServiceTest {
     @BeforeEach
     void setUp() {
         billingService = new BillingService(invoiceRepository, paymentRepository, invoiceNumberGenerator,
-                auditLogRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+                auditLogRepository, new com.fasterxml.jackson.databind.ObjectMapper(),
+                org.mockito.Mockito.mock(com.orthoflow.billing.infrastructure.adapter.persistence.ReceiptJpaRepository.class));
     }
 
     private void stubInvoiceCreation() {

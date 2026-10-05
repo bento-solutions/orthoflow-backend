@@ -24,11 +24,25 @@ import java.util.stream.Collectors;
 public class PatientLookupService implements PatientLookup {
 
     private final PatientRepository patientRepository;
+    private final com.orthoflow.patient.infrastructure.adapter.persistence.InsurerJpaRepository insurers;
 
     @Override
     @Transactional(readOnly = true)
     public Optional<PatientSummary> findSummary(UUID patientId) {
         return patientRepository.findById(patientId).map(PatientLookupService::toSummary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<com.orthoflow.patient.application.port.PatientIdentity> findIdentity(UUID patientId) {
+        return patientRepository.findById(patientId).map(p -> {
+            // The linked insurer's name wins over the free text typed before insurers existed.
+            String insurer = p.getInsurerId() == null ? p.getInsuranceProvider()
+                    : insurers.findById(p.getInsurerId()).map(com.orthoflow.patient.domain.model.Insurer::getName).orElse(p.getInsuranceProvider());
+            return new com.orthoflow.patient.application.port.PatientIdentity(p.getId(), p.getPatientCode(), p.getFirstName(),
+                    p.getLastName(), p.getDateOfBirth(), p.getGender(), p.getCin(), p.getAddress(), p.getPhone(), p.getEmail(),
+                    insurer, p.getInsuranceNumber(), p.getInsurerId(), p.getGuardianName());
+        });
     }
 
     @Override

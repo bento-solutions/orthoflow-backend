@@ -17,6 +17,8 @@ public interface InvoiceRepository {
     Optional<Invoice> findById(UUID id);
     /** Row-locked read for money mutations — see the JPA repo's javadoc (audit M2). */
     Optional<Invoice> findByIdForUpdate(UUID id);
+    /** A patient's unpaid invoices, oldest first, row-locked, for allocating money across them. */
+    List<Invoice> findOpenByPatientForUpdate(UUID patientId);
     List<Invoice> findAll();
     Page<Invoice> findAll(Pageable pageable);
     List<Invoice> findByPatientId(UUID patientId);

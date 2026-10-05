@@ -14,7 +14,12 @@ public record TreatmentResponse(
         String name,
         BigDecimal basePrice,
         List<TreatmentConsumableResponse> consumables,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        String category,
+        Integer durationMinutes,
+        boolean active,
+        String actCode,
+        BigDecimal actCoefficient
 ) {
     public static TreatmentResponse from(Treatment t) {
         if (t == null) return null;
@@ -25,7 +30,8 @@ public record TreatmentResponse(
                 t.getBasePrice(),
                 t.getConsumables() == null ? List.of() :
                         t.getConsumables().stream().map(TreatmentConsumableResponse::from).collect(Collectors.toList()),
-                t.getCreatedAt()
+                t.getCreatedAt(),
+                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient()
         );
     }
 
@@ -35,6 +41,7 @@ public record TreatmentResponse(
      * open-session-in-view-dependent N+1 on every treatment session list. */
     public static TreatmentResponse shallow(Treatment t) {
         if (t == null) return null;
-        return new TreatmentResponse(t.getId(), t.getCode(), t.getName(), t.getBasePrice(), List.of(), t.getCreatedAt());
+        return new TreatmentResponse(t.getId(), t.getCode(), t.getName(), t.getBasePrice(), List.of(), t.getCreatedAt(),
+                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient());
     }
 }

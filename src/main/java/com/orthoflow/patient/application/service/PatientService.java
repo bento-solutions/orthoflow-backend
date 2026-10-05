@@ -204,9 +204,9 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
         long invoiceCount = invoiceLinkGuard.countInvoicesForPatient(id);
         if (invoiceCount > 0) {
             throw new ConflictException(
-                    "This patient still has " + invoiceCount + " invoice(s). Invoices carry their own "
-                    + "accounting-law retention obligation and are not removed by an erasure request. "
-                    + "Anonymise or archive those invoices first, then retry the erasure.");
+                    "This patient still has " + invoiceCount + " financial record(s) (invoices, receipts, plans, cheques). "
+                    + "They carry their own accounting-law retention obligation and are not removed by an erasure request. "
+                    + "Anonymise or archive those records first, then retry the erasure.");
         }
 
         // What the database cascade does not reach (see PatientErasureListener),

@@ -45,6 +45,17 @@ public class Treatment {
     @Column(name = "duration_minutes")
     private Integer durationMinutes;
 
+    /**
+     * The act code and coefficient a mutual insurer reads on a care form. Left blank
+     * until the clinic confirms the Moroccan NGAP coding for its acts: a wrong code
+     * on a form is worse than none.
+     */
+    @Column(name = "act_code")
+    private String actCode;
+
+    @Column(name = "act_coefficient")
+    private BigDecimal actCoefficient;
+
     @OneToMany(mappedBy = "treatment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<TreatmentConsumable> consumables = new ArrayList<>();

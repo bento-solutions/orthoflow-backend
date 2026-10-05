@@ -30,6 +30,17 @@ public interface InvoiceJpaRepository extends JpaRepository<Invoice, UUID> {
     @Query("SELECT i FROM Invoice i WHERE i.id = :id")
     Optional<Invoice> findByIdForUpdate(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT i FROM Invoice i
+            WHERE i.patientId = :patientId
+              AND i.status IN (com.orthoflow.billing.domain.model.InvoiceStatus.DRAFT,
+                               com.orthoflow.billing.domain.model.InvoiceStatus.SENT,
+                               com.orthoflow.billing.domain.model.InvoiceStatus.PARTIALLY_PAID)
+            ORDER BY i.issueDate, i.createdAt
+            """)
+    List<Invoice> findOpenByPatientForUpdate(@Param("patientId") UUID patientId);
+
     // ── Billing summary: aggregates, not a findAll() + in-memory reduce ──
     // getBillingSummary() used to load every invoice (plus its lines and
     // payments, N+1) on every dashboard hit (audit M1).

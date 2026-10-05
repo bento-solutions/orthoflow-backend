@@ -98,6 +98,11 @@ public class Patient {
     @Column(name = "insurer_id")
     private UUID insurerId;
 
+    /** Set when this record was merged into another; the record is archived and points at the survivor. */
+    @JsonIgnore
+    @Column(name = "merged_into_id")
+    private UUID mergedIntoId;
+
     @Column(name = "insurance_provider")
     private String insuranceProvider;
 

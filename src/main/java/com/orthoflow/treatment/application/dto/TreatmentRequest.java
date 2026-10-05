@@ -40,6 +40,12 @@ public class TreatmentRequest {
     @Positive
     private Integer durationMinutes;
 
+    @jakarta.validation.constraints.Size(max = 30)
+    private String actCode;
+
+    @PositiveOrZero
+    private BigDecimal actCoefficient;
+
     @Valid
     private List<TreatmentConsumableRequest> consumables;
 }

@@ -38,6 +38,11 @@ public class InvoiceRepositoryAdapter implements InvoiceRepository {
     }
 
     @Override
+    public java.util.List<Invoice> findOpenByPatientForUpdate(UUID patientId) {
+        return jpaRepository.findOpenByPatientForUpdate(patientId);
+    }
+
+    @Override
     public List<Invoice> findAll() {
         return jpaRepository.findAll();
     }

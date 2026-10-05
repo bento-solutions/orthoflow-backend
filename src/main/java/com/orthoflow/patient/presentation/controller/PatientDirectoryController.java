@@ -4,6 +4,7 @@ import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.patient.application.dto.PatientDirectoryDtos.*;
 import com.orthoflow.patient.application.service.PatientDirectoryService;
+import com.orthoflow.patient.application.service.PatientMergeService;
 import com.orthoflow.patient.application.service.PatientService;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.patient.infrastructure.adapter.query.PatientDirectoryQuery;
@@ -36,6 +37,7 @@ public class PatientDirectoryController {
 
     private final PatientDirectoryService directory;
     private final PatientService patientService;
+    private final PatientMergeService mergeService;
     private final FileService fileService;
     private final CurrentUserProvider currentUser;
 
@@ -87,6 +89,18 @@ public class PatientDirectoryController {
                 .header("Cache-Control", "private, max-age=3600")
                 .contentType(MediaType.parseMediaType(file.getContentType()))
                 .body(new InputStreamResource(fileService.open(file)));
+    }
+
+    // ── Merge ──
+    @GetMapping("/patients/{targetId}/merge-preview")
+    public PatientMergeService.Preview mergePreview(@PathVariable UUID targetId, @RequestParam UUID sourceId) {
+        return mergeService.preview(currentUser.requirePracticeId(), targetId, sourceId);
+    }
+
+    /** Merges {@code sourceId} into the patient in the path, who stays. Irreversible: the duplicate is archived. */
+    @PostMapping("/patients/{targetId}/merge")
+    public PatientMergeService.Result merge(@PathVariable UUID targetId, @Valid @RequestBody PatientMergeService.Request request) {
+        return mergeService.merge(currentUser.requirePracticeId(), currentUser.requireUserId(), targetId, request);
     }
 
     // ── Reference lists ──

@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /** Turns a typed cell into the text the PDF and CSV show. */
-final class Cells {
+public final class Cells {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
@@ -18,7 +18,7 @@ final class Cells {
     private Cells() {
     }
 
-    static String text(Object cell) {
+    public static String text(Object cell) {
         if (cell == null) return "";
         if (cell instanceof BigDecimal d) return money(d);
         if (cell instanceof Double || cell instanceof Float) return money(BigDecimal.valueOf(((Number) cell).doubleValue()));
@@ -29,7 +29,7 @@ final class Cells {
     }
 
     /** 1 234,50 — the French grouping a Moroccan accountant reads without a second look. */
-    static String money(BigDecimal value) {
+    public static String money(BigDecimal value) {
         DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.FRANCE);
         symbols.setGroupingSeparator(' ');
         return new DecimalFormat("#,##0.00", symbols).format(value.setScale(2, RoundingMode.HALF_UP));

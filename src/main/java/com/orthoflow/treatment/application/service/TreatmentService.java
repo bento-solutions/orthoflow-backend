@@ -59,6 +59,8 @@ public class TreatmentService {
         treatment.setActive(request.isActive());
         treatment.setCategory(request.getCategory());
         treatment.setDurationMinutes(request.getDurationMinutes());
+        treatment.setActCode(request.getActCode() == null || request.getActCode().isBlank() ? null : request.getActCode().trim());
+        treatment.setActCoefficient(request.getActCoefficient());
 
         treatment.getConsumables().clear();
         if (request.getConsumables() != null) {

@@ -313,6 +313,37 @@ class SecurityPolicyTest {
                 Case.restricted(HttpMethod.PUT, "/patients/" + ID + "/consent", "recording consent is patient maintenance", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/public-links/shared/BOOKING/rotate", "rotating the booking link is a settings change", ADMIN),
 
+                // ── Front desk (phase 1) ──────────────────────────────────────
+                Case.restricted(HttpMethod.GET, "/front-desk", "the waiting-room board is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/front-desk/" + ID + "/seat", "calling a patient in is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/scheduling/appointment-types", "appointment types are clinic configuration", ADMIN),
+                Case.restricted(HttpMethod.POST, "/scheduling/absences", "recording an absence is the receptionist's business", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/appointments/daily-sheet", "the day list is open to the front desk", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/patients/list", "the patient list is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/patients/duplicates", "duplicate detection is open to those who read patients", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/patients/" + ID + "/merge", "merging patients is irreversible and owner-only by default", ADMIN),
+                Case.restricted(HttpMethod.GET, "/recalls/NO_VISIT_3M", "recall lists are open to the front desk", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/reference/insurers/" + ID, "editing insurers is a settings change", ADMIN),
+                Case.restricted(HttpMethod.GET, "/reference/insurers", "the insurer list feeds the patient form", ASSISTANT, DOCTOR, ADMIN),
+
+                // ── Money (phase 2): an assistant takes payment but does not read the takings ──
+                Case.restricted(HttpMethod.POST, "/patients/" + ID + "/receipts", "taking money is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/patients/" + ID + "/account", "a patient's own account is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/receipts/" + ID + "/void", "reversing a receipt is finance management", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/invoices/summary", "the clinic's totals are not front-desk data", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/finance/dashboard", "the financial dashboard shows the takings", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/finance/collections", "collections show the takings", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/finance/debts", "the debt list is what the front desk chases", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/finance/cash-closing", "closing the cash is finance management", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/finance/expenses", "expenses are financial data", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/finance/expenses", "recording expenses is owner-level by default", ADMIN),
+                Case.restricted(HttpMethod.GET, "/cheques", "the cheque register can be read by the front desk", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/cheques/" + ID + "/reject", "a bounced cheque reverses money: finance management", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/payment-plans/instalments/" + ID + "/pay", "collecting an instalment is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/payment-plans/" + ID + "/cancel", "cancelling a plan is finance management", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/tax-documents", "issuing a fee note is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/tax-documents/" + ID + "/void", "voiding a tax document is finance management", DOCTOR, ADMIN),
+
                 // ── Inventory and procurement ────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/stock/items",
                         "browsing inventory is front-desk work", ASSISTANT, DOCTOR, ADMIN),

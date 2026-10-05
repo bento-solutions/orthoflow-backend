@@ -38,6 +38,7 @@ import com.orthoflow.procurement.domain.model.VendorInvoiceStatus;
 public class VendorInvoiceService {
 
     private final VendorInvoiceRepository vendorInvoiceRepository;
+    private final List<com.orthoflow.procurement.application.port.VendorInvoiceListener> listeners;
     private final DeliveryNoteRepository deliveryNoteRepository;
     private final JdbcTemplate jdbcTemplate;
 
@@ -103,7 +104,13 @@ public class VendorInvoiceService {
         invoice.setStatus(VendorInvoiceStatus.VALIDATED);
         invoice.setValidatedAt(OffsetDateTime.now());
         invoice.setValidatedBy(validatedBy);
-        return vendorInvoiceRepository.save(invoice);
+        VendorInvoice saved = vendorInvoiceRepository.save(invoice);
+        // Validating is what makes it a cost to the clinic: finance books the expense.
+        var summary = new com.orthoflow.procurement.application.port.VendorInvoiceListener.Summary(saved.getId(),
+                saved.getPracticeId(), saved.getVendorInvoiceNumber(), saved.getSupplier().getName(), saved.getInvoiceDate(),
+                saved.getInvoiceAmount(), saved.getPaymentTerms(), validatedBy);
+        listeners.forEach(l -> l.onValidated(summary));
+        return saved;
     }
 
     @Transactional
@@ -116,7 +123,9 @@ public class VendorInvoiceService {
         }
 
         invoice.setStatus(VendorInvoiceStatus.CANCELLED);
-        return vendorInvoiceRepository.save(invoice);
+        VendorInvoice saved = vendorInvoiceRepository.save(invoice);
+        listeners.forEach(l -> l.onCancelled(saved.getId()));
+        return saved;
     }
 
     @Transactional

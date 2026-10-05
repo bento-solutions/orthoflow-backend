@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${labels.title + ' ' + doc.number}">Fee note</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 14px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 14pt; font-weight: bold; color: #1d4ed8; }
+    .legal { font-size: 8pt; color: #52606d; }
+    h1 { font-size: 15pt; margin: 6px 0 2px 0; letter-spacing: 0.5px; }
+    .dup { color: #b91c1c; font-weight: bold; border: 2px solid #b91c1c; padding: 2px 8px; display: inline-block; margin-left: 8px; }
+    .meta { width: 100%; margin: 8px 0 14px 0; }
+    .meta td { vertical-align: top; width: 50%; padding-right: 10px; }
+    .box { border: 1px solid #c5d0ea; padding: 6px 8px; background: #f7f9fd; }
+    .label { color: #7b8794; font-size: 8pt; text-transform: uppercase; }
+    table.lines { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.lines th { background: #e8eefc; border: 1px solid #c5d0ea; padding: 4px 6px; font-size: 8.5pt; text-align: left; }
+    table.lines td { border: 1px solid #dde3ee; padding: 4px 6px; }
+    .right { text-align: right; } .center { text-align: center; }
+    [dir=rtl] table.lines th { text-align: right; }
+    table.totals { width: 55%; margin-left: auto; border-collapse: collapse; margin-top: 8px; }
+    [dir=rtl] table.totals { margin-left: 0; margin-right: auto; }
+    table.totals td { padding: 3px 6px; }
+    table.totals tr.grand td { font-weight: bold; border-top: 2px solid #1d4ed8; font-size: 11pt; }
+    .words { margin-top: 14px; padding: 8px; border: 1px dashed #9aa5b1; }
+    .sign { margin-top: 28px; width: 100%; }
+    .sign td { width: 50%; height: 60px; vertical-align: top; }
+    .foot { margin-top: 18px; font-size: 7.5pt; color: #7b8794; border-top: 1px solid #dde3ee; padding-top: 4px; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.legalName != null}" th:text="${letterhead.legalName}"></div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
+    </td>
+    <td class="right"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" alt=""/></td>
+  </tr></table>
+
+  <h1><span th:text="${labels.title}">NOTE D'HONORAIRES</span> <span th:text="${'N° ' + doc.number}">N° 1</span><span class="dup" th:if="${doc.duplicate}" th:text="${labels.duplicate}">DUPLICATA</span></h1>
+  <div class="legal" th:text="${labels.date + ' : ' + doc.issuedOn}">Date</div>
+
+  <table class="meta"><tr>
+    <td><div class="box">
+      <div class="label" th:text="${labels.patient}">Patient</div>
+      <div><b th:text="${patient.fullName}">Patient</b></div>
+      <div th:if="${patient.code != null}" th:text="${labels.file + ' ' + patient.code}"></div>
+      <div th:if="${patient.cin != null}" th:text="${'CIN ' + patient.cin}"></div>
+      <div th:if="${patient.address != null}" th:text="${patient.address}"></div>
+    </div></td>
+    <td><div class="box">
+      <div class="label" th:text="${labels.practitioner}">Praticien</div>
+      <div><b th:text="${practitioner != null ? practitioner.name : letterhead.name}">Dr</b></div>
+      <div th:if="${practitioner != null and practitioner.inpe != null}" th:text="${'INPE ' + practitioner.inpe}"></div>
+      <div class="label" th:text="${labels.invoiceRef}" style="margin-top:6px;">Facture</div>
+      <div th:text="${invoice.number}">INV-1</div>
+    </div></td>
+  </tr></table>
+
+  <table class="lines">
+    <thead><tr>
+      <th th:text="${labels.designation}">Désignation</th>
+      <th class="center" th:text="${labels.quantity}">Qté</th>
+      <th class="right" th:text="${labels.unitPrice}">PU</th>
+      <th class="right" th:text="${labels.discount}">Remise</th>
+      <th class="right" th:text="${labels.amount}">Montant</th>
+    </tr></thead>
+    <tbody>
+      <tr th:each="l : ${invoice.lines}">
+        <td th:text="${l.label}">Soin</td>
+        <td class="center" th:text="${l.quantity}">1</td>
+        <td class="right" th:text="${l.unitPrice}">0</td>
+        <td class="right" th:text="${l.discount}">0</td>
+        <td class="right" th:text="${l.total}">0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td th:text="${labels.subtotal}">Sous-total</td><td class="right" th:text="${invoice.subtotal + ' ' + invoice.currency}">0</td></tr>
+    <tr th:if="${invoice.hasDiscount}"><td th:text="${labels.discount}">Remise</td><td class="right" th:text="${'- ' + invoice.discount + ' ' + invoice.currency}">0</td></tr>
+    <tr th:if="${invoice.hasTax}"><td th:text="${labels.tax}">TVA</td><td class="right" th:text="${invoice.tax + ' ' + invoice.currency}">0</td></tr>
+    <tr class="grand"><td th:text="${labels.total}">Total</td><td class="right" th:text="${invoice.total + ' ' + invoice.currency}">0</td></tr>
+    <tr><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid + ' ' + invoice.currency}">0</td></tr>
+    <tr><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance + ' ' + invoice.currency}">0</td></tr>
+  </table>
+
+  <div class="words" th:if="${words != null}"><span th:text="${labels.words}">Arrêtée la présente note à la somme de</span> <b th:text="${words}">mille dirhams</b>.</div>
+
+  <table class="sign"><tr>
+    <td><div class="label" th:text="${labels.patientSignature}">Signature du patient</div></td>
+    <td><div class="label" th:text="${labels.practitionerSignature}">Cachet et signature du praticien</div></td>
+  </tr></table>
+
+  <div class="foot">
+    <span th:if="${letterhead.ice != null}" th:text="${'ICE ' + letterhead.ice + '  '}"></span>
+    <span th:if="${letterhead.taxId != null}" th:text="${'IF ' + letterhead.taxId + '  '}"></span>
+    <span th:if="${letterhead.patente != null}" th:text="${'Patente ' + letterhead.patente + '  '}"></span>
+    <span th:if="${letterhead.rib != null}" th:text="${'RIB ' + letterhead.rib}"></span>
+  </div>
+</body>
+</html>

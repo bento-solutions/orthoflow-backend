@@ -150,6 +150,8 @@ public class SecurityConfig {
             // Erasure is irreversible and is a compliance decision.
             .requestMatchers(HttpMethod.DELETE, "/patients/*/erase").hasRole(ADMIN)
             .requestMatchers(HttpMethod.DELETE, "/patients/*").hasAuthority(Permission.PATIENT_DELETE.name())
+            .requestMatchers(HttpMethod.POST, "/patients/*/merge").hasAuthority(Permission.PATIENT_MERGE.name())
+            .requestMatchers(HttpMethod.GET, "/patients/*/merge-preview").hasAuthority(Permission.PATIENT_MERGE.name())
             .requestMatchers(HttpMethod.POST, "/patients", "/patients/*/photo").hasAuthority(Permission.PATIENT_WRITE.name())
             .requestMatchers(HttpMethod.PUT, "/patients/*").hasAuthority(Permission.PATIENT_WRITE.name())
             .requestMatchers(HttpMethod.GET, "/patients", "/patients/*", "/patients/list", "/patients/kpis",
@@ -173,9 +175,21 @@ public class SecurityConfig {
             .requestMatchers("/scheduling/**").hasAuthority(Permission.AGENDA_MANAGE.name())
 
             // ── Billing ─────────────────────────────────────────────────────
-            .requestMatchers(HttpMethod.POST, "/invoices/*/payments").hasAnyRole(EVERYONE)
-            .requestMatchers(HttpMethod.POST, "/invoices").hasAnyRole(EVERYONE)
-            .requestMatchers(HttpMethod.GET, "/invoices", "/invoices/**").hasAnyRole(EVERYONE)
+            // Taking payment is front-desk work; what the clinic has taken in total,
+            // the cash close and the cheque lifecycle are not.
+            .requestMatchers(HttpMethod.POST, "/invoices/*/payments").hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers(HttpMethod.POST, "/invoices").hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers(HttpMethod.GET, "/invoices/summary").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.GET, "/invoices", "/invoices/**").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers(HttpMethod.POST, "/patients/*/receipts", "/patients/*/credit/apply", "/patients/*/payment-plans")
+                    .hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers(HttpMethod.GET, "/patients/*/account", "/patients/*/payment-plans", "/payment-plans/*")
+                    .hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers(HttpMethod.POST, "/payment-plans/instalments/*/pay").hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers(HttpMethod.GET, "/payment-plans/due").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers(HttpMethod.POST, "/receipts/*/void", "/payment-plans/*/cancel").hasAuthority(Permission.FINANCE_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/cheques").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers("/cheques", "/cheques/**").hasAuthority(Permission.FINANCE_MANAGE.name())
 
             // ── Practice settings ───────────────────────────────────────────
             // Everyone reads them (currency, logo, letterhead); only the owner
@@ -210,6 +224,22 @@ public class SecurityConfig {
 
             // ── Recall lists: who to call (queries over what the clinic knows) ──
             .requestMatchers(HttpMethod.GET, "/recalls/**").hasAuthority(Permission.AGENDA_VIEW.name())
+
+            // ── Tax documents: fee notes and care forms ───────────────────────
+            .requestMatchers(HttpMethod.GET, "/tax-documents", "/tax-documents/**").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers(HttpMethod.POST, "/tax-documents").hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers("/tax-documents/**").hasAuthority(Permission.FINANCE_MANAGE.name())
+
+            // ── Finance: what the clinic has taken in and spent ─────────────────
+            // Totals are not front-desk data (an assistant can take a payment but
+            // not read the clinic's takings); closing the cash and keeping the books
+            // are finance management.
+            .requestMatchers(HttpMethod.GET, "/finance/debts", "/finance/debts/export").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers(HttpMethod.POST, "/finance/cash-closing").hasAuthority(Permission.FINANCE_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/finance/collections", "/finance/dashboard", "/finance/dashboard/export",
+                    "/finance/cash-closing/*").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.GET, "/finance/expenses", "/finance/expenses/**").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers("/finance/expenses", "/finance/expenses/**").hasAuthority(Permission.EXPENSES_MANAGE.name())
 
             // ── Account, team and platform (Denteam parity, phase 0) ────────────
             // Permissions are the finer gate behind the role floor: a role holds

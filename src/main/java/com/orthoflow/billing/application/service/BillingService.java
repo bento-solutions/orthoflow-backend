@@ -6,6 +6,7 @@ import com.orthoflow.billing.domain.model.*;
 import com.orthoflow.billing.domain.repository.InvoiceRepository;
 import com.orthoflow.billing.domain.repository.PaymentRepository;
 import com.orthoflow.billing.infrastructure.adapter.persistence.InvoiceAuditLogJpaRepository;
+import com.orthoflow.billing.infrastructure.adapter.persistence.ReceiptJpaRepository;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class BillingService {
     private final InvoiceNumberGenerator invoiceNumberGenerator;
     private final InvoiceAuditLogJpaRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final ReceiptJpaRepository receipts;
 
     /**
      * Writes to billing_audit_log, which existed since the first migration
@@ -122,6 +124,11 @@ public class BillingService {
         return mapToResponse(saved);
     }
 
+    /**
+     * Records a payment against one invoice: the one-step path the invoice
+     * screen uses. It receives the money as a {@link Receipt} and allocates all
+     * of it to this invoice, so there is one ledger however a payment arrives.
+     */
     @Transactional
     public void recordPayment(UUID invoiceId, RecordPaymentRequest request, UUID recorderId) {
         // Row-locked: two concurrent payments must not both read the same
@@ -129,6 +136,32 @@ public class BillingService {
         Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found"));
 
+        Receipt receipt = Receipt.builder()
+                .id(UUID.randomUUID())
+                .practiceId(invoice.getPracticeId())
+                .patientId(invoice.getPatientId())
+                .amount(request.getAmount())
+                .method(request.getMethod())
+                .receiptDate(request.getPaymentDate())
+                .practitionerId(invoice.getPractitionerId())
+                .reference(request.getReference())
+                .notes(request.getNotes())
+                .recordedBy(recorderId)
+                .build();
+        allocate(invoice, request.getAmount(), receipt, request.getPaymentDate(), recorderId);
+
+        // The receipt first: the allocation row saved with the invoice points at it.
+        receipts.save(receipt);
+        invoiceRepository.save(invoice);
+    }
+
+    /**
+     * The single rule for applying money to an invoice, whether it comes from a
+     * receipt recorded at the desk or from a patient's credit. The caller holds
+     * the invoice's row lock. Nothing is saved here; on a violation nothing has
+     * changed.
+     */
+    public Payment allocate(Invoice invoice, BigDecimal amount, Receipt receipt, LocalDate date, UUID actorId) {
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
             throw new ConflictException("Cannot record a payment against a cancelled invoice");
         }
@@ -138,34 +171,60 @@ public class BillingService {
 
         BigDecimal alreadyPaid = totalPaid(invoice);
         BigDecimal outstanding = invoice.getTotal().subtract(alreadyPaid);
-        if (request.getAmount().compareTo(outstanding) > 0) {
+        if (amount.compareTo(outstanding) > 0) {
             throw new ConflictException(
-                    "Payment of " + request.getAmount() + " exceeds the outstanding balance of " + outstanding);
+                    "Payment of " + amount + " exceeds the outstanding balance of " + outstanding);
         }
 
         Payment payment = Payment.builder()
                 .invoice(invoice)
-                .amount(request.getAmount())
-                .method(request.getMethod())
-                .paymentDate(request.getPaymentDate())
-                .reference(request.getReference())
-                .notes(request.getNotes())
-                .recordedBy(recorderId)
+                .receiptId(receipt.getId())
+                .amount(amount)
+                .method(receipt.getMethod())
+                .paymentDate(date)
+                .reference(receipt.getReference())
+                .notes(receipt.getNotes())
+                .recordedBy(actorId)
                 .build();
-
         invoice.addPayment(payment);
+        refreshStatus(invoice);
 
-        BigDecimal totalPaidAfter = alreadyPaid.add(request.getAmount());
-        if (totalPaidAfter.compareTo(invoice.getTotal()) >= 0) {
-            invoice.setStatus(InvoiceStatus.PAID);
-        } else {
-            invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+        audit(invoice.getId(), "PAYMENT_RECORDED", actorId, Map.of(
+                "amount", amount.toString(),
+                "method", String.valueOf(receipt.getMethod()),
+                "receiptId", String.valueOf(receipt.getId()),
+                "resultingStatus", invoice.getStatus().toString()));
+        return payment;
+    }
+
+    /**
+     * Recomputes an invoice's status from what has been allocated to it. An
+     * invoice whose payments were all reversed goes back to DRAFT — which is
+     * what every unpaid invoice is in this application: nothing else ever
+     * moves one to SENT — and it is owed again.
+     */
+    public void refreshStatus(Invoice invoice) {
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            return;
         }
+        BigDecimal paid = totalPaid(invoice);
+        if (paid.compareTo(invoice.getTotal()) >= 0) {
+            invoice.setStatus(InvoiceStatus.PAID);
+        } else if (paid.signum() > 0) {
+            invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+        } else if (invoice.getStatus() == InvoiceStatus.PAID || invoice.getStatus() == InvoiceStatus.PARTIALLY_PAID) {
+            invoice.setStatus(InvoiceStatus.DRAFT);
+        }
+    }
 
-        invoiceRepository.save(invoice);
-        audit(invoice.getId(), "PAYMENT_RECORDED", recorderId, Map.of(
-                "amount", request.getAmount().toString(),
-                "method", String.valueOf(request.getMethod()),
+    /** Takes an allocation back (a receipt voided): the audit trail records it and the status follows. */
+    public void deallocate(Invoice invoice, Payment payment, UUID actorId, String reason) {
+        invoice.getPayments().remove(payment);
+        refreshStatus(invoice);
+        audit(invoice.getId(), "PAYMENT_REVERSED", actorId, Map.of(
+                "amount", payment.getAmount().toString(),
+                "receiptId", String.valueOf(payment.getReceiptId()),
+                "reason", reason == null ? "" : reason,
                 "resultingStatus", invoice.getStatus().toString()));
     }
 

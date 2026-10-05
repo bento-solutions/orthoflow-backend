@@ -26,6 +26,10 @@ public class VendorInvoice {
     @Column(name = "version")
     private Long version;
 
+    @Column(name = "practice_id", nullable = false)
+    @Builder.Default
+    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+
     @Column(name = "vendor_invoice_number", unique = true, nullable = false)
     private String vendorInvoiceNumber;
 

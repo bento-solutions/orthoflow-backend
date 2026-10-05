@@ -15,6 +15,9 @@ public interface PatientLookup {
 
     Optional<PatientSummary> findSummary(UUID patientId);
 
+    /** Everything a printed document needs to say about a patient: a fee note, an insurance form. */
+    Optional<PatientIdentity> findIdentity(UUID patientId);
+
     /**
      * Batched form of {@link #findSummary(UUID)} — used when mapping a list
      * of records (e.g. a day's appointments) to their response DTOs, so
