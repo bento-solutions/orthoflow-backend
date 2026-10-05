@@ -105,6 +105,34 @@ class PatientDirectoryQueryDbTest {
     }
 
     @Test
+    void theListShowsWhatEachPatientOwesAndCanShowOnlyDebtors() {
+        UUID owes = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
+        UUID settled = PostgresTestSupport.patient(jdbc, practice, "Karim", "Alaoui", null, null, null);
+        UUID user = UUID.randomUUID();
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        for (Object[] row : new Object[][]{{owes, "1000"}, {settled, "500"}}) {
+            UUID invoice = UUID.randomUUID();
+            jdbc.update("INSERT INTO invoices (id, practice_id, patient_id, invoice_number, status, currency, total, region_code, created_by) VALUES (?, ?, ?, ?, 'DRAFT', 'MAD', CAST(? AS numeric), 'MA', ?)",
+                    invoice, practice, row[0], "INV-" + invoice.toString().substring(0, 8), row[1], user);
+            if (row[0].equals(settled)) {
+                UUID receipt = UUID.randomUUID();
+                jdbc.update("INSERT INTO receipts (id, practice_id, patient_id, amount, method, receipt_date, recorded_by) VALUES (?, ?, ?, 700, 'CASH', current_date, ?)", receipt, practice, settled, user);
+                jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by) VALUES (?, ?, ?, 500, 'CASH', current_date, ?)", UUID.randomUUID(), invoice, receipt, user);
+            }
+        }
+
+        List<Row> all = query.page(all(), "balance", true, 0, 10);
+        List<Row> debtors = query.page(new Filter(practice, null, null, null, null, null, false, true), "name", false, 0, 10);
+
+        assertThat(all).extracting(Row::lastName).containsExactly("Benziane", "Alaoui");
+        assertThat(all.get(0).balanceDue()).isEqualByComparingTo("1000");
+        assertThat(all.get(1).balanceDue()).isEqualByComparingTo("0");
+        assertThat(all.get(1).credit()).isEqualByComparingTo("200");
+        assertThat(debtors).extracting(Row::lastName).containsExactly("Benziane");
+        assertThat(query.count(new Filter(practice, null, null, null, null, null, false, true))).isEqualTo(1);
+    }
+
+    @Test
     void kpisCountTheClinicsPatients() {
         PostgresTestSupport.patient(jdbc, practice, "Sara", "B", "2000-01-01", null, null);
         PostgresTestSupport.patient(jdbc, practice, "Karim", "A", "1990-01-01", null, null);

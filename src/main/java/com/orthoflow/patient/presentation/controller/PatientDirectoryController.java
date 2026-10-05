@@ -48,13 +48,14 @@ public class PatientDirectoryController {
                           @RequestParam(required = false) UUID practitionerId,
                           @RequestParam(required = false) UUID insurerId,
                           @RequestParam(defaultValue = "false") boolean duplicatesOnly,
+                          @RequestParam(defaultValue = "false") boolean debtOnly,
                           @RequestParam(defaultValue = "name") String sort,
                           @RequestParam(defaultValue = "asc") String dir,
                           @RequestParam(defaultValue = "0") int page,
                           @RequestParam(defaultValue = "25") int size) {
         var filter = new PatientDirectoryQuery.Filter(currentUser.requirePracticeId(), search,
                 gender == null || gender.isBlank() ? null : gender.toUpperCase(), blankToNull(status),
-                practitionerId, insurerId, duplicatesOnly);
+                practitionerId, insurerId, duplicatesOnly, debtOnly);
         return directory.list(filter, sort, "desc".equalsIgnoreCase(dir), page, size);
     }
 

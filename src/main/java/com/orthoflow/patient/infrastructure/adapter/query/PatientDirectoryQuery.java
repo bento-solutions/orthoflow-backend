@@ -55,13 +55,19 @@ public class PatientDirectoryQuery {
             "created", List.of("p.created_at"),
             "age", List.of("p.date_of_birth"),
             "progress", List.of("progress"),
+            "balance", List.of("balance_due"),
             "next", List.of("next_appointment"),
             "last", List.of("last_visit"));
 
     private final NamedParameterJdbcTemplate jdbc;
 
     public record Filter(UUID practiceId, String search, String gender, String status, UUID practitionerId,
-                         UUID insurerId, boolean duplicatesOnly) {
+                         UUID insurerId, boolean duplicatesOnly, boolean debtOnly) {
+
+        public Filter(UUID practiceId, String search, String gender, String status, UUID practitionerId,
+                      UUID insurerId, boolean duplicatesOnly) {
+            this(practiceId, search, gender, status, practitionerId, insurerId, duplicatesOnly, false);
+        }
     }
 
     public List<Row> page(Filter f, String sort, boolean descending, int page, int size) {
@@ -83,7 +89,13 @@ public class PatientDirectoryQuery {
                        (SELECT min(a.date_time) FROM appointments a WHERE a.patient_id = p.id AND a.date_time >= now()
                           AND a.status IN ('SCHEDULED', 'CONFIRMED', 'LATE')) AS next_appointment,
                        (SELECT max(a.date_time) FROM appointments a WHERE a.patient_id = p.id AND a.status = 'COMPLETED') AS last_visit,
-                       p.photo_file_id, p.created_at
+                       p.photo_file_id, p.created_at,
+                       (SELECT COALESCE(sum(i.total - COALESCE(x.paid, 0)), 0) FROM invoices i
+                          LEFT JOIN (SELECT invoice_id, sum(amount) AS paid FROM payments GROUP BY invoice_id) x ON x.invoice_id = i.id
+                         WHERE i.patient_id = p.id AND i.status <> 'CANCELLED') AS balance_due,
+                       (SELECT COALESCE(sum(r.amount - COALESCE(a.allocated, 0)), 0) FROM receipts r
+                          LEFT JOIN (SELECT receipt_id, sum(amount) AS allocated FROM payments GROUP BY receipt_id) a ON a.receipt_id = r.id
+                         WHERE r.patient_id = p.id AND r.voided_at IS NULL) AS credit
                 FROM patients p
                 LEFT JOIN insurers i ON i.id = p.insurer_id
                 LEFT JOIN practitioners pr ON pr.id = p.primary_practitioner_id
@@ -163,6 +175,11 @@ public class PatientDirectoryQuery {
             sb.append(" AND p.insurer_id = :insurer");
             params.addValue("insurer", f.insurerId());
         }
+        if (f.debtOnly()) {
+            sb.append(" AND (SELECT COALESCE(sum(i.total - COALESCE(x.paid, 0)), 0) FROM invoices i"
+                    + " LEFT JOIN (SELECT invoice_id, sum(amount) AS paid FROM payments GROUP BY invoice_id) x ON x.invoice_id = i.id"
+                    + " WHERE i.patient_id = p.id AND i.status <> 'CANCELLED') > 0");
+        }
         if (f.duplicatesOnly()) {
             sb.append(" AND p.id IN (SELECT a_id FROM pairs UNION SELECT b_id FROM pairs)");
         }
@@ -181,7 +198,8 @@ public class PatientDirectoryQuery {
                 rs.getString("status"), rs.getString("insurer_name"), rs.getObject("primary_practitioner_id", UUID.class),
                 rs.getString("practitioner_name"), rs.getInt("progress"),
                 rs.getObject("next_appointment", OffsetDateTime.class), rs.getObject("last_visit", OffsetDateTime.class),
-                rs.getObject("photo_file_id", UUID.class), rs.getObject("created_at", OffsetDateTime.class));
+                rs.getObject("photo_file_id", UUID.class), rs.getObject("created_at", OffsetDateTime.class),
+                rs.getBigDecimal("balance_due"), rs.getBigDecimal("credit"));
     }
 
     private static Person person(ResultSet rs, String p) throws SQLException {

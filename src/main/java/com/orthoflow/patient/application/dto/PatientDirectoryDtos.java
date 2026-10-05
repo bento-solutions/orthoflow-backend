@@ -17,7 +17,7 @@ public final class PatientDirectoryDtos {
                       LocalDate dateOfBirth, Integer age, String phone, String email, String status,
                       String insurerName, UUID primaryPractitionerId, String primaryPractitionerName,
                       int progress, OffsetDateTime nextAppointment, OffsetDateTime lastVisit,
-                      UUID photoFileId, OffsetDateTime createdAt) {
+                      UUID photoFileId, OffsetDateTime createdAt, java.math.BigDecimal balanceDue, java.math.BigDecimal credit) {
     }
 
     public record Kpis(long total, long newThisMonth, long male, long female, long otherGender, Double averageAge) {
