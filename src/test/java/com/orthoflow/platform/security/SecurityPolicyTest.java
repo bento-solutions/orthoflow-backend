@@ -429,6 +429,15 @@ class SecurityPolicyTest {
      * endpoint fails closed instead of opening to any authenticated session.
      */
     @Test
+    void theBrowserIsAllowedToReadAnExportsFilenameAcrossOrigins() throws Exception {
+        mockMvc.perform(request(HttpMethod.GET, "/finance/debts/export")
+                        .header("Origin", "http://localhost:4200")
+                        .header("Authorization", "Bearer " + tokenFor(ADMIN)))
+                .andExpect(result -> assertThat(result.getResponse().getHeader("Access-Control-Expose-Headers"))
+                        .contains("Content-Disposition").contains("X-Correlation-Id"));
+    }
+
+    @Test
     void anUnlistedEndpointIsUnreachableToEveryRole() throws Exception {
         String path = "/some/endpoint/nobody/declared";
         for (String role : ALL_ROLES) {

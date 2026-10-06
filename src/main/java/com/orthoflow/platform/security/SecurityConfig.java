@@ -342,7 +342,9 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id"));
-        configuration.setExposedHeaders(List.of("X-Correlation-Id"));
+        // Content-Disposition carries the filename of an export (pdf, xlsx, csv). Without exposing it the
+        // browser, calling from another origin, cannot read it and every download loses its name.
+        configuration.setExposedHeaders(List.of("X-Correlation-Id", "Content-Disposition"));
         // The API authenticates with a Bearer header, never a cookie, so
         // credentialed CORS is not needed — and leaving it on is what forces
         // the exact-origin echo and blocks a future wildcard. If auth ever
