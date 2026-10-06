@@ -38,6 +38,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PaymentPlanService {
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PaymentPlanCreate")
+
     public record Create(UUID patientTreatmentId, UUID invoiceId, UUID practitionerId,
                          @NotNull @DecimalMin("0.01") BigDecimal total, @DecimalMin("0.00") BigDecimal downPayment,
                          @Min(1) @Max(120) int instalmentCount, @NotNull Frequency frequency, @NotNull LocalDate startDate,

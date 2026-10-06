@@ -51,6 +51,8 @@ public final class FinanceDtos {
     public record MonthPoint(String month, BigDecimal production, BigDecimal collections, BigDecimal expenses) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "FinanceDashboard")
+
     public record Dashboard(LocalDate from, LocalDate to, BigDecimal production, BigDecimal collections, BigDecimal patientDebt,
                             BigDecimal operatingExpenses, BigDecimal salaries, BigDecimal socialCharges, BigDecimal otherExpenses,
                             BigDecimal retrocessions, BigDecimal result, List<Breakdown> collectionsByMethod,

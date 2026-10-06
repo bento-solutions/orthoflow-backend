@@ -17,6 +17,8 @@ public final class LabDtos {
     private LabDtos() {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "LabOrderRequest")
+
     public record Request(@NotNull UUID patientId, @NotNull UUID labId, UUID practitionerId, @NotNull LabItemType itemType,
                           @Size(max = 500) String description, LocalDate sentDate, LocalDate dueDate, boolean urgent,
                           @DecimalMin("0.00") BigDecimal cost, UUID fittingAppointmentId, String notes) {
@@ -26,6 +28,7 @@ public final class LabDtos {
     }
 
     /** {@code warnings}: FITTING_BEFORE_DUE, OVERDUE, NOT_RECEIVED_BEFORE_FITTING. */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "LabOrderView")
     public record View(UUID id, UUID patientId, String patientName, UUID labId, String labName, UUID practitionerId,
                        String practitionerName, LabItemType itemType, String description, LocalDate sentDate, LocalDate dueDate,
                        LabStatus status, boolean urgent, BigDecimal cost, UUID fittingAppointmentId, OffsetDateTime fittingAt,

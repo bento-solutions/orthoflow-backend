@@ -13,6 +13,8 @@ public final class BookingDtos {
     private BookingDtos() {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "BookingSettings")
+
     public record Settings(boolean enabled, @Min(0) int leadTimeHours, @Min(1) @Max(365) int maxDaysAhead,
                            @Min(5) @Max(60) int slotStepMinutes, boolean autoConfirm) {
     }
@@ -25,6 +27,7 @@ public final class BookingDtos {
     }
 
     /** What the booking page may show: the clinic's name and what can be booked. No patient data, ever. */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "BookingPublicInfo")
     public record PublicInfo(String clinicName, String phone, String city, List<PublicType> types, List<PublicPractitioner> practitioners,
                              int maxDaysAhead, String defaultLanguage) {
     }

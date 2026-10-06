@@ -78,6 +78,7 @@ public final class SterilizationDtos {
     }
 
     // ── Dashboard ──
+    @io.swagger.v3.oas.annotations.media.Schema(name = "SterilizationDashboard")
     public record Dashboard(Map<State, Long> counts, List<ItemView> lubricationDue, List<ItemView> shelfLifeExceeded,
                             List<CycleSummary> pendingControls, List<EndoDtos.EndoAlert> endoAlerts, int shelfLifeDays) {
     }

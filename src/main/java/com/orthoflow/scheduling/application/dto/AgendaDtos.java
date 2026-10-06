@@ -107,6 +107,8 @@ public final class AgendaDtos {
                          String notes, UUID waitingRoomId) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "AgendaReorder")
+
     public record Reorder(@NotEmpty List<UUID> orderedIds) {
     }
 
@@ -119,6 +121,8 @@ public final class AgendaDtos {
     public record ChairBoard(UUID chairId, String name, boolean occupied, UUID appointmentId, String patientName,
                              String practitionerName, OffsetDateTime since, Long minutes) {
     }
+
+    @io.swagger.v3.oas.annotations.media.Schema(name = "AgendaKpis")
 
     public record Kpis(int waiting, int inTreatment, int arrivedToday, Double averageWaitMinutes,
                        Long longestWaitMinutes, int chairsTotal, int chairsOccupied) {

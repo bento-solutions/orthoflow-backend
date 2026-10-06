@@ -13,6 +13,8 @@ public final class PatientDirectoryDtos {
     private PatientDirectoryDtos() {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PatientDirectoryRow")
+
     public record Row(UUID id, String patientCode, String firstName, String lastName, String gender,
                       LocalDate dateOfBirth, Integer age, String phone, String email, String status,
                       String insurerName, UUID primaryPractitionerId, String primaryPractitionerName,
@@ -20,11 +22,15 @@ public final class PatientDirectoryDtos {
                       UUID photoFileId, OffsetDateTime createdAt, java.math.BigDecimal balanceDue, java.math.BigDecimal credit) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PatientKpis")
+
     public record Kpis(long total, long newThisMonth, long male, long female, long otherGender, Double averageAge) {
     }
 
     public record DuplicatePair(Person first, Person second, String reason, double score) {
     }
+
+    @io.swagger.v3.oas.annotations.media.Schema(name = "DirectoryPerson")
 
     public record Person(UUID id, String patientCode, String firstName, String lastName, LocalDate dateOfBirth,
                          String phone, String cin, String email, OffsetDateTime createdAt) {

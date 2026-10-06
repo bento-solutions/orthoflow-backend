@@ -34,10 +34,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChequeService {
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "ChequeCreate")
+
     public record Create(@NotBlank @Size(max = 40) String number, @Size(max = 100) String bank,
                          @Size(max = 200) String drawerName, UUID patientId, @NotNull @DecimalMin("0.01") BigDecimal amount,
                          @NotNull LocalDate dueDate, boolean guarantee, String notes) {
     }
+
+    @io.swagger.v3.oas.annotations.media.Schema(name = "ChequeView")
 
     public record View(UUID id, String number, String bank, String drawerName, UUID patientId, String patientName,
                        BigDecimal amount, LocalDate dueDate, LocalDate depositDate, LocalDate cashedDate,

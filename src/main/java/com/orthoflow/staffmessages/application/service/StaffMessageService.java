@@ -34,6 +34,8 @@ public class StaffMessageService {
     public record Reply(@NotBlank @Size(max = 5000) String body) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "StaffPerson")
+
     public record Person(UUID id, String name, String role) {
     }
 

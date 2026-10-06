@@ -14,6 +14,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MessagingSettingsService {
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "MessagingSettings")
+
     public record Settings(boolean appointmentReminders, @Min(0) @Max(23) int reminderSendHour, boolean instalmentReminders,
                            @Min(0) @Max(30) int instalmentDaysBefore, boolean surveyEnabled, @Min(0) @Max(168) int surveyDelayHours) {
     }

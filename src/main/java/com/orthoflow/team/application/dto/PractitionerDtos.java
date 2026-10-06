@@ -16,6 +16,8 @@ public final class PractitionerDtos {
     private PractitionerDtos() {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PractitionerRequest")
+
     public record Request(
             @NotBlank @Size(max = 150) String displayName,
             UUID userId,
@@ -25,6 +27,8 @@ public final class PractitionerDtos {
             Boolean active) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PractitionerResponse")
+
     public record Response(UUID id, UUID userId, String displayName, String color, Specialty specialty,
                            String inpe, int displayOrder, boolean active) {
         public static Response from(Practitioner p) {
@@ -32,6 +36,8 @@ public final class PractitionerDtos {
                     p.getInpe(), p.getDisplayOrder(), p.isActive());
         }
     }
+
+    @io.swagger.v3.oas.annotations.media.Schema(name = "PractitionerReorder")
 
     public record Reorder(@NotEmpty List<UUID> orderedIds) {
     }

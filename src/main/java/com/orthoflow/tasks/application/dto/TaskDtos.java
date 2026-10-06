@@ -16,9 +16,12 @@ public final class TaskDtos {
     }
 
     /** Name a person or a role, not both. With neither, the task is the creator's own. */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "TaskRequest")
     public record Request(@NotBlank @Size(max = 300) String title, String description, UUID assigneeId, UserRole assigneeRole,
                           LocalDate dueDate, Task.Priority priority, UUID patientId) {
     }
+
+    @io.swagger.v3.oas.annotations.media.Schema(name = "TaskView")
 
     public record View(UUID id, String title, String description, UUID assigneeId, String assigneeName, UserRole assigneeRole,
                        UUID createdBy, LocalDate dueDate, Task.Priority priority, UUID patientId, String patientName,

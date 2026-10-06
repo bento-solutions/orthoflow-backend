@@ -31,6 +31,7 @@ public final class AdminUserDtos {
     }
 
     /** {@code inviteUrl} is the one-time link to set a password, handed over when no mail transport delivers it. */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "UserInvite")
     public record Invite(UserRow user, String inviteUrl) {
     }
 
