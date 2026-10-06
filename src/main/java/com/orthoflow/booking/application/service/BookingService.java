@@ -100,7 +100,7 @@ public class BookingService {
                 types.findByPracticeIdAndActiveTrueAndBookableOnlineTrueOrderByDisplayOrderAscNameFrAsc(practiceId).stream()
                         .map(t -> new PublicType(t.getId(), t.getNameFr(), t.getNameEn(), t.getNameAr(), t.getColor(), t.getDefaultDurationMinutes())).toList(),
                 practitionerService.list(practiceId, false).stream().map(p -> new PublicPractitioner(p.id(), p.displayName(), p.color())).toList(),
-                s.maxDaysAhead(), clinic.getDefaultLanguage());
+                s.maxDaysAhead(), clinic.getDefaultLanguage(), practiceZone.of(practiceId).getId());
     }
 
     @Transactional
