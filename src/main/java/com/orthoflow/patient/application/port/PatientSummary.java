@@ -17,7 +17,8 @@ public record PatientSummary(
         String lastName,
         String email,
         String phone,
-        String cin) {
+        String cin,
+        String preferredLanguage) {
 
     public String fullName() {
         return firstName + " " + lastName;

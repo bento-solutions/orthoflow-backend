@@ -142,6 +142,31 @@ public class PatientDirectoryQuery {
                 (rs, i) -> new DuplicatePair(person(rs, "a_"), person(rs, "b_"), rs.getString("reason"), rs.getDouble("score")));
     }
 
+    /** Existing patients that may be the person described: same CIN, same phone with a similar name, or a near-identical name and birth date. */
+    public List<com.orthoflow.patient.application.port.PatientMatcher.Candidate> candidates(UUID practiceId, String first, String last,
+            java.time.LocalDate dob, String phone, String cin) {
+        String digits = phone == null ? "" : phone.replaceAll("[^0-9]", "");
+        MapSqlParameterSource params = new MapSqlParameterSource("practice", practiceId)
+                .addValue("name", (first + " " + last).trim().toLowerCase())
+                .addValue("cin", cin == null || cin.isBlank() ? null : cin.trim().toLowerCase())
+                .addValue("phone", digits.length() >= 6 ? digits.substring(Math.max(0, digits.length() - 9)) : null)
+                .addValue("dob", dob);
+        return jdbc.query("""
+                SELECT * FROM (
+                  SELECT p.id, p.patient_code, p.first_name, p.last_name, p.date_of_birth, p.phone, p.cin,
+                         CASE WHEN CAST(:cin AS TEXT) IS NOT NULL AND lower(p.cin) = CAST(:cin AS TEXT) THEN 'CIN'
+                              WHEN CAST(:phone AS TEXT) IS NOT NULL AND phone_digits(p.phone) = CAST(:phone AS TEXT)
+                                   AND similarity(lower(p.first_name || ' ' || p.last_name), :name) >= 0.35 THEN 'PHONE'
+                              WHEN similarity(lower(p.first_name || ' ' || p.last_name), :name) >= 0.7
+                                   AND (CAST(:dob AS DATE) IS NULL OR p.date_of_birth IS NULL OR p.date_of_birth = CAST(:dob AS DATE)) THEN 'NAME'
+                         END AS reason
+                  FROM patients p WHERE p.practice_id = :practice AND p.deleted_at IS NULL
+                ) c WHERE c.reason IS NOT NULL ORDER BY CASE c.reason WHEN 'CIN' THEN 0 WHEN 'PHONE' THEN 1 ELSE 2 END LIMIT 10
+                """, params, (rs, i) -> new com.orthoflow.patient.application.port.PatientMatcher.Candidate(rs.getObject("id", UUID.class),
+                rs.getString("patient_code"), rs.getString("first_name") + " " + rs.getString("last_name"),
+                rs.getObject("date_of_birth", java.time.LocalDate.class), rs.getString("phone"), rs.getString("cin"), rs.getString("reason")));
+    }
+
     private static String where(Filter f, MapSqlParameterSource params) {
         StringBuilder sb = new StringBuilder(" WHERE p.deleted_at IS NULL AND p.practice_id = :practice");
         params.addValue("practice", f.practiceId());

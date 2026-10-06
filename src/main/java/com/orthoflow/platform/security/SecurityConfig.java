@@ -223,13 +223,25 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/stock/**").hasAnyRole(EVERYONE)
 
             // ── Recall lists: who to call (queries over what the clinic knows) ──
+            .requestMatchers(HttpMethod.POST, "/recalls/send-reminders").hasAuthority(Permission.MESSAGING_SEND.name())
             .requestMatchers(HttpMethod.GET, "/recalls/**").hasAuthority(Permission.AGENDA_VIEW.name())
+            .requestMatchers(HttpMethod.GET, "/settings/messaging").hasAuthority(Permission.MESSAGING_VIEW.name())
+            .requestMatchers(HttpMethod.PUT, "/settings/messaging").hasAuthority(Permission.SETTINGS_MANAGE.name())
 
             // ── Tasks and internal messages ─────────────────────────────────
             .requestMatchers(HttpMethod.GET, "/tasks").hasAuthority(Permission.TASKS_ADMIN.name())
             .requestMatchers("/tasks", "/tasks/**").hasAuthority(Permission.TASKS_MANAGE.name())
             // A thread is visible to its participants only, which the service checks.
             .requestMatchers("/staff-messages", "/staff-messages/**").hasAnyRole(EVERYONE)
+
+            // ── Online booking: staff side. The public pages are on their own chain. ──
+            .requestMatchers(HttpMethod.PUT, "/booking/settings").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers("/booking", "/booking/**").hasAuthority(Permission.BOOKING_REVIEW.name())
+
+            // ── Self-registration review and satisfaction surveys (the public forms are on their own chain) ──
+            .requestMatchers(HttpMethod.POST, "/patients/*/registration-invite").hasAuthority(Permission.PATIENT_WRITE.name())
+            .requestMatchers("/registrations", "/registrations/**").hasAuthority(Permission.BOOKING_REVIEW.name())
+            .requestMatchers("/surveys", "/surveys/**").hasAuthority(Permission.SURVEYS_VIEW.name())
 
             // ── Lab orders ───────────────────────────────────────────────────
             .requestMatchers("/lab-orders", "/lab-orders/**").hasAuthority(Permission.LAB_ORDERS_MANAGE.name())

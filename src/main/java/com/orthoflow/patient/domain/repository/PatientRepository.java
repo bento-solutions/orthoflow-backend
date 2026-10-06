@@ -9,6 +9,8 @@ import java.util.UUID;
 
 public interface PatientRepository {
     Patient save(Patient patient);
+    /** Writes the row now, for a caller that goes on to reference it from plain SQL in the same transaction. */
+    Patient saveAndFlush(Patient patient);
     Optional<Patient> findById(UUID id);
     List<Patient> findAll();
     List<Patient> findAllById(List<UUID> ids);

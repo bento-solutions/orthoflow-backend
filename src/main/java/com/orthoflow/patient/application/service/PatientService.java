@@ -92,6 +92,56 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
         return createPatient(request).id();
     }
 
+    @Override
+    @Transactional
+    public UUID register(Registration r) {
+        UUID practiceId = currentUser.requirePracticeId();
+        return register(practiceId, r);
+    }
+
+    /** As {@link #register(Registration)} for a caller with no signed-in user (an auto-confirmed online booking). */
+    @Transactional
+    public UUID register(UUID practiceId, Registration r) {
+        String cin = blankToNull(r.cin());
+        if (cin != null && patientRepository.existsByCin(cin)) {
+            throw new ConflictException("A patient with CIN " + cin + " already exists");
+        }
+        String email = blankToNull(r.email());
+        if (email != null && patientRepository.existsByEmailIgnoreCase(email)) {
+            email = null;
+        }
+        Patient patient = Patient.builder().practiceId(practiceId).firstName(r.firstName().trim()).lastName(r.lastName().trim())
+                .gender(normaliseGender(r.gender())).dateOfBirth(r.dateOfBirth()).phone(blankToNull(r.phone())).email(email)
+                .address(blankToNull(r.address())).cin(cin).guardianName(blankToNull(r.guardianName()))
+                .guardianPhone(blankToNull(r.guardianPhone())).insuranceProvider(blankToNull(r.insuranceProvider()))
+                .insuranceNumber(blankToNull(r.insuranceNumber())).occupation(blankToNull(r.occupation()))
+                .preferredLanguage(r.language() == null ? "fr" : r.language()).consentGivenAt(r.consentedAt()).status("ACTIVE").build();
+        extras.assignCode(patient);
+        // Flushed: callers record consent with plain SQL straight afterwards, which needs the row to exist.
+        return patientRepository.saveAndFlush(patient).getId();
+    }
+
+    @Override
+    @Transactional
+    public void enrich(UUID patientId, Registration r) {
+        Patient p = getPatientById(patientId);
+        if (blankToNull(p.getPhone()) == null) p.setPhone(blankToNull(r.phone()));
+        String email = blankToNull(r.email());
+        if (blankToNull(p.getEmail()) == null && email != null && !patientRepository.existsByEmailIgnoreCase(email)) p.setEmail(email);
+        if (p.getDateOfBirth() == null) p.setDateOfBirth(r.dateOfBirth());
+        if (blankToNull(p.getGender()) == null) p.setGender(normaliseGender(r.gender()));
+        if (blankToNull(p.getAddress()) == null) p.setAddress(blankToNull(r.address()));
+        String cin = blankToNull(r.cin());
+        if (blankToNull(p.getCin()) == null && cin != null && !patientRepository.existsByCin(cin)) p.setCin(cin);
+        if (blankToNull(p.getGuardianName()) == null) p.setGuardianName(blankToNull(r.guardianName()));
+        if (blankToNull(p.getGuardianPhone()) == null) p.setGuardianPhone(blankToNull(r.guardianPhone()));
+        if (blankToNull(p.getInsuranceProvider()) == null) p.setInsuranceProvider(blankToNull(r.insuranceProvider()));
+        if (blankToNull(p.getInsuranceNumber()) == null) p.setInsuranceNumber(blankToNull(r.insuranceNumber()));
+        if (blankToNull(p.getOccupation()) == null) p.setOccupation(blankToNull(r.occupation()));
+        if (p.getConsentGivenAt() == null) p.setConsentGivenAt(r.consentedAt());
+        patientRepository.save(p);
+    }
+
     @Transactional(readOnly = true)
     public Page<PatientResponse> getAllPatients(Pageable pageable, String search) {
         Page<Patient> page = (search == null || search.isBlank())

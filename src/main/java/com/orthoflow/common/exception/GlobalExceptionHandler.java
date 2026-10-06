@@ -51,6 +51,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
         String message = String.valueOf(ex.getMostSpecificCause().getMessage());
+        // The client gets a generic conflict; the real constraint goes to the log, or a bug here is invisible.
+        log.warn("Data integrity violation on {} {}: {}", request.getMethod(), request.getRequestURI(), message.replace('\n', ' '));
         // The V21 exclusion constraint is the one integrity violation with a
         // message worth translating for the user — it's the exact "two
         // bookings, same chair, overlapping time" race the constraint

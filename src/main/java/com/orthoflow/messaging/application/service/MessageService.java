@@ -106,6 +106,12 @@ public class MessageService {
         return Optional.of(outbox.save(message));
     }
 
+    /** Whether a message with this dedupe key already exists, queued or sent: lets a job count only what is new. */
+    @Transactional(readOnly = true)
+    public boolean alreadyQueued(String dedupeKey) {
+        return outbox.existsByDedupeKey(dedupeKey);
+    }
+
     private OutboxMessage enqueueInApp(OutgoingMessage request) {
         if (request.getRecipientUserId() == null) {
             throw new ValidationException("An in-app message needs a recipient user");

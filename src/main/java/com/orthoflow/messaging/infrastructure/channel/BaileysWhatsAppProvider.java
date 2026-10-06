@@ -57,16 +57,23 @@ public class BaileysWhatsAppProvider implements WhatsAppProvider {
     public ChannelSender.Result send(String messageId, String toDigits, String text) {
         MessagingProperties.WhatsApp wa = properties.getWhatsapp();
         try {
-            JsonNode body = client.post()
+            // Serialised here rather than by the client, so the request carries a Content-Length
+            // (not chunked encoding) and the answer is read as text whatever content type it claims.
+            byte[] payload = objectMapper.writeValueAsBytes(Map.of("messageId", messageId, "to", toDigits, "text", text));
+            String raw = client.post()
                     .uri(wa.getBaseUrl() + "/sessions/{id}/messages", wa.getSessionId())
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + wa.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("messageId", messageId, "to", toDigits, "text", text))
+                    .body(payload)
                     .retrieve()
-                    .body(JsonNode.class);
+                    .body(String.class);
+            JsonNode body = raw == null || raw.isBlank() ? null : objectMapper.readTree(raw);
             return ChannelSender.Result.sent(body != null && body.hasNonNull("wamid") ? body.get("wamid").asText() : messageId);
         } catch (RestClientResponseException e) {
             return failure(e);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // The bridge answered 2xx but not with JSON: it may well have sent, and the messageId makes a retry safe.
+            return ChannelSender.Result.retry("Unreadable answer from the WhatsApp bridge: " + e.getOriginalMessage(), 0);
         } catch (RuntimeException e) {
             // Connection refused, timeout: the bridge is down or restarting.
             log.warn("WhatsApp bridge unreachable: {}", e.getMessage());
@@ -81,12 +88,13 @@ public class BaileysWhatsAppProvider implements WhatsAppProvider {
         }
         MessagingProperties.WhatsApp wa = properties.getWhatsapp();
         try {
-            JsonNode body = client.get()
+            String raw = client.get()
                     .uri(wa.getBaseUrl() + "/sessions/{id}", wa.getSessionId())
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + wa.getApiKey())
-                    .retrieve().body(JsonNode.class);
+                    .retrieve().body(String.class);
+            JsonNode body = raw == null || raw.isBlank() ? null : objectMapper.readTree(raw);
             return body != null && body.hasNonNull("state") ? Optional.of(body.get("state").asText()) : Optional.empty();
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             return Optional.of("unreachable");
         }
     }

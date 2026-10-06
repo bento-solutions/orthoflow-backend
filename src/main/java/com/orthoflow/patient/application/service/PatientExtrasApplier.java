@@ -45,6 +45,11 @@ public class PatientExtrasApplier {
         apply(patient, extras, practiceId);
     }
 
+    /** A code for a patient made outside the form (a booking, a self-registration). */
+    public void assignCode(Patient patient) {
+        patient.setPatientCode(codes.next());
+    }
+
     public void applyOnUpdate(Patient patient, PatientExtras extras, UUID practiceId) {
         String typed = blankToNull(extras.getPatientCode());
         if (typed != null && !typed.equalsIgnoreCase(patient.getPatientCode())) {

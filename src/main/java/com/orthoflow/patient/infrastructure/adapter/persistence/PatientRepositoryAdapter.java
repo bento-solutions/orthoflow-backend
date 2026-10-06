@@ -23,6 +23,11 @@ public class PatientRepositoryAdapter implements PatientRepository {
     }
 
     @Override
+    public Patient saveAndFlush(Patient patient) {
+        return jpaRepository.saveAndFlush(patient);
+    }
+
+    @Override
     public Optional<Patient> findById(UUID id) {
         return jpaRepository.findById(id);
     }

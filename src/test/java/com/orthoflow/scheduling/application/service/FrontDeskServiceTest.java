@@ -138,7 +138,7 @@ class FrontDeskServiceTest {
         when(appointments.inChair(practice)).thenReturn(List.of(seatedAfterTwenty));
         when(appointments.arrivedBetween(any(), any(), any())).thenReturn(List.of(waitingTenMinutes, seatedAfterTwenty));
         when(patients.findSummaries(anyList())).thenReturn(Map.of(
-                waitingTenMinutes.getPatientId(), new PatientSummary(waitingTenMinutes.getPatientId(), "Sara", "Benziane", null, "0600", null)));
+                waitingTenMinutes.getPatientId(), new PatientSummary(waitingTenMinutes.getPatientId(), "Sara", "Benziane", null, "0600", null, "fr")));
 
         FrontDesk board = service.board(practice);
 
