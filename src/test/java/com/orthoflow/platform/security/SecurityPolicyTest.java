@@ -352,6 +352,27 @@ class SecurityPolicyTest {
                 Case.restricted(HttpMethod.POST, "/tasks", "creating a task is open to staff", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.GET, "/staff-messages/threads", "internal messages are for staff", ASSISTANT, DOCTOR, ADMIN),
 
+                // ── Practice analytics and team pay (phase 5) ─────────────────
+                Case.restricted(HttpMethod.GET, "/retrocessions/simulation", "what collaborators are owed: viewers see only their own, enforced per row", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/retrocessions/rules", "pay terms are for those who may view retrocessions", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/retrocessions/rules", "setting what a collaborator is paid is owner-level by default", ADMIN),
+                Case.restricted(HttpMethod.DELETE, "/retrocessions/rules/" + ID, "deleting pay terms is owner-level by default", ADMIN),
+                Case.restricted(HttpMethod.POST, "/retrocessions/advances", "handing out an advance is owner-level by default", ADMIN),
+                Case.restricted(HttpMethod.DELETE, "/retrocessions/advances/" + ID, "deleting an advance is owner-level by default", ADMIN),
+                Case.restricted(HttpMethod.POST, "/retrocessions/statements", "validating a statement freezes what a person is paid", ADMIN),
+                Case.restricted(HttpMethod.POST, "/retrocessions/statements/" + ID + "/void", "voiding a validated statement", ADMIN),
+                Case.restricted(HttpMethod.POST, "/retrocessions/statements/" + ID + "/payouts", "recording money paid to a collaborator", ADMIN),
+                Case.restricted(HttpMethod.GET, "/retrocessions/statements/" + ID + "/pdf", "a statement is readable by its own practitioner and the owner", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/invoices/" + ID + "/practitioner", "whose invoice it is decides whose pay it counts toward", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/procedures", "procedure margins are not front-desk data", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/procedures/export", "exporting procedure margins", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/doctor-time", "doctor time is a management view", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/income-statement", "the income statement shows the practice's money", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/income-statement/export", "exporting the income statement", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/analytics/goals/2026", "goals include the owner's personal needs", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/analytics/goals/plan", "the goal wizard calculation", DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/analytics/goals/2026", "saving a goal is finance management", DOCTOR, ADMIN),
+
                 // ── Inventory and procurement ────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/stock/items",
                         "browsing inventory is front-desk work", ASSISTANT, DOCTOR, ADMIN),

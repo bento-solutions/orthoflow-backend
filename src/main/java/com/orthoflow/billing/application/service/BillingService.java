@@ -2,6 +2,7 @@ package com.orthoflow.billing.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.billing.application.dto.*;
+import com.orthoflow.billing.application.port.InvoiceAttributionGuard;
 import com.orthoflow.billing.domain.model.*;
 import com.orthoflow.billing.domain.repository.InvoiceRepository;
 import com.orthoflow.billing.domain.repository.PaymentRepository;
@@ -9,6 +10,8 @@ import com.orthoflow.billing.infrastructure.adapter.persistence.InvoiceAuditLogJ
 import com.orthoflow.billing.infrastructure.adapter.persistence.ReceiptJpaRepository;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.patient.application.port.PatientLookup;
+import com.orthoflow.team.application.service.PractitionerService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +39,9 @@ public class BillingService {
     private final InvoiceAuditLogJpaRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final ReceiptJpaRepository receipts;
+    private final PractitionerService practitioners;
+    private final PatientLookup patientLookup;
+    private final InvoiceAttributionGuard attributionGuard;
 
     /**
      * Writes to billing_audit_log, which existed since the first migration
@@ -68,6 +74,7 @@ public class BillingService {
                 .practiceId(request.getPracticeId())
                 .patientId(request.getPatientId())
                 .treatmentPlanId(request.getTreatmentPlanId())
+                .practitionerId(resolvePractitioner(request, creatorId))
                 .invoiceNumber(invoiceNumber)
                 .status(InvoiceStatus.DRAFT)
                 .issueDate(LocalDate.now())
@@ -122,6 +129,43 @@ public class BillingService {
                 "invoiceNumber", invoiceNumber,
                 "total", saved.getTotal().toString()));
         return mapToResponse(saved);
+    }
+
+    /**
+     * The practitioner asked for, else the patient's primary one, else the one
+     * who is signed in (a doctor billing their own work), else none.
+     */
+    private UUID resolvePractitioner(CreateInvoiceRequest request, UUID creatorId) {
+        if (request.getPractitionerId() != null) {
+            practitioners.require(request.getPracticeId(), request.getPractitionerId());
+            return request.getPractitionerId();
+        }
+        return patientLookup.findPrimaryPractitionerId(request.getPatientId())
+                .or(() -> practitioners.findIdByUser(creatorId))
+                .orElse(null);
+    }
+
+    /**
+     * Changes who performed an invoice's work (null clears it). Refused once a
+     * validated retrocession statement counts the invoice.
+     */
+    @Transactional
+    public InvoiceResponse assignPractitioner(UUID invoiceId, UUID practitionerId, UUID actorId) {
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found"));
+        if (java.util.Objects.equals(invoice.getPractitionerId(), practitionerId)) {
+            return mapToResponse(invoice);
+        }
+        if (practitionerId != null) {
+            practitioners.require(invoice.getPracticeId(), practitionerId);
+        }
+        attributionGuard.assertReassignable(invoiceId);
+        UUID previous = invoice.getPractitionerId();
+        invoice.setPractitionerId(practitionerId);
+        invoiceRepository.save(invoice);
+        audit(invoice.getId(), "PRACTITIONER_CHANGED", actorId, Map.of(
+                "from", String.valueOf(previous), "to", String.valueOf(practitionerId)));
+        return mapToResponse(invoice);
     }
 
     /**
@@ -325,6 +369,7 @@ public class BillingService {
                 .id(invoice.getId())
                 .practiceId(invoice.getPracticeId())
                 .patientId(invoice.getPatientId())
+                .practitionerId(invoice.getPractitionerId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .status(invoice.getStatus())
                 .issueDate(invoice.getIssueDate())

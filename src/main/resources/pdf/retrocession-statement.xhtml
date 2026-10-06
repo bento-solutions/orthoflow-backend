@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${labels.title}">Statement</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 14px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 14pt; font-weight: bold; color: #1d4ed8; }
+    .legal { font-size: 8pt; color: #52606d; }
+    h1 { font-size: 15pt; margin: 6px 0 2px 0; letter-spacing: 0.5px; }
+    .void { color: #b91c1c; font-weight: bold; border: 2px solid #b91c1c; padding: 2px 8px; display: inline-block; margin-left: 8px; }
+    .meta { width: 100%; margin: 8px 0 12px 0; }
+    .meta td { vertical-align: top; width: 50%; padding-right: 10px; }
+    .box { border: 1px solid #c5d0ea; padding: 6px 8px; background: #f7f9fd; }
+    .label { color: #7b8794; font-size: 8pt; text-transform: uppercase; }
+    table.lines { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.lines th { background: #e8eefc; border: 1px solid #c5d0ea; padding: 3px 5px; font-size: 8pt; text-align: left; }
+    table.lines td { border: 1px solid #dde3ee; padding: 3px 5px; }
+    .right { text-align: right; }
+    [dir=rtl] table.lines th { text-align: right; }
+    table.totals { width: 55%; margin-left: auto; border-collapse: collapse; margin-top: 10px; }
+    [dir=rtl] table.totals { margin-left: 0; margin-right: auto; }
+    table.totals td { padding: 3px 6px; }
+    table.totals tr.grand td { font-weight: bold; border-top: 2px solid #1d4ed8; font-size: 11pt; }
+    .sign { margin-top: 28px; width: 100%; }
+    .sign td { width: 50%; height: 60px; vertical-align: top; }
+    .notes { margin-top: 10px; font-size: 8.5pt; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.legalName != null}" th:text="${letterhead.legalName}"></div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+    </td>
+    <td class="right"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" alt=""/></td>
+  </tr></table>
+
+  <h1><span th:text="${labels.title}">RELEVÉ</span> <span th:text="${'N° ' + statement.number}">N°</span><span class="void" th:if="${statement.voided}" th:text="${labels.voided}">VOID</span></h1>
+  <div class="legal" th:if="${statement.voided}" th:text="${statement.voidReason}"></div>
+
+  <table class="meta"><tr>
+    <td><div class="box">
+      <div class="label" th:text="${labels.practitioner}">Praticien</div>
+      <div><b th:text="${statement.practitioner}">Dr</b></div>
+    </div></td>
+    <td><div class="box">
+      <div class="label" th:text="${labels.period}">Période</div>
+      <div><b th:text="${statement.from + ' → ' + statement.to}">p</b></div>
+      <div class="label" style="margin-top:6px;" th:text="${labels.validated}">Validé le</div>
+      <div th:text="${statement.validatedAt}">d</div>
+    </div></td>
+  </tr></table>
+
+  <table class="lines">
+    <thead><tr>
+      <th th:text="${labels.date}">Date</th>
+      <th th:text="${labels.reference}">Facture</th>
+      <th th:text="${labels.patient}">Patient</th>
+      <th th:text="${labels.what}">Catégorie</th>
+      <th class="right" th:text="${labels.base}">Base</th>
+      <th class="right" th:text="${labels.rate}">Taux</th>
+      <th class="right" th:text="${labels.amount}">Montant</th>
+    </tr></thead>
+    <tbody>
+      <tr th:each="l : ${lines}">
+        <td th:text="${l.date}">d</td>
+        <td th:text="${l.reference}">r</td>
+        <td th:text="${l.patient}">p</td>
+        <td th:text="${l.what}">w</td>
+        <td class="right" th:text="${l.base}">0</td>
+        <td class="right" th:text="${l.rate}">0</td>
+        <td class="right" th:text="${l.amount}">0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td th:text="${labels.totalBase}">Total des bases</td><td class="right" th:text="${statement.base}">0</td></tr>
+    <tr><td th:text="${labels.variable}">Pourcentage dû</td><td class="right" th:text="${statement.variable}">0</td></tr>
+    <tr th:if="${statement.hasLab}"><td th:text="${labels.lab}">Labo</td><td class="right" th:text="${'- ' + statement.labDeduction}">0</td></tr>
+    <tr th:if="${statement.hasFixed}"><td th:text="${labels.fixed}">Fixe</td><td class="right" th:text="${statement.fixed}">0</td></tr>
+    <tr th:if="${statement.hasAdjustment}"><td th:text="${labels.adjustment}">Ajustement</td><td class="right" th:text="${statement.adjustment}">0</td></tr>
+    <tr><td th:text="${labels.gross}">Total dû</td><td class="right" th:text="${statement.gross}">0</td></tr>
+    <tr th:if="${statement.hasAdvances}"><td th:text="${labels.advances}">Avances</td><td class="right" th:text="${'- ' + statement.advances}">0</td></tr>
+    <tr class="grand"><td th:text="${labels.net}">Net à payer</td><td class="right" th:text="${statement.net}">0</td></tr>
+    <tr><td th:text="${labels.paid}">Déjà réglé</td><td class="right" th:text="${statement.paid}">0</td></tr>
+  </table>
+
+  <div class="notes" th:if="${statement.notes != ''}"><b th:text="${labels.notes}">Notes</b>: <span th:text="${statement.notes}"></span></div>
+
+  <table class="sign"><tr>
+    <td><div class="label" th:text="${labels.signature}">Signature du praticien</div></td>
+    <td><div class="label" th:text="${labels.clinicSignature}">Cachet et signature du cabinet</div></td>
+  </tr></table>
+</body>
+</html>

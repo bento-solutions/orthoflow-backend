@@ -15,6 +15,7 @@ public class InvoiceResponse {
     private UUID id;
     private UUID practiceId;
     private UUID patientId;
+    private UUID practitionerId;
     private String invoiceNumber;
     private InvoiceStatus status;
     private LocalDate issueDate;

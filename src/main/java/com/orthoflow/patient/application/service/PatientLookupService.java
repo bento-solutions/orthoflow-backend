@@ -68,6 +68,12 @@ public class PatientLookupService implements PatientLookup {
         return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findPrimaryPractitionerId(UUID patientId) {
+        return patientRepository.findById(patientId).map(Patient::getPrimaryPractitionerId);
+    }
+
     private static PatientSummary toSummary(Patient patient) {
         return new PatientSummary(
                 patient.getId(),

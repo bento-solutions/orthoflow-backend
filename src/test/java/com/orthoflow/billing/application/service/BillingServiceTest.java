@@ -50,7 +50,10 @@ class BillingServiceTest {
     void setUp() {
         billingService = new BillingService(invoiceRepository, paymentRepository, invoiceNumberGenerator,
                 auditLogRepository, new com.fasterxml.jackson.databind.ObjectMapper(),
-                org.mockito.Mockito.mock(com.orthoflow.billing.infrastructure.adapter.persistence.ReceiptJpaRepository.class));
+                org.mockito.Mockito.mock(com.orthoflow.billing.infrastructure.adapter.persistence.ReceiptJpaRepository.class),
+                org.mockito.Mockito.mock(com.orthoflow.team.application.service.PractitionerService.class),
+                org.mockito.Mockito.mock(com.orthoflow.patient.application.port.PatientLookup.class),
+                id -> { });
     }
 
     private void stubInvoiceCreation() {

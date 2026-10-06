@@ -18,6 +18,9 @@ public class CreateInvoiceRequest {
 
     private UUID treatmentPlanId;
 
+    /** Who performed the work. Defaults to the patient's primary practitioner when omitted. */
+    private UUID practitionerId;
+
     @NotNull
     private String currency;
 

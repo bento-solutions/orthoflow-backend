@@ -41,6 +41,15 @@ public class InvoiceController {
         return billingService.getInvoice(id);
     }
 
+    /** Body {"practitionerId": "..."}; null clears the attribution. */
+    @PutMapping("/{id}/practitioner")
+    public InvoiceResponse assignPractitioner(@PathVariable UUID id, @RequestBody AssignPractitioner body) {
+        return billingService.assignPractitioner(id, body.practitionerId(), currentUserProvider.requireUserId());
+    }
+
+    public record AssignPractitioner(UUID practitionerId) {
+    }
+
     @GetMapping("/summary")
     public com.orthoflow.billing.application.dto.BillingSummaryResponse getBillingSummary() {
         return billingService.getBillingSummary();

@@ -179,6 +179,8 @@ public class SecurityConfig {
             // the cash close and the cheque lifecycle are not.
             .requestMatchers(HttpMethod.POST, "/invoices/*/payments").hasAuthority(Permission.BILLING_WRITE.name())
             .requestMatchers(HttpMethod.POST, "/invoices").hasAuthority(Permission.BILLING_WRITE.name())
+            // Whose invoice it is decides whose pay it counts toward.
+            .requestMatchers(HttpMethod.PUT, "/invoices/*/practitioner").hasAuthority(Permission.FINANCE_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/invoices/summary").hasAuthority(Permission.FINANCE_VIEW.name())
             .requestMatchers(HttpMethod.GET, "/invoices", "/invoices/**").hasAuthority(Permission.BILLING_READ.name())
             .requestMatchers(HttpMethod.POST, "/patients/*/receipts", "/patients/*/credit/apply", "/patients/*/payment-plans")
@@ -259,6 +261,23 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/finance/cash-closing").hasAuthority(Permission.FINANCE_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/finance/collections", "/finance/dashboard", "/finance/dashboard/export",
                     "/finance/cash-closing/*").hasAuthority(Permission.FINANCE_VIEW.name())
+            // ── Practice analytics ──────────────────────────────────────────
+            // Activity and doctor time are ANALYTICS_VIEW. The income statement
+            // and goals show the clinic's money (and the owner's personal needs),
+            // so they follow the finance permissions.
+            .requestMatchers(HttpMethod.GET, "/analytics/procedures", "/analytics/procedures/export", "/analytics/doctor-time")
+                    .hasAuthority(Permission.ANALYTICS_VIEW.name())
+            .requestMatchers(HttpMethod.GET, "/analytics/income-statement", "/analytics/income-statement/export",
+                    "/analytics/goals/*").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.POST, "/analytics/goals/plan").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.PUT, "/analytics/goals/*").hasAuthority(Permission.FINANCE_MANAGE.name())
+
+            // ── Retrocessions: what collaborators are paid ──────────────────
+            // Reading is VIEW (a viewer without MANAGE sees only their own
+            // figures, enforced per row in RetrocessionAccess); anything that
+            // changes terms, records money or validates a statement is MANAGE.
+            .requestMatchers(HttpMethod.GET, "/retrocessions/**").hasAuthority(Permission.RETROCESSION_VIEW.name())
+            .requestMatchers("/retrocessions/**").hasAuthority(Permission.RETROCESSION_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/finance/expenses", "/finance/expenses/**").hasAuthority(Permission.FINANCE_VIEW.name())
             .requestMatchers("/finance/expenses", "/finance/expenses/**").hasAuthority(Permission.EXPENSES_MANAGE.name())
 
