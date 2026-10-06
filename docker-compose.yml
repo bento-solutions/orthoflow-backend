@@ -144,6 +144,11 @@ services:
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
       WHATSAPP_SESSION_ID: ${WHATSAPP_SESSION_ID:-orthoflow}
       WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:-}
+      # "Ask OrthoFlow" (help assistant). Off unless HELP_ASK_ENABLED=true; see .env.example.
+      HELP_ASK_ENABLED: ${HELP_ASK_ENABLED:-false}
+      HELP_ANTHROPIC_API_KEY: ${HELP_ANTHROPIC_API_KEY:-}
+      HELP_ASK_MODEL: ${HELP_ASK_MODEL:-claude-haiku-4-5-20251001}
+      HELP_ASK_QUESTIONS_PER_HOUR: ${HELP_ASK_QUESTIONS_PER_HOUR:-20}
     volumes:
       - orthoflow_files:/data/files
     healthcheck:

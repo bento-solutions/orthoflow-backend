@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="ltr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>QR</title>
+  <style>
+    @page { size: A4; margin: 10mm 8mm; }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 8pt; color: #111; }
+    table.sheet { width: 100%; border-collapse: separate; border-spacing: 3mm; }
+    td.slot { width: 33%; height: 33mm; border: 0.3mm dashed #999; padding: 2mm; vertical-align: middle; }
+    table.cell { width: 100%; border-collapse: collapse; }
+    td.qrcell { width: 27mm; padding: 0; vertical-align: middle; }
+    td.text { padding: 0 0 0 1.5mm; vertical-align: middle; }
+    .qr { width: 25mm; height: 25mm; }
+    .code { font-size: 9pt; font-weight: bold; }
+    .name { margin-top: 1mm; font-size: 8pt; }
+    .kind { margin-top: 1mm; color: #555; font-size: 6.5pt; text-transform: uppercase; }
+    .clinic { margin-top: 1mm; color: #777; font-size: 6.5pt; }
+  </style>
+</head>
+<body>
+  <table class="sheet">
+    <tr th:each="row : ${#numbers.sequence(0, (labels.size() - 1) / 3)}">
+      <td class="slot" th:each="col : ${#numbers.sequence(0, 2)}">
+        <table class="cell" th:if="${row * 3 + col < labels.size()}">
+          <tr>
+            <td class="qrcell"><img class="qr" th:src="${labels[row * 3 + col].qr}" alt=""/></td>
+            <td class="text">
+              <div class="code" th:text="${labels[row * 3 + col].code}">KIT-01</div>
+              <div class="name" th:text="${labels[row * 3 + col].name}">Tray</div>
+              <div class="kind" th:text="${labels[row * 3 + col].kind}">TRAY</div>
+              <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

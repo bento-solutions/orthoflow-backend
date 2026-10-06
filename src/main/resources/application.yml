@@ -318,6 +318,17 @@ orthoflow:
       webhook-secret: ${WHATSAPP_WEBHOOK_SECRET:}
       default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:212}
 
+  # ── Help centre (F6): "Ask OrthoFlow" ───────────────────────────────
+  help:
+    ask:
+      # Off by default. When on, the question a person types and the matching help
+      # notes are sent to the model vendor; see HelpProperties for why that is
+      # the operator's decision.
+      enabled: ${HELP_ASK_ENABLED:false}
+      api-key: ${HELP_ANTHROPIC_API_KEY:}
+      model: ${HELP_ASK_MODEL:claude-haiku-4-5-20251001}
+      questions-per-hour: ${HELP_ASK_QUESTIONS_PER_HOUR:20}
+
   # ── Public pages (F7): online booking, self-registration, surveys ────
   public:
     # Per-IP ceilings in a window; writes are held far lower than reads.

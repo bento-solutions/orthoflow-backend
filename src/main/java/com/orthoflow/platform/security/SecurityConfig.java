@@ -261,6 +261,20 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/finance/cash-closing").hasAuthority(Permission.FINANCE_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/finance/collections", "/finance/dashboard", "/finance/dashboard/export",
                     "/finance/cash-closing/*").hasAuthority(Permission.FINANCE_VIEW.name())
+            // ── Help centre ─────────────────────────────────────────────────
+            // Everyone signed in reads the notes and may ask the assistant (which
+            // is off unless the clinic switches it on); only settings managers
+            // edit the clinic's own wording.
+            .requestMatchers(HttpMethod.PUT, "/help/notes/*").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers(HttpMethod.DELETE, "/help/notes/*").hasAuthority(Permission.SETTINGS_MANAGE.name())
+            .requestMatchers(HttpMethod.GET, "/help/notes", "/help/notes/*").hasAnyRole(EVERYONE)
+            .requestMatchers(HttpMethod.POST, "/help/ask").hasAnyRole(EVERYONE)
+
+            // ── Sterilization, endo kits, handpieces ────────────────────────
+            // Reading the register is as sensitive as writing it (it names the
+            // patients an instrument touched), so one permission covers both.
+            .requestMatchers("/sterilization/**", "/endo/**").hasAuthority(Permission.STERILIZATION_MANAGE.name())
+
             // ── Practice analytics ──────────────────────────────────────────
             // Activity and doctor time are ANALYTICS_VIEW. The income statement
             // and goals show the clinic's money (and the owner's personal needs),

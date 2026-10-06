@@ -373,6 +373,20 @@ class SecurityPolicyTest {
                 Case.restricted(HttpMethod.POST, "/analytics/goals/plan", "the goal wizard calculation", DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.PUT, "/analytics/goals/2026", "saving a goal is finance management", DOCTOR, ADMIN),
 
+                // ── Sterilization, endo and help (phase 6) ────────────────────
+                Case.restricted(HttpMethod.GET, "/sterilization/items", "the register names the patients an instrument touched", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/sterilization/items/" + ID + "/use", "using an instrument records the patient", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/sterilization/cycles", "loading an autoclave", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/sterilization/cycles/" + ID + "/control", "releasing or recalling a load", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/sterilization/traceability/patients/" + ID, "which instruments touched a patient", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/sterilization/labels?itemId=" + ID, "printing QR labels", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/endo/kits", "endo kits and their file counts", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/endo/files/" + ID + "/discard", "discarding a worn file", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/help/notes", "everyone signed in reads the help", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/help/ask", "everyone signed in may ask the assistant", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.PUT, "/help/notes/agenda?lang=fr", "editing the clinic's own wording is a settings task", ADMIN),
+                Case.restricted(HttpMethod.DELETE, "/help/notes/agenda?lang=fr", "restoring the built-in wording is a settings task", ADMIN),
+
                 // ── Inventory and procurement ────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/stock/items",
                         "browsing inventory is front-desk work", ASSISTANT, DOCTOR, ADMIN),

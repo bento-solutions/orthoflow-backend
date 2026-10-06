@@ -43,6 +43,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(RateLimitedException.class)
+    public ProblemDetail handleRateLimited(RateLimitedException ex, HttpServletRequest request) {
+        return problem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({ConflictException.class, IllegalStateException.class})
     public ProblemDetail handleConflict(RuntimeException ex, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, ex.getMessage(), request);
