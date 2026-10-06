@@ -21,7 +21,6 @@ import java.util.UUID;
 public class ActivityController {
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "ActivityEntry")
-
     public record Entry(UUID id, String actorName, String action, String diff, OffsetDateTime createdAt) {
     }
 

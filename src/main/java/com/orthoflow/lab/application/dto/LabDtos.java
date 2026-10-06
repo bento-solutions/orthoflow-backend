@@ -18,7 +18,6 @@ public final class LabDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "LabOrderRequest")
-
     public record Request(@NotNull UUID patientId, @NotNull UUID labId, UUID practitionerId, @NotNull LabItemType itemType,
                           @Size(max = 500) String description, LocalDate sentDate, LocalDate dueDate, boolean urgent,
                           @DecimalMin("0.00") BigDecimal cost, UUID fittingAppointmentId, String notes) {

@@ -30,18 +30,15 @@ import java.util.function.Function;
 public class PatientMergeService {
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "PatientMergeRequest")
-
     public record Request(@NotNull UUID sourceId, ChartChoice dentalChartFrom, List<String> preferSourceFields) {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "PatientMergePreview")
-
     public record Preview(UUID sourceId, UUID targetId, Map<String, Integer> recordsToMove, boolean bothHaveDentalCharts,
                           Map<String, String[]> fieldDifferences) {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "PatientMergeResult")
-
     public record Result(UUID targetId, UUID sourceId, Map<String, Integer> moved) {
     }
 

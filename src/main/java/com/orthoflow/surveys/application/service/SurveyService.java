@@ -37,7 +37,6 @@ public class SurveyService {
     private static final int LOW_RATING = 2;
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "SurveyPublicInfo")
-
     public record PublicInfo(String clinicName, String practitionerName) {
     }
 
@@ -46,13 +45,11 @@ public class SurveyService {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "SurveyRow")
-
     public record Row(UUID id, UUID appointmentId, UUID patientId, String patientName, String practitionerName, Integer rating, String comment,
                       boolean callMe, OffsetDateTime submittedAt, OffsetDateTime handledAt) {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "SurveySummary")
-
     public record Summary(long responses, Double average, long[] distribution, long callBacksPending) {
     }
 

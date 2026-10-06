@@ -108,7 +108,6 @@ public final class AgendaDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "AgendaReorder")
-
     public record Reorder(@NotEmpty List<UUID> orderedIds) {
     }
 
@@ -123,7 +122,6 @@ public final class AgendaDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "AgendaKpis")
-
     public record Kpis(int waiting, int inTreatment, int arrivedToday, Double averageWaitMinutes,
                        Long longestWaitMinutes, int chairsTotal, int chairsOccupied) {
     }

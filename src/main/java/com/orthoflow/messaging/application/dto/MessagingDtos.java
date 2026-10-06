@@ -40,7 +40,6 @@ public final class MessagingDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "TemplatePreview")
-
     public record Preview(String subject, String body) {
     }
 

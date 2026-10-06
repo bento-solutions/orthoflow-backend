@@ -49,7 +49,6 @@ public class TaxDocumentService {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "TaxDocumentView")
-
     public record View(UUID id, TaxDocument.Kind kind, String number, UUID patientId, String patientName, UUID invoiceId,
                        UUID practitionerId, BigDecimal amount, OffsetDateTime issuedAt, OffsetDateTime deliveredAt,
                        TaxDocument.Status status, boolean duplicate, UUID duplicateOf, UUID fileId, String notes) {

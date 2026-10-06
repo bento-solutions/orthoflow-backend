@@ -31,7 +31,6 @@ public final class RecallDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "RecallRow")
-
     public record Row(UUID patientId, String patientCode, String firstName, String lastName, String phone, String email,
                       UUID primaryPractitionerId, String primaryPractitionerName, OffsetDateTime lastVisit,
                       OffsetDateTime nextAppointment, int progress, int remaining, LocalDate dueSince, String note) {

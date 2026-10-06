@@ -35,7 +35,6 @@ public class StaffMessageService {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "StaffPerson")
-
     public record Person(UUID id, String name, String role) {
     }
 

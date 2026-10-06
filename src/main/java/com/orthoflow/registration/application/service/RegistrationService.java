@@ -42,7 +42,6 @@ import java.util.UUID;
 public class RegistrationService {
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "RegistrationPublicInfo")
-
     public record PublicInfo(String clinicName, String phone, String defaultLanguage) {
     }
 
@@ -66,7 +65,6 @@ public class RegistrationService {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "RegistrationInvite")
-
     public record Invite(String url, boolean sent) {
     }
 

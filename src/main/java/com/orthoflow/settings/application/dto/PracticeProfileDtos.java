@@ -43,7 +43,6 @@ public final class PracticeProfileDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "OpeningDay")
-
     public record Day(@Min(1) @Max(7) short weekday, boolean closed, @NotNull LocalTime openTime,
                       @NotNull LocalTime closeTime, LocalTime breakStart, LocalTime breakEnd) {
 

@@ -14,7 +14,6 @@ public final class BookingDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "BookingSettings")
-
     public record Settings(boolean enabled, @Min(0) int leadTimeHours, @Min(1) @Max(365) int maxDaysAhead,
                            @Min(5) @Max(60) int slotStepMinutes, boolean autoConfirm) {
     }

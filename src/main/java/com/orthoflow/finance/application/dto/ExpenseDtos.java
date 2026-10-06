@@ -15,7 +15,6 @@ public final class ExpenseDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "ExpenseRequest")
-
     public record Request(@NotNull LocalDate expenseDate, @NotNull UUID categoryId, @Size(max = 200) String payee,
                           @Size(max = 500) String description, @NotNull @DecimalMin("0.01") BigDecimal amount,
                           LocalDate dueDate, Expense.Recurrence recurrence, String notes) {
@@ -25,7 +24,6 @@ public final class ExpenseDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "ExpenseView")
-
     public record View(UUID id, LocalDate expenseDate, UUID categoryId, String categoryName, ExpenseCategory.Kind categoryKind,
                        String payee, String description, BigDecimal amount, LocalDate dueDate, LocalDate paidDate,
                        Expense.Status status, PaymentMethod method, UUID receiptFileId, UUID vendorInvoiceId, UUID labOrderId,
