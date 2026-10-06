@@ -164,7 +164,12 @@ public class NluPromptBuilder {
                         Map.entry("severity", STRING),
                         Map.entry("note", STRING),
                         // schedule.followUp
-                        Map.entry("when", STRING)));
+                        Map.entry("when", STRING),
+                        // tasks.create
+                        Map.entry("title", STRING),
+                        Map.entry("assigneeRole", STRING),
+                        Map.entry("dueDate", STRING),
+                        Map.entry("priority", STRING)));
 
         return Map.of(
                 "type", "object",

@@ -32,7 +32,8 @@ class NluPromptBuilderTest {
                 "category", "content",             // a clinical note
                 "label", "detail",                 // medical and dental history
                 "substance", "reaction", "severity", "note",
-                "when");                           // a follow-up
+                "when",                            // a follow-up
+                "title", "assigneeRole", "dueDate", "priority");   // a task for the team
     }
 
     @Test

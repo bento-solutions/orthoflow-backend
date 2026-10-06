@@ -5,9 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.clinical.application.dto.*;
 import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.clinical.domain.model.FindingStatus;
+import com.orthoflow.auth.domain.model.Permission;
+import com.orthoflow.auth.domain.model.UserRole;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
+import com.orthoflow.common.security.CurrentUserProvider;
+import com.orthoflow.tasks.application.dto.TaskDtos;
+import com.orthoflow.tasks.application.service.TaskService;
+import com.orthoflow.tasks.domain.model.Task;
 import com.orthoflow.voice.application.dto.CompleteVoiceSessionRequest;
 import com.orthoflow.voice.application.dto.InterpretRequest;
 import com.orthoflow.voice.application.dto.InterpretResponse;
@@ -23,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +92,8 @@ public class VoiceCommandService {
     private final VoiceInterpretationService voiceInterpretationService;
     private final ClinicalRecordService clinicalRecordService;
     private final VoiceSessionService voiceSessionService;
+    private final TaskService taskService;
+    private final CurrentUserProvider currentUser;
     private final ObjectMapper objectMapper;
 
     /**
@@ -97,6 +107,7 @@ public class VoiceCommandService {
             "clinical.addFinding", "clinical.addFindings", "clinical.retractFindings",
             "clinical.resolveFinding", "clinical.retractFinding", "clinical.addNote",
             "clinical.addAllergy", "clinical.addMedicalHistory",
+            "tasks.create",
             "voice.startSession", "voice.endSession");
 
     private record ExecutionResult(String targetType, String targetId, String previousValue, String newValue) {}
@@ -375,6 +386,24 @@ public class VoiceCommandService {
                 var resp = voiceSessionService.end(sessionId, req, actorId);
                 yield new ExecutionResult("VoiceSession", sessionId.toString(), "ACTIVE", resp.status());
             }
+            /*
+             * A task for the team ("crée une tâche pour l'accueil : rappeler le patient"). It is
+             * not a clinical write, but it is a write all the same, so it goes through the same
+             * preview and confirmation. The permission is checked here, at the moment of writing,
+             * against the signed-in user: a doctor whose tasks permission an admin has taken away
+             * cannot get one made by speaking it. It is filed against the patient on screen only
+             * when the doctor's words were about that patient (linkPatient), not merely because
+             * a patient happened to be open.
+             */
+            case "tasks.create" -> {
+                currentUser.requireAuthority(Permission.TASKS_MANAGE.name());
+                TaskDtos.Request req = new TaskDtos.Request(str(e, "title"), strOrNull(e, "description"), null,
+                        taskRole(strOrNull(e, "assigneeRole")), taskDate(strOrNull(e, "dueDate")),
+                        taskPriority(strOrNull(e, "priority")),
+                        Boolean.TRUE.equals(e.get("linkPatient")) ? patientId : null);
+                TaskDtos.View task = taskService.create(currentUser.requirePracticeId(), actorId, req);
+                yield new ExecutionResult("Task", task.id().toString(), null, truncate(task.title()));
+            }
             default -> throw new ValidationException("Unknown voice intent: " + intent);
         };
     }
@@ -432,6 +461,33 @@ public class VoiceCommandService {
     private String strOrDefault(Map<String, Object> entities, String key, String fallback) {
         String value = strOrNull(entities, key);
         return value == null ? fallback : value;
+    }
+
+    private UserRole taskRole(String value) {
+        if (value == null) return null;
+        try {
+            return UserRole.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Unknown role for a task: " + value);
+        }
+    }
+
+    private LocalDate taskDate(String value) {
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException ex) {
+            throw new ValidationException("A task's due date must be written yyyy-MM-dd, not " + value);
+        }
+    }
+
+    private Task.Priority taskPriority(String value) {
+        if (value == null) return null;
+        try {
+            return Task.Priority.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Unknown priority for a task: " + value);
+        }
     }
 
     private String truncate(String content) {
