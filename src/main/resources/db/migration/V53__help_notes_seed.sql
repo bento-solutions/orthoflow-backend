@@ -16,13 +16,13 @@ A cancelled or missed appointment frees its slot. The waiting list lets you resc
 الموعد الملغى أو الفائت يحرر فترته. تتيح لائحة الانتظار إعادة برمجة مريض عندما تتوفر فترة.$n$),
     (gen_random_uuid(), NULL, 'patients', 'fr', $n$Patients$n$, $n$Recherchez un patient par nom, téléphone ou code patient. Le téléphone est comparé sans espaces ni indicatif, donc « 0662… » et « +212 662… » retrouvent la même personne.
 Avant de créer une fiche, vérifiez les doublons possibles : deux fiches du même patient se fusionnent depuis la liste des doublons, et la fusion déplace tout l'historique vers la fiche conservée.
-Le consentement aux messages se règle par canal (WhatsApp, SMS, e-mail). Par défaut un patient n'a consenti à rien et aucun rappel ne lui est envoyé.$n$),
+Le consentement aux messages se règle par canal (WhatsApp, e-mail). Par défaut un patient n'a consenti à rien et aucun rappel ne lui est envoyé.$n$),
     (gen_random_uuid(), NULL, 'patients', 'en', $n$Patients$n$, $n$Search a patient by name, phone or patient code. Phone numbers are compared without spaces or country code, so "0662…" and "+212 662…" find the same person.
 Before creating a file, check for possible duplicates: two files for the same patient are merged from the duplicates list, and the merge moves the whole history to the file that is kept.
-Consent to messages is set per channel (WhatsApp, SMS, email). By default a patient has consented to nothing and no reminder is sent.$n$),
+Consent to messages is set per channel (WhatsApp, email). By default a patient has consented to nothing and no reminder is sent.$n$),
     (gen_random_uuid(), NULL, 'patients', 'ar', $n$المرضى$n$, $n$ابحث عن مريض بالاسم أو الهاتف أو رمز المريض. تتم مقارنة الهاتف دون فراغات أو مفتاح الدولة، فيجد « 0662… » و « 212+ 662… » نفس الشخص.
 قبل إنشاء ملف تحقق من التكرارات المحتملة: يتم دمج ملفين لنفس المريض من لائحة التكرارات، ويحول الدمج كل السجل إلى الملف المحتفظ به.
-يضبط القبول بالرسائل لكل قناة (واتساب، رسائل قصيرة، بريد إلكتروني). افتراضيا لم يوافق المريض على شيء ولا يرسل له أي تذكير.$n$),
+يضبط القبول بالرسائل لكل قناة (واتساب، بريد إلكتروني). افتراضيا لم يوافق المريض على شيء ولا يرسل له أي تذكير.$n$),
     (gen_random_uuid(), NULL, 'billing', 'fr', $n$Facturation et encaissements$n$, $n$Chaque facture est attribuée à un praticien : celui que vous choisissez, sinon le praticien principal du patient, sinon le médecin connecté. Cette attribution détermine les rétrocessions.
 Un encaissement (reçu) peut être réparti sur plusieurs factures ; ce qui n'est pas réparti reste en avoir et peut être appliqué plus tard. Un chèque postdaté reste En attente jusqu'à son encaissement ; un chèque rejeté annule son règlement.
 Un reçu annulé n'est jamais supprimé : il reste visible, marqué annulé, avec son motif. La note d'honoraires se génère en PDF depuis la facture.$n$),
