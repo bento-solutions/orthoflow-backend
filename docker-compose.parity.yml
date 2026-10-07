@@ -1,0 +1,227 @@
+# OrthoFlow "parity" environment: the feature/denteam-parity branch, run
+# BESIDE production and never instead of it.
+#
+#   frontend  ->  https://orthoflow.crmbento.com
+#   backend   ->  https://apiorthoflow.crmbento.com   (all routes under /api/v1)
+#
+# It shares only the host's Traefik (network `proxy`, resolver `letsencrypt`)
+# with production (docker-compose.yml, https://ortho.crmbento.com). Everything
+# else is its own: compose project, containers, Postgres + its data volume,
+# uploaded-files volume, internal network, Traefik router and service names,
+# and image names.
+#
+# Why each of those is renamed, because reusing the production name is silent:
+#   - Traefik router/service names are global across the host. A router called
+#     `orthoflow-api` here would merge with production's and split its traffic.
+#   - Image names: production's deploy resolves `orthoflow-*:latest` from the
+#     local image cache. Building this branch under that name would replace it.
+#   - Project name: it prefixes the volumes, so a project called `ortho` would
+#     mount production's database.
+#
+# No CI deploys this branch (deploy.yml fires on main only), so deploy-parity.sh
+# fetches both repos and builds the images on the box. Same .env variables as
+# production; the file is server-only and holds this environment's own
+# DB_PASSWORD and JWT_SECRET. Keep the env block below in step with
+# docker-compose.yml when variables are added there.
+name: orthoflow-parity
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: orthoflow-parity-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: orthoflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      internal: {}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orthoflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: orthoflow-parity-backend:${PARITY_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orthoflow-parity-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/orthoflow
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set (see .env.example)}
+      # A token lasts JWT_EXPIRATION_MINUTES (default 240) and is silently
+      # renewed while the person works, but never past this many minutes after
+      # they signed in (default 720, one clinic day). Set it at or below the
+      # token lifetime to turn renewal off.
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-240}
+      JWT_MAX_SESSION_MINUTES: ${JWT_MAX_SESSION_MINUTES:-720}
+      FRONTEND_URL: ${FRONTEND_URL:-https://orthoflow.crmbento.com}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://orthoflow.crmbento.com}
+      # /auth/register is public (it creates the first account). Keep this
+      # true so it ONLY creates that first account (as ADMIN); every account
+      # after needs an authenticated ADMIN. false = fully open self-service.
+      RESTRICT_REGISTRATION_TO_BOOTSTRAP: ${RESTRICT_REGISTRATION_TO_BOOTSTRAP:-true}
+      # Server-side speech-to-text. Off unless VOICE_STT_ENABLED=true is set
+      # in .env; the key is read here and never reaches the browser.
+      # VOICE_STT_PROVIDER picks the primary recogniser — assemblyai, gemini
+      # or groq (Whisper) — and VOICE_STT_FALLBACKS the ones tried after it.
+      # AssemblyAI is the measured best primary unless the Gemini key is paid
+      # (free tier: 5 requests/min, 20/day per model).
+      # One key per vendor, shared by transcription, interpretation and the
+      # summary, which each fall back from one vendor to the next.
+      VOICE_GEMINI_API_KEY: ${VOICE_GEMINI_API_KEY:-}
+      VOICE_GROQ_API_KEY: ${VOICE_GROQ_API_KEY:-}
+      VOICE_DEEPSEEK_API_KEY: ${VOICE_DEEPSEEK_API_KEY:-}
+      VOICE_ASSEMBLYAI_API_KEY: ${VOICE_ASSEMBLYAI_API_KEY:-}
+      # Set a vendor's flag to true only after confirming its key is on a plan
+      # that excludes training on submitted content and that a DPA is signed.
+      # Until then the backend logs a warning at startup for every vendor that
+      # receives patient audio or text. Free-tier keys usually do not qualify.
+      VOICE_GEMINI_DATA_PROTECTED: ${VOICE_GEMINI_DATA_PROTECTED:-false}
+      VOICE_GROQ_DATA_PROTECTED: ${VOICE_GROQ_DATA_PROTECTED:-false}
+      VOICE_DEEPSEEK_DATA_PROTECTED: ${VOICE_DEEPSEEK_DATA_PROTECTED:-false}
+      VOICE_ASSEMBLYAI_DATA_PROTECTED: ${VOICE_ASSEMBLYAI_DATA_PROTECTED:-false}
+      VOICE_STT_ENABLED: ${VOICE_STT_ENABLED:-false}
+      VOICE_STT_PROVIDER: ${VOICE_STT_PROVIDER:-assemblyai}
+      # Tried in order when the primary fails (429, 5xx, timeout).
+      VOICE_STT_FALLBACKS: ${VOICE_STT_FALLBACKS:-gemini,groq}
+      VOICE_STT_API_KEY: ${VOICE_STT_API_KEY:-}
+      VOICE_STT_MODEL: ${VOICE_STT_MODEL:-whisper-large-v3-turbo}
+      VOICE_STT_BASE_URL: ${VOICE_STT_BASE_URL:-https://api.groq.com/openai/v1}
+      VOICE_STT_GEMINI_MODEL: ${VOICE_STT_GEMINI_MODEL:-gemini-3.8-flash}
+      # Retried on a 429/5xx from the primary ("experiencing high demand").
+      VOICE_STT_GEMINI_FALLBACK_MODEL: ${VOICE_STT_GEMINI_FALLBACK_MODEL:-gemini-3.5-flash}
+      # low | medium | high — gemini-3.8-flash rejects 'minimal'.
+      VOICE_STT_GEMINI_THINKING_LEVEL: ${VOICE_STT_GEMINI_THINKING_LEVEL:-low}
+      VOICE_STT_GEMINI_FALLBACK_THINKING_LEVEL: ${VOICE_STT_GEMINI_FALLBACK_THINKING_LEVEL:-minimal}
+      VOICE_STT_GEMINI_BASE_URL: ${VOICE_STT_GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      # Natural-language fallback for utterances the on-device grammar cannot
+      # parse. Without it a near-miss ("recurrence caries") is answered with a
+      # question rather than resolved, which is the single biggest source of
+      # commands that fail to land.
+      VOICE_NLU_PROVIDER: ${VOICE_NLU_PROVIDER:-disabled}
+      VOICE_NLU_GEMINI_MODEL: ${VOICE_NLU_GEMINI_MODEL:-gemini-3.5-flash}
+      VOICE_NLU_FALLBACKS: ${VOICE_NLU_FALLBACKS:-gemini,deepseek}
+      VOICE_NLU_MODEL: ${VOICE_NLU_MODEL:-claude-opus-5}
+      VOICE_NLU_API_KEY: ${VOICE_NLU_API_KEY:-}
+      VOICE_NLU_BASE_URL: ${VOICE_NLU_BASE_URL:-}
+      # End-of-consultation narrative, generated from the session's audit
+      # trail and edited by the dentist before it reaches any record.
+      VOICE_SUMMARY_ENABLED: ${VOICE_SUMMARY_ENABLED:-false}
+      VOICE_SUMMARY_PROVIDER: ${VOICE_SUMMARY_PROVIDER:-groq}
+      VOICE_SUMMARY_API_KEY: ${VOICE_SUMMARY_API_KEY:-}
+      VOICE_SUMMARY_MODEL: ${VOICE_SUMMARY_MODEL:-openai/gpt-oss-120b}
+      VOICE_SUMMARY_BASE_URL: ${VOICE_SUMMARY_BASE_URL:-}
+      VOICE_SUMMARY_FALLBACKS: ${VOICE_SUMMARY_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      VOICE_SUMMARY_LANGUAGE: ${VOICE_SUMMARY_LANGUAGE:-French}
+      # Full-consultation recording: keeps the whole conversation, so it is a
+      # separate switch and off until a DPA, lawful basis and CNDP notice exist.
+      CONSULTATION_ENABLED: ${CONSULTATION_ENABLED:-false}
+      CONSULTATION_TIMEZONE: ${CONSULTATION_TIMEZONE:-Africa/Casablanca}
+      CONSULTATION_RETAIN_TRANSCRIPT: ${CONSULTATION_RETAIN_TRANSCRIPT:-false}
+      CONSULTATION_IDLE_DISCARD_HOURS: ${CONSULTATION_IDLE_DISCARD_HOURS:-24}
+      CONSULTATION_EXTRACTION_ENABLED: ${CONSULTATION_EXTRACTION_ENABLED:-false}
+      CONSULTATION_EXTRACTION_PROVIDER: ${CONSULTATION_EXTRACTION_PROVIDER:-groq}
+      CONSULTATION_EXTRACTION_MODEL: ${CONSULTATION_EXTRACTION_MODEL:-openai/gpt-oss-120b}
+      CONSULTATION_EXTRACTION_FALLBACKS: ${CONSULTATION_EXTRACTION_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      # Uploaded files (patient photos, logo, receipts) live on a named volume.
+      STORAGE_LOCAL_ROOT: /data/files
+      # Outbound messages. Every channel is off until enabled here.
+      MESSAGING_RETENTION_DAYS: ${MESSAGING_RETENTION_DAYS:-90}
+      MESSAGING_EMAIL_ENABLED: ${MESSAGING_EMAIL_ENABLED:-false}
+      MESSAGING_EMAIL_FROM: ${MESSAGING_EMAIL_FROM:-no-reply@orthoflow.local}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS:-true}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_BASE_URL: ${WHATSAPP_BASE_URL:-http://whatsapp-bot:3000}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_SESSION_ID: ${WHATSAPP_SESSION_ID:-orthoflow}
+      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:-}
+      # "Ask OrthoFlow" (help assistant). Off unless HELP_ASK_ENABLED=true; see .env.example.
+      HELP_ASK_ENABLED: ${HELP_ASK_ENABLED:-false}
+      HELP_ANTHROPIC_API_KEY: ${HELP_ANTHROPIC_API_KEY:-}
+      HELP_ASK_MODEL: ${HELP_ASK_MODEL:-claude-haiku-4-5-20251001}
+      HELP_ASK_QUESTIONS_PER_HOUR: ${HELP_ASK_QUESTIONS_PER_HOUR:-20}
+    # Production's backend settles near 500 MB; this is a test environment on a
+    # shared box, so it is capped rather than left to grow.
+    mem_limit: 1536m
+    volumes:
+      - orthoflow_files:/data/files
+    healthcheck:
+      # deploy-parity.sh waits on this after a build; BusyBox wget ships in the
+      # temurin-alpine runtime image.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/api/v1/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      internal: {}
+      proxy: {}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.orthoflow-parity-api.rule: "Host(`apiorthoflow.crmbento.com`) && PathPrefix(`/api/v1`)"
+      traefik.http.routers.orthoflow-parity-api.entrypoints: "websecure"
+      traefik.http.routers.orthoflow-parity-api.tls: "true"
+      traefik.http.routers.orthoflow-parity-api.tls.certresolver: "letsencrypt"
+      traefik.http.services.orthoflow-parity-api.loadbalancer.server.port: "8080"
+      traefik.http.services.orthoflow-parity-api.loadbalancer.healthcheck.path: "/api/v1/actuator/health"
+      traefik.http.services.orthoflow-parity-api.loadbalancer.healthcheck.interval: "15s"
+      traefik.http.services.orthoflow-parity-api.loadbalancer.healthcheck.timeout: "5s"
+
+  front:
+    image: orthoflow-parity-front:${PARITY_TAG:-local}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        CONFIG: parity
+    container_name: orthoflow-parity-frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      proxy: {}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.orthoflow-parity.rule: "Host(`orthoflow.crmbento.com`)"
+      traefik.http.routers.orthoflow-parity.entrypoints: "websecure"
+      traefik.http.routers.orthoflow-parity.tls: "true"
+      traefik.http.routers.orthoflow-parity.tls.certresolver: "letsencrypt"
+      traefik.http.services.orthoflow-parity.loadbalancer.server.port: "80"
+
+volumes:
+  postgres_data:
+  orthoflow_files:
+
+networks:
+  internal:
+    internal: true
+  proxy:
+    external: true
