@@ -22,6 +22,7 @@ import com.orthoflow.storage.application.service.FileService;
 import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.team.application.service.PractitionerService;
 import com.orthoflow.team.domain.model.Practitioner;
+import com.orthoflow.treatment.application.port.TreatmentActLookup;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -65,6 +66,7 @@ public class TaxDocumentService {
     private final FileService fileService;
     private final JdbcTemplate jdbc;
     private final PracticeZone practiceZone;
+    private final TreatmentActLookup acts;
 
     @Transactional
     public View issue(UUID practiceId, UUID actorId, Issue r) {
@@ -167,15 +169,31 @@ public class TaxDocumentService {
         return view(documents.save(doc), patient.fullName());
     }
 
+    /**
+     * What the insurer reads in the "act code" column: the code the clinic gave the act in its
+     * treatment catalogue once it has confirmed its coding, otherwise the code on the invoice line
+     * as before.
+     */
+    static String insurerActCode(String lineCode, TreatmentActLookup.Act act) {
+        return act != null && act.actCode() != null && !act.actCode().isBlank() ? act.actCode() : lineCode;
+    }
+
+    /** Blank when the clinic has not set one: a made-up coefficient on a form is worse than none. */
+    static String coefficientText(TreatmentActLookup.Act act) {
+        return act == null || act.coefficient() == null ? null : act.coefficient().stripTrailingZeros().toPlainString();
+    }
+
     private Map<String, Object> invoiceModel(Invoice invoice, BigDecimal paid) {
         BigDecimal discount = nz(invoice.getDiscountAmount());
         BigDecimal tax = nz(invoice.getTaxAmount());
         List<Map<String, Object>> lines = new ArrayList<>();
+        Map<String, TreatmentActLookup.Act> insurerActs = acts.byTreatmentCodes(
+                invoice.getLines().stream().map(InvoiceLine::getActCode).toList());
         for (InvoiceLine l : invoice.getLines()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("label", l.getLabel());
-            m.put("actCode", l.getActCode());
-            m.put("coefficient", null);
+            m.put("actCode", insurerActCode(l.getActCode(), insurerActs.get(l.getActCode())));
+            m.put("coefficient", coefficientText(insurerActs.get(l.getActCode())));
             m.put("quantity", l.getQuantity().stripTrailingZeros().toPlainString());
             m.put("unitPrice", Cells.money(l.getUnitPrice()));
             m.put("discount", l.getDiscountPct() == null || l.getDiscountPct().signum() == 0 ? "–" : l.getDiscountPct().stripTrailingZeros().toPlainString() + " %");
