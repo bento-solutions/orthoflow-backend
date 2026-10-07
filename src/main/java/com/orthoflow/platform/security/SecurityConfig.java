@@ -282,9 +282,11 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/analytics/procedures", "/analytics/procedures/export", "/analytics/doctor-time")
                     .hasAuthority(Permission.ANALYTICS_VIEW.name())
             .requestMatchers(HttpMethod.GET, "/analytics/income-statement", "/analytics/income-statement/export",
-                    "/analytics/goals/*").hasAuthority(Permission.FINANCE_VIEW.name())
-            .requestMatchers(HttpMethod.POST, "/analytics/goals/plan").hasAuthority(Permission.FINANCE_VIEW.name())
-            .requestMatchers(HttpMethod.PUT, "/analytics/goals/*").hasAuthority(Permission.FINANCE_MANAGE.name())
+                    "/analytics/goals/*", "/analytics/tax-schedule/*").hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.POST, "/analytics/goals/plan", "/analytics/tax-simulation")
+                    .hasAuthority(Permission.FINANCE_VIEW.name())
+            .requestMatchers(HttpMethod.PUT, "/analytics/goals/*", "/analytics/tax-schedule/*")
+                    .hasAuthority(Permission.FINANCE_MANAGE.name())
 
             // ── Retrocessions: what collaborators are paid ──────────────────
             // Reading is VIEW (a viewer without MANAGE sees only their own

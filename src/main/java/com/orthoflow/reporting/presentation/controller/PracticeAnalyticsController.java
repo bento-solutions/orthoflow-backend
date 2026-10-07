@@ -5,6 +5,7 @@ import com.orthoflow.export.application.service.ExportService;
 import com.orthoflow.reporting.application.dto.AnalyticsDtos.*;
 import com.orthoflow.reporting.application.service.DoctorTimeService;
 import com.orthoflow.reporting.application.service.GoalService;
+import com.orthoflow.reporting.application.service.TaxSimulationService;
 import com.orthoflow.reporting.application.service.IncomeStatementService;
 import com.orthoflow.reporting.application.service.ProcedureActivityService;
 import com.orthoflow.treatment.domain.model.TreatmentInvoiceStatus;
@@ -32,6 +33,7 @@ public class PracticeAnalyticsController {
     private final DoctorTimeService doctorTime;
     private final IncomeStatementService incomeStatement;
     private final GoalService goals;
+    private final TaxSimulationService taxes;
     private final ExportService exportService;
     private final CurrentUserProvider currentUser;
 
@@ -112,6 +114,22 @@ public class PracticeAnalyticsController {
     @PutMapping("/goals/{year}")
     public GoalTracking saveGoal(@PathVariable int year, @RequestBody SaveGoal body) {
         return goals.save(currentUser.requirePracticeId(), currentUser.requireUserId(), year, body.basis(), body.inputs());
+    }
+
+    // ── Income-tax simulation: the schedule is the clinic's own entry ──
+    @GetMapping("/tax-schedule/{year}")
+    public TaxSchedule taxSchedule(@PathVariable int year) {
+        return taxes.schedule(currentUser.requirePracticeId(), year);
+    }
+
+    @PutMapping("/tax-schedule/{year}")
+    public TaxSchedule saveTaxSchedule(@PathVariable int year, @RequestBody SaveTaxSchedule body) {
+        return taxes.save(currentUser.requirePracticeId(), currentUser.requireUserId(), year, body);
+    }
+
+    @PostMapping("/tax-simulation")
+    public TaxSimulation taxSimulation(@RequestBody TaxSimulationInput input) {
+        return taxes.simulate(currentUser.requirePracticeId(), input);
     }
 
     public record SaveGoal(String basis, GoalInputs inputs) {

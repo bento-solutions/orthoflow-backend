@@ -80,4 +80,27 @@ public final class AnalyticsDtos {
                                BigDecimal yearTarget, BigDecimal yearActual, BigDecimal yearToDateTarget, BigDecimal yearToDateActual,
                                boolean saved) {
     }
+
+    // ── Income-tax simulation: the clinic enters the schedule; nothing is built in ──
+    /** One marginal band: the part of the income up to {@code upTo} (open-ended when null) is taxed at {@code ratePercent}. */
+    public record TaxBracket(BigDecimal upTo, BigDecimal ratePercent) {
+    }
+
+    public record TaxSchedule(int year, boolean configured, String source, List<TaxBracket> brackets,
+                              BigDecimal dependentDeduction, int maxDependents) {
+    }
+
+    public record SaveTaxSchedule(String source, List<TaxBracket> brackets, BigDecimal dependentDeduction, Integer maxDependents) {
+    }
+
+    public record TaxSimulationInput(int year, BigDecimal taxableIncome, Integer dependents) {
+    }
+
+    public record TaxBand(BigDecimal from, BigDecimal upTo, BigDecimal ratePercent, BigDecimal amountInBand, BigDecimal tax) {
+    }
+
+    public record TaxSimulation(int year, String source, BigDecimal taxableIncome, int dependents, List<TaxBand> bands,
+                                BigDecimal grossTax, BigDecimal dependentRelief, BigDecimal tax, BigDecimal effectiveRatePercent,
+                                BigDecimal incomeAfterTax) {
+    }
 }
