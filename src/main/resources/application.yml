@@ -364,6 +364,15 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      # Mail goes through the messaging outbox, so an unconfigured or unreachable
+      # SMTP server must not turn the whole API unhealthy: Traefik drops an
+      # unhealthy backend's router, which would make a mail problem a full
+      # outage. Note an empty SPRING_MAIL_HOST (what docker-compose passes when it
+      # is unset) still counts as "set" and registers this indicator, which then
+      # fails on every probe.
+      enabled: false
   metrics:
     tags:
       application: ${spring.application.name}
