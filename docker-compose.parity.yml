@@ -1,8 +1,13 @@
 # OrthoFlow "parity" environment: the feature/denteam-parity branch, run
 # BESIDE production and never instead of it.
 #
-#   frontend  ->  https://orthoflow.crmbento.com
-#   backend   ->  https://apiorthoflow.crmbento.com   (all routes under /api/v1)
+#   frontend  ->  https://orthoflow.bento212.com
+#   backend   ->  https://apiorthoflow.bento212.com   (all routes under /api/v1)
+#
+# The names live under bento212.com, the zone these two A records were created
+# in (crmbento.com, where production's `ortho` hosts are, has no such records).
+# The frontend bakes the API URL, so changing the domain also means changing
+# frontend/src/environments/environment.parity.ts and rebuilding.
 #
 # It shares only the host's Traefik (network `proxy`, resolver `letsencrypt`)
 # with production (docker-compose.yml, https://ortho.crmbento.com). Everything
@@ -71,8 +76,8 @@ services:
       # token lifetime to turn renewal off.
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-240}
       JWT_MAX_SESSION_MINUTES: ${JWT_MAX_SESSION_MINUTES:-720}
-      FRONTEND_URL: ${FRONTEND_URL:-https://orthoflow.crmbento.com}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://orthoflow.crmbento.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://orthoflow.bento212.com}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://orthoflow.bento212.com}
       # /auth/register is public (it creates the first account). Keep this
       # true so it ONLY creates that first account (as ADMIN); every account
       # after needs an authenticated ADMIN. false = fully open self-service.
@@ -181,7 +186,7 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
-      traefik.http.routers.orthoflow-parity-api.rule: "Host(`apiorthoflow.crmbento.com`) && PathPrefix(`/api/v1`)"
+      traefik.http.routers.orthoflow-parity-api.rule: "Host(`apiorthoflow.bento212.com`) && PathPrefix(`/api/v1`)"
       traefik.http.routers.orthoflow-parity-api.entrypoints: "websecure"
       traefik.http.routers.orthoflow-parity-api.tls: "true"
       traefik.http.routers.orthoflow-parity-api.tls.certresolver: "letsencrypt"
@@ -210,7 +215,7 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
-      traefik.http.routers.orthoflow-parity.rule: "Host(`orthoflow.crmbento.com`)"
+      traefik.http.routers.orthoflow-parity.rule: "Host(`orthoflow.bento212.com`)"
       traefik.http.routers.orthoflow-parity.entrypoints: "websecure"
       traefik.http.routers.orthoflow-parity.tls: "true"
       traefik.http.routers.orthoflow-parity.tls.certresolver: "letsencrypt"
