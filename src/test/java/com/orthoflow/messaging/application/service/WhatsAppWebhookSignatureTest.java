@@ -25,7 +25,7 @@ class WhatsAppWebhookSignatureTest {
     void setUp() {
         MessagingProperties props = new MessagingProperties();
         props.getWhatsapp().setWebhookSecret(SECRET);
-        service = new WhatsAppWebhookService(props, new ObjectMapper(), null, null, null, null, null, null, null);
+        service = new WhatsAppWebhookService(props, new ObjectMapper(), null, null, null, null, null, null, null, null);
     }
 
     private static String sign(String secret, String timestamp, String body) throws Exception {
@@ -63,7 +63,7 @@ class WhatsAppWebhookSignatureTest {
     @Test
     void rejectsMissingHeadersAndAnUnsetSecret() {
         assertThat(service.verify(null, null, "{}")).isFalse();
-        WhatsAppWebhookService noSecret = new WhatsAppWebhookService(new MessagingProperties(), new ObjectMapper(), null, null, null, null, null, null, null);
+        WhatsAppWebhookService noSecret = new WhatsAppWebhookService(new MessagingProperties(), new ObjectMapper(), null, null, null, null, null, null, null, null);
         assertThat(noSecret.verify("1", "sha256=00", "{}")).isFalse();
     }
 }

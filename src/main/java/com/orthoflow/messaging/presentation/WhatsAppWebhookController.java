@@ -1,6 +1,7 @@
 package com.orthoflow.messaging.presentation;
 
 import com.orthoflow.messaging.application.service.WhatsAppWebhookService;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +24,7 @@ public class WhatsAppWebhookController {
     private final WhatsAppWebhookService service;
 
     @PostMapping(consumes = "application/json")
-    public ResponseEntity<Map<String, List<String>>> receive(
+    public ResponseEntity<Map<String, List<JsonNode>>> receive(
             @RequestHeader(value = "X-Bento-Timestamp", required = false) String timestamp,
             @RequestHeader(value = "X-Bento-Signature", required = false) String signature,
             @RequestBody String rawBody) {

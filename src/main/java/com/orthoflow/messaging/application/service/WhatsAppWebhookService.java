@@ -21,6 +21,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -62,6 +63,7 @@ public class WhatsAppWebhookService {
     private final LiveEventPublisher liveEvents;
     private final ObjectProvider<InboundMessageListener> listeners;
     private final LandingPageContacts landingPageContacts;
+    private final TransactionTemplate tx;
     private final AtomicReference<Reported> lastSessionReport = new AtomicReference<>();
 
     /** Constant-time check of the bridge's signature, rejecting a stale timestamp (replay). */
@@ -83,10 +85,14 @@ public class WhatsAppWebhookService {
         }
     }
 
-    /** Applies a batch; returns the ids of the events that failed so the bridge retries just those. */
-    @Transactional
-    public List<String> handle(String rawBody) {
-        List<String> failed = new ArrayList<>();
+    /**
+     * Applies a batch; returns the ids of the events that failed so the bridge retries just those.
+     * Each id goes back exactly as the bridge sent it (a number stays a number): the bridge matches
+     * them by value, and an id it does not recognise as failed is acknowledged and dropped. Each
+     * event is its own transaction, so one that fails cannot undo the others reported as done.
+     */
+    public List<JsonNode> handle(String rawBody) {
+        List<JsonNode> failed = new ArrayList<>();
         JsonNode root;
         try {
             root = objectMapper.readTree(rawBody);
@@ -95,14 +101,14 @@ public class WhatsAppWebhookService {
         }
         String session = properties.getWhatsapp().getSessionId();
         for (JsonNode event : root.path("events")) {
-            String id = event.path("id").asText();
+            JsonNode id = event.path("id");
             // A bridge shared with the bento CRM reports on every session it runs; only ours is ours.
             String from = event.path("sessionId").asText(null);
             if (from != null && session != null && !session.isBlank() && !session.equals(from)) {
                 continue;
             }
             try {
-                apply(event.path("type").asText(), event.path("data"));
+                tx.executeWithoutResult(status -> apply(event.path("type").asText(), event.path("data")));
             } catch (RuntimeException e) {
                 log.warn("Could not apply bridge event {}: {}", id, e.getMessage());
                 failed.add(id);
