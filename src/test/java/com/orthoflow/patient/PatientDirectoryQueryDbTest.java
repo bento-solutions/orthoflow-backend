@@ -81,13 +81,13 @@ class PatientDirectoryQueryDbTest {
     void progressIsTheAverageOfActiveTreatmentsAndNextAndLastVisitComeFromAppointments() {
         UUID sara = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         UUID treatment = UUID.randomUUID();
-        jdbc.update("INSERT INTO treatments (id, name, code, base_price) VALUES (?, 'T', ?, 100)", treatment, "T-" + treatment);
+        jdbc.update("INSERT INTO treatments (id, name, code, base_price, practice_id) VALUES (?, 'T', ?, 100, ?)", treatment, "T-" + treatment, practice);
         for (int progress : new int[]{20, 60}) {
-            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress) VALUES (?, ?, ?, '11', 'ACTIVE', ?)",
-                    UUID.randomUUID(), sara, treatment, progress);
+            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress, practice_id) VALUES (?, ?, ?, '11', 'ACTIVE', ?, ?)",
+                    UUID.randomUUID(), sara, treatment, progress, practice);
         }
-        jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress) VALUES (?, ?, ?, '12', 'CANCELLED', 100)",
-                UUID.randomUUID(), sara, treatment);
+        jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress, practice_id) VALUES (?, ?, ?, '12', 'CANCELLED', 100, ?)",
+                UUID.randomUUID(), sara, treatment, practice);
         appointment(sara, "now() - interval '10 days'", "COMPLETED");
         appointment(sara, "now() + interval '5 days'", "SCHEDULED");
         appointment(sara, "now() + interval '2 days'", "CANCELLED");
@@ -109,7 +109,7 @@ class PatientDirectoryQueryDbTest {
         UUID owes = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         UUID settled = PostgresTestSupport.patient(jdbc, practice, "Karim", "Alaoui", null, null, null);
         UUID user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
         for (Object[] row : new Object[][]{{owes, "1000"}, {settled, "500"}}) {
             UUID invoice = UUID.randomUUID();
             jdbc.update("INSERT INTO invoices (id, practice_id, patient_id, invoice_number, status, currency, total, region_code, created_by) VALUES (?, ?, ?, ?, 'DRAFT', 'MAD', CAST(? AS numeric), 'MA', ?)",
@@ -117,7 +117,7 @@ class PatientDirectoryQueryDbTest {
             if (row[0].equals(settled)) {
                 UUID receipt = UUID.randomUUID();
                 jdbc.update("INSERT INTO receipts (id, practice_id, patient_id, amount, method, receipt_date, recorded_by) VALUES (?, ?, ?, 700, 'CASH', current_date, ?)", receipt, practice, settled, user);
-                jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by) VALUES (?, ?, ?, 500, 'CASH', current_date, ?)", UUID.randomUUID(), invoice, receipt, user);
+                jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by, practice_id) VALUES (?, ?, ?, 500, 'CASH', current_date, ?, ?)", UUID.randomUUID(), invoice, receipt, user, practice);
             }
         }
 

@@ -1,5 +1,6 @@
 package com.orthoflow.voice.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,6 +34,10 @@ public class VoiceCommandAudit {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "actor_id", nullable = false)
     private UUID actorId;

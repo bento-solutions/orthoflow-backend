@@ -17,8 +17,8 @@ public interface PatientJpaRepository extends JpaRepository<Patient, UUID> {
      * whether it was already archived.
      */
     @Modifying
-    @Query(value = "DELETE FROM patients WHERE id = :id", nativeQuery = true)
-    void hardDeleteById(UUID id);
+    @Query(value = "DELETE FROM patients WHERE id = :id AND practice_id = :practiceId", nativeQuery = true)
+    void hardDeleteById(UUID id, UUID practiceId);
 
     @Query("SELECT p FROM Patient p WHERE " +
             "LOWER(p.firstName) LIKE LOWER(CONCAT('%', :term, '%')) OR " +
@@ -34,7 +34,7 @@ public interface PatientJpaRepository extends JpaRepository<Patient, UUID> {
 
     boolean existsByPhone(String phone);
 
-    @Query(value = "SELECT id FROM patients WHERE deleted_at IS NULL AND phone IS NOT NULL "
+    @Query(value = "SELECT id FROM patients WHERE practice_id = :practiceId AND deleted_at IS NULL AND phone IS NOT NULL "
             + "AND right(regexp_replace(phone, '[^0-9]', '', 'g'), length(:lastDigits)) = :lastDigits", nativeQuery = true)
-    java.util.List<UUID> findIdsByPhoneSuffix(String lastDigits);
+    java.util.List<UUID> findIdsByPhoneSuffix(UUID practiceId, String lastDigits);
 }

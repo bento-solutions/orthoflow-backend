@@ -94,16 +94,16 @@ class RecallQueryDbTest {
     @Test
     void lostToFollowUpIsAnActiveTreatmentWithNoNextAppointment() {
         UUID treatment = UUID.randomUUID();
-        jdbc.update("INSERT INTO treatments (id, name, code, base_price) VALUES (?, 'T', ?, 100)", treatment, "T-" + treatment);
+        jdbc.update("INSERT INTO treatments (id, name, code, base_price, practice_id) VALUES (?, 'T', ?, 100, ?)", treatment, "T-" + treatment, practice);
         UUID lost = patient("Lost");
         UUID followed = patient("Followed");
         UUID finished = patient("Finished");
         for (UUID p : List.of(lost, followed)) {
-            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress) VALUES (?, ?, ?, '11', 'ACTIVE', 50)",
-                    UUID.randomUUID(), p, treatment);
+            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress, practice_id) VALUES (?, ?, ?, '11', 'ACTIVE', 50, ?)",
+                    UUID.randomUUID(), p, treatment, practice);
         }
-        jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress) VALUES (?, ?, ?, '11', 'COMPLETED', 100)",
-                UUID.randomUUID(), finished, treatment);
+        jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress, practice_id) VALUES (?, ?, ?, '11', 'COMPLETED', 100, ?)",
+                UUID.randomUUID(), finished, treatment, practice);
         appointment(followed, "now() + interval '10 days'", "CONFIRMED", null);
 
         assertThat(names(run(Kind.LOST_TO_FOLLOW_UP, false))).containsExactly("Lost");
@@ -132,12 +132,12 @@ class RecallQueryDbTest {
     @Test
     void progressFiltersAndRemainingWorkSortWork() {
         UUID treatment = UUID.randomUUID();
-        jdbc.update("INSERT INTO treatments (id, name, code, base_price) VALUES (?, 'T', ?, 100)", treatment, "T-" + treatment);
+        jdbc.update("INSERT INTO treatments (id, name, code, base_price, practice_id) VALUES (?, 'T', ?, 100, ?)", treatment, "T-" + treatment, practice);
         for (Object[] row : new Object[][]{{"Barely", 10}, {"Half", 50}, {"Almost", 90}}) {
             UUID p = patient((String) row[0]);
             appointment(p, "now() - interval '5 months'", "COMPLETED", null);
-            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress) VALUES (?, ?, ?, '11', 'ACTIVE', ?)",
-                    UUID.randomUUID(), p, treatment, row[1]);
+            jdbc.update("INSERT INTO patient_treatments (id, patient_id, treatment_id, teeth, status, progress, practice_id) VALUES (?, ?, ?, '11', 'ACTIVE', ?, ?)",
+                    UUID.randomUUID(), p, treatment, row[1], practice);
         }
 
         List<Row> sorted = query.run(new Filter(practice, Kind.NO_VISIT_3M, null, null, null, true, "remaining"), now);

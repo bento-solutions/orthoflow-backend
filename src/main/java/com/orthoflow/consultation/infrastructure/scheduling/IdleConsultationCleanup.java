@@ -1,5 +1,6 @@
 package com.orthoflow.consultation.infrastructure.scheduling;
 
+import com.orthoflow.common.tenancy.Tenancy;
 import com.orthoflow.consultation.application.service.ConsultationService;
 import com.orthoflow.consultation.domain.model.Consultation;
 import com.orthoflow.consultation.domain.repository.ConsultationRepository;
@@ -30,14 +31,15 @@ public class IdleConsultationCleanup {
     private final ConsultationRepository consultations;
     private final ConsultationService consultationService;
     private final ConsultationExtractionProperties properties;
+    private final Tenancy tenancy;
 
     @Scheduled(cron = "${orthoflow.consultation.idle-cleanup-cron:0 23 * * * *}",
             zone = "${orthoflow.consultation.timezone:Africa/Casablanca}")
     public void run() {
         OffsetDateTime before = OffsetDateTime.now().minusHours(properties.getIdleDiscardHours());
-        for (Consultation idle : consultations.findIdleOpen(before)) {
+        for (Consultation idle : tenancy.callAcrossClinics(() -> consultations.findIdleOpen(before))) {
             try {
-                if (consultationService.discardIdle(idle.getId())) {
+                if (tenancy.callAs(idle.getPracticeId(), () -> consultationService.discardIdle(idle.getId()))) {
                     log.info("Discarded consultation {}: nothing happened on it for {} h",
                             idle.getId(), properties.getIdleDiscardHours());
                 } else {

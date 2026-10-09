@@ -140,7 +140,7 @@ class SecurityPolicyTest {
                 }
                 @Override public User save(User user) { throw new UnsupportedOperationException(); }
                 @Override public Optional<User> findByEmail(String email) { return Optional.empty(); }
-                @Override public List<User> findAll() { return List.of(); }
+                @Override public List<User> findAllInPractice(UUID practiceId) { return List.of(); }
                 @Override public boolean existsAny() { return true; }
             };
         }

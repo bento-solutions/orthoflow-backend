@@ -75,7 +75,7 @@ class ReceiptServiceTest {
         BillingService billing = new BillingService(invoices, mock(com.orthoflow.billing.domain.repository.PaymentRepository.class),
                 mock(InvoiceNumberGenerator.class), mock(InvoiceAuditLogJpaRepository.class),
                 new com.fasterxml.jackson.databind.ObjectMapper(), receipts, mock(PractitionerService.class),
-                mock(com.orthoflow.patient.application.port.PatientLookup.class), id -> { });
+                mock(com.orthoflow.patient.application.port.PatientLookup.class), id -> { }, com.orthoflow.testsupport.Tenants.fixed(UUID.randomUUID()));
         service = new ReceiptService(receipts, payments, cheques, invoices, billing, patients,
                 mock(PractitionerService.class), id -> ZoneId.of("Africa/Casablanca"), mock(LiveEventPublisher.class));
     }

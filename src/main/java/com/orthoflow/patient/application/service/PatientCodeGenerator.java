@@ -1,5 +1,6 @@
 package com.orthoflow.patient.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -17,9 +18,10 @@ import java.util.UUID;
 public class PatientCodeGenerator {
 
     private final JdbcTemplate jdbc;
+    private final DocumentNumbers documentNumbers;
 
     public String next() {
-        Long n = jdbc.queryForObject("SELECT nextval('patient_code_seq')", Long.class);
+        Long n = documentNumbers.next("patient_code");
         return "P-" + String.format("%05d", n);
     }
 

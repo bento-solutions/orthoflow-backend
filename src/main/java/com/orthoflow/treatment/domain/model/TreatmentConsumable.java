@@ -2,8 +2,10 @@ package com.orthoflow.treatment.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import org.hibernate.annotations.TenantId;
 import lombok.*;
 import java.math.BigDecimal;
+import java.util.UUID;
 import com.orthoflow.inventory.domain.model.StockItem;
 
 @Entity
@@ -18,6 +20,10 @@ public class TreatmentConsumable {
     @EmbeddedId
     @Builder.Default
     private TreatmentConsumableId id = new TreatmentConsumableId();
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("treatmentId")

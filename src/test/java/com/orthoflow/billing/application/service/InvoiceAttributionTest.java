@@ -52,7 +52,7 @@ class InvoiceAttributionTest {
         when(numbers.generate(any())).thenReturn("INV-2026-MA-00001");
         when(invoices.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
         billing = new BillingService(invoices, mock(PaymentRepository.class), numbers, mock(InvoiceAuditLogJpaRepository.class),
-                new com.fasterxml.jackson.databind.ObjectMapper(), mock(ReceiptJpaRepository.class), practitioners, patients, guard);
+                new com.fasterxml.jackson.databind.ObjectMapper(), mock(ReceiptJpaRepository.class), practitioners, patients, guard, com.orthoflow.testsupport.Tenants.fixed(practice));
         when(patients.findPrimaryPractitionerId(any())).thenReturn(Optional.empty());
         when(practitioners.findIdByUser(any())).thenReturn(Optional.empty());
     }

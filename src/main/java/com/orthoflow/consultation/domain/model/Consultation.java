@@ -1,5 +1,6 @@
 package com.orthoflow.consultation.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.DynamicUpdate;
@@ -33,6 +34,10 @@ public class Consultation {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Version
     private Long version;

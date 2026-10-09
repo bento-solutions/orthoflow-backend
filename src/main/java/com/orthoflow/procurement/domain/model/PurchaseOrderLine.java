@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -18,6 +19,10 @@ public class PurchaseOrderLine {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_order_id", nullable = false)

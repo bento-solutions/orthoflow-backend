@@ -1,5 +1,6 @@
 package com.orthoflow.messaging.application.service;
 
+import com.orthoflow.common.tenancy.Tenancy;
 import com.orthoflow.messaging.infrastructure.MessagingProperties;
 import com.orthoflow.messaging.infrastructure.persistence.OutboxJpaRepository;
 import org.slf4j.Logger;
@@ -23,8 +24,10 @@ public class MessageRetentionJob {
     private final OutboxJpaRepository outbox;
     private final MessagingProperties properties;
     private final TransactionTemplate tx;
+    private final Tenancy tenancy;
 
-    public MessageRetentionJob(OutboxJpaRepository outbox, MessagingProperties properties, TransactionTemplate tx) {
+    public MessageRetentionJob(OutboxJpaRepository outbox, MessagingProperties properties, TransactionTemplate tx, Tenancy tenancy) {
+        this.tenancy = tenancy;
         this.outbox = outbox;
         this.properties = properties;
         this.tx = tx;
@@ -37,7 +40,7 @@ public class MessageRetentionJob {
             return;
         }
         OffsetDateTime now = OffsetDateTime.now();
-        Integer purged = tx.execute(s -> outbox.purgeBodiesBefore(now.minusDays(days), now));
+        Integer purged = tenancy.callAcrossClinics(() -> tx.execute(s -> outbox.purgeBodiesBefore(now.minusDays(days), now)));
         if (purged != null && purged > 0) {
             log.info("Purged the text of {} messages older than {} days", purged, days);
         }

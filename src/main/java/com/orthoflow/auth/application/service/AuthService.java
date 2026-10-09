@@ -99,12 +99,13 @@ public class AuthService {
      * (enforced by @PreAuthorize on the controller, not here).
      */
     @Transactional
-    public UserResponse register(RegisterRequest request) {
+    public UserResponse register(RegisterRequest request, UUID practiceId) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new ConflictException("A user with this email already exists");
         }
 
         User user = User.builder()
+                .practiceId(practiceId)
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())

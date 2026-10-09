@@ -1,5 +1,6 @@
 package com.orthoflow.settings.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,7 +20,8 @@ public class OpeningHours {
     @Id
     private UUID id;
 
-    @Column(name = "practice_id", nullable = false)
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
     private UUID practiceId;
 
     @Column(nullable = false)

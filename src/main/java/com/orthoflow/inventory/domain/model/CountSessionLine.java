@@ -1,5 +1,6 @@
 package com.orthoflow.inventory.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,6 +18,10 @@ public class CountSessionLine {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "count_session_id", nullable = false)

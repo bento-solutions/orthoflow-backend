@@ -1,6 +1,6 @@
 package com.orthoflow.scheduling.domain.model;
 
-import com.orthoflow.common.tenancy.Practices;
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,9 +20,9 @@ public class PractitionerAbsence {
     @Id
     private UUID id;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "practitioner_id", nullable = false)
     private UUID practitionerId;

@@ -10,6 +10,7 @@ public interface UserRepository {
     User save(User user);
     Optional<User> findById(UUID id);
     Optional<User> findByEmail(String email);
-    List<User> findAll();
+    /** Users are not filtered by Hibernate (sign-in finds them across clinics), so listing them always names the clinic. */
+    List<User> findAllInPractice(UUID practiceId);
     boolean existsAny();
 }

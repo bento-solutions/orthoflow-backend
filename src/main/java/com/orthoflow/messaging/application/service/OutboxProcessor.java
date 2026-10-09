@@ -1,5 +1,6 @@
 package com.orthoflow.messaging.application.service;
 
+import com.orthoflow.common.tenancy.Tenancy;
 import com.orthoflow.messaging.application.port.ChannelSender;
 import com.orthoflow.messaging.domain.model.MessageChannel;
 import com.orthoflow.messaging.domain.model.MessageStatus;
@@ -39,14 +40,16 @@ public class OutboxProcessor {
     private final TransactionTemplate tx;
     private final OutboxJpaRepository outbox;
     private final MessagingProperties properties;
+    private final Tenancy tenancy;
     private final Map<MessageChannel, ChannelSender> senders = new EnumMap<>(MessageChannel.class);
 
     public OutboxProcessor(JdbcTemplate jdbc, TransactionTemplate tx, OutboxJpaRepository outbox,
-                           MessagingProperties properties, List<ChannelSender> channelSenders) {
+                           MessagingProperties properties, List<ChannelSender> channelSenders, Tenancy tenancy) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.outbox = outbox;
         this.properties = properties;
+        this.tenancy = tenancy;
         channelSenders.forEach(s -> senders.put(s.channel(), s));
     }
 
@@ -62,8 +65,12 @@ public class OutboxProcessor {
         }
     }
 
-    /** Sends one batch; returns how many messages were attempted. */
+    /** Sends one batch, whichever clinics queued it; returns how many messages were attempted. */
     public int processBatch() {
+        return tenancy.callAcrossClinics(this::sendBatch);
+    }
+
+    private int sendBatch() {
         List<UUID> claimed = claim();
         for (UUID id : claimed) {
             try {

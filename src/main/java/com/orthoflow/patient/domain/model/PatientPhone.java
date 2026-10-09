@@ -1,5 +1,6 @@
 package com.orthoflow.patient.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,6 +19,10 @@ public class PatientPhone {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;

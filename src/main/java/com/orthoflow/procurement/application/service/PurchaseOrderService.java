@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.procurement.application.dto.PurchaseOrderLineRequest;
 import com.orthoflow.procurement.application.dto.PurchaseOrderRequest;
@@ -31,6 +32,7 @@ public class PurchaseOrderService {
     private final SupplierRepository supplierRepository;
     private final StockItemRepository stockItemRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentNumbers documentNumbers;
 
     public List<PurchaseOrder> getAllPurchaseOrders() {
         return purchaseOrderRepository.findAll();
@@ -147,7 +149,7 @@ public class PurchaseOrderService {
     }
 
     private String generatePoNumber() {
-        Long nextVal = jdbcTemplate.queryForObject("SELECT nextval('po_seq')", Long.class);
+        Long nextVal = documentNumbers.next("purchase_order");
         return "PO-" + LocalDate.now().getYear() + "-" + String.format("%04d", nextVal);
     }
 }

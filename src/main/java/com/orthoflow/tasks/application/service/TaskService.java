@@ -167,7 +167,7 @@ public class TaskService {
     private List<View> views(UUID practiceId, List<Task> rows) {
         LocalDate today = LocalDate.now(practiceZone.of(practiceId));
         Map<UUID, String> names = new HashMap<>();
-        users.findAll().forEach(u -> names.put(u.getId(), u.getFirstName() + " " + u.getLastName()));
+        users.findAllInPractice(practiceId).forEach(u -> names.put(u.getId(), u.getFirstName() + " " + u.getLastName()));
         Map<UUID, PatientSummary> patients = patientLookup.findSummaries(rows.stream().map(Task::getPatientId).filter(Objects::nonNull).distinct().toList());
         return rows.stream().map(t -> new View(t.getId(), t.getTitle(), t.getDescription(), t.getAssigneeId(), names.get(t.getAssigneeId()),
                 t.getAssigneeRole(), t.getCreatedBy(), t.getDueDate(), t.getPriority(), t.getPatientId(),

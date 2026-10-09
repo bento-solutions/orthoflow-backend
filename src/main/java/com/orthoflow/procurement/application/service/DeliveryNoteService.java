@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.procurement.application.dto.DeliveryNoteLineRequest;
 import com.orthoflow.procurement.application.dto.DeliveryNoteRequest;
@@ -36,6 +37,7 @@ public class DeliveryNoteService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final ConsumableLedger consumableLedger;
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentNumbers documentNumbers;
 
     public List<DeliveryNote> getAllDeliveryNotes() {
         return deliveryNoteRepository.findAll();
@@ -191,7 +193,7 @@ public class DeliveryNoteService {
     }
 
     private String generateDnNumber() {
-        Long nextVal = jdbcTemplate.queryForObject("SELECT nextval('dn_seq')", Long.class);
+        Long nextVal = documentNumbers.next("delivery_note");
         return "DN-" + LocalDate.now().getYear() + "-" + String.format("%04d", nextVal);
     }
 }

@@ -1,7 +1,7 @@
 package com.orthoflow.finance.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.orthoflow.billing.domain.model.PaymentMethod;
-import com.orthoflow.common.tenancy.Practices;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,9 +34,9 @@ public class Expense {
     @Version
     private Long version;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "expense_date", nullable = false)
     private LocalDate expenseDate;

@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.billing.application.service.BillingService;
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientSummary;
@@ -48,7 +49,6 @@ public class TreatmentInvoiceService {
      * 0002-tenancy-deferred), so this is vestigial by design, not a
      * shortcut taken here specifically.
      */
-    private static final UUID DEFAULT_PRACTICE_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String DEFAULT_CURRENCY = "MAD";
     private static final String DEFAULT_REGION_CODE = "MA";
 
@@ -59,6 +59,7 @@ public class TreatmentInvoiceService {
     private final ConsumableLedger consumableLedger;
     private final BillingService billingService;
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentNumbers documentNumbers;
 
     public List<TreatmentInvoice> getAllInvoices() {
         return enrichWithPatients(treatmentInvoiceRepository.findAll());
@@ -288,7 +289,6 @@ public class TreatmentInvoiceService {
 
         com.orthoflow.billing.application.dto.CreateInvoiceRequest invoiceRequest =
                 new com.orthoflow.billing.application.dto.CreateInvoiceRequest();
-        invoiceRequest.setPracticeId(DEFAULT_PRACTICE_ID);
         invoiceRequest.setPatientId(invoice.getPatientId());
         invoiceRequest.setCurrency(DEFAULT_CURRENCY);
         invoiceRequest.setRegionCode(DEFAULT_REGION_CODE);
@@ -354,7 +354,7 @@ public class TreatmentInvoiceService {
     }
 
     private String generateInvoiceNumber() {
-        Long nextVal = jdbcTemplate.queryForObject("SELECT nextval('treatment_invoice_seq')", Long.class);
+        Long nextVal = documentNumbers.next("treatment_invoice");
         return "TINV-" + LocalDate.now().getYear() + "-" + String.format("%04d", nextVal);
     }
 }

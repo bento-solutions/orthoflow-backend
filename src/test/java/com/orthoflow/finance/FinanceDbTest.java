@@ -47,7 +47,7 @@ class FinanceDbTest {
         practice = PostgresTestSupport.newPractice(jdbc);
         patient = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
     }
 
     private UUID invoice(String total, String status, LocalDate issued) {
@@ -65,7 +65,7 @@ class FinanceDbTest {
     }
 
     private void allocate(UUID receipt, UUID invoice, String amount, LocalDate date) {
-        jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by) SELECT ?, ?, id, CAST(? AS numeric), method, ?, ? FROM receipts WHERE id = ?",
+        jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by, practice_id) SELECT ?, ?, id, CAST(? AS numeric), method, ?, ?, practice_id FROM receipts WHERE id = ?",
                 UUID.randomUUID(), invoice, amount, date, user, receipt);
     }
 

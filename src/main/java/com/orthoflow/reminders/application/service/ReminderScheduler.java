@@ -1,5 +1,6 @@
 package com.orthoflow.reminders.application.service;
 
+import com.orthoflow.common.tenancy.Tenancy;
 import com.orthoflow.common.tenancy.PracticeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,8 +29,11 @@ public class ReminderScheduler {
     private final PracticeZone practiceZone;
     private final MessagingSettingsService settings;
     private final ReminderService reminders;
+    private final Tenancy tenancy;
 
-    public ReminderScheduler(JdbcTemplate jdbc, PracticeZone practiceZone, MessagingSettingsService settings, ReminderService reminders) {
+    public ReminderScheduler(JdbcTemplate jdbc, PracticeZone practiceZone, MessagingSettingsService settings, ReminderService reminders,
+                             Tenancy tenancy) {
+        this.tenancy = tenancy;
         this.jdbc = jdbc;
         this.practiceZone = practiceZone;
         this.settings = settings;
@@ -50,6 +54,10 @@ public class ReminderScheduler {
 
     /** One clinic's turn; separate from {@link #run()} so a given moment can be tested. */
     void runFor(UUID practiceId, OffsetDateTime now) {
+        tenancy.runAs(practiceId, () -> queueFor(practiceId, now));
+    }
+
+    private void queueFor(UUID practiceId, OffsetDateTime now) {
         var s = settings.get(practiceId);
         ZoneId zone = practiceZone.of(practiceId);
         var local = now.atZoneSameInstant(zone);

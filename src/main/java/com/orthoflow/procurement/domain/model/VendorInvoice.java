@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -26,9 +27,9 @@ public class VendorInvoice {
     @Column(name = "version")
     private Long version;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "vendor_invoice_number", unique = true, nullable = false)
     private String vendorInvoiceNumber;

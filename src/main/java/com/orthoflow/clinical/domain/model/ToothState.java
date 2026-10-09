@@ -1,5 +1,6 @@
 package com.orthoflow.clinical.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,6 +18,10 @@ public class ToothState {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chart_id", nullable = false)

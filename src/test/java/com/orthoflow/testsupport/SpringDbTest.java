@@ -1,10 +1,17 @@
 package com.orthoflow.testsupport;
 
 import com.orthoflow.OrthoflowApplication;
+import com.orthoflow.common.security.AuthenticatedUser;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+
+import java.util.List;
+import java.util.UUID;
 
 /**
  * The whole application, services and JPA included, against the real PostgreSQL the
@@ -26,6 +33,20 @@ import org.springframework.test.context.DynamicPropertySource;
 })
 @EnabledIfEnvironmentVariable(named = "ORTHOFLOW_TEST_DB_URL", matches = ".+")
 public abstract class SpringDbTest {
+
+    /**
+     * What follows runs as a signed-in member of this clinic, as a request would: the
+     * tenant filter scopes every query to it (ADR 0007). Without it a test reads nothing.
+     */
+    protected static void signInTo(UUID practiceId) {
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), "test@example.com", "ADMIN", practiceId);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
+    }
+
+    @AfterEach
+    protected void signOut() {
+        SecurityContextHolder.clearContext();
+    }
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {

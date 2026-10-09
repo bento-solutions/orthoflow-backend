@@ -10,7 +10,7 @@ import java.util.UUID;
 @Data
 public class CreateInvoiceRequest {
 
-    @NotNull
+    /** Ignored: an invoice belongs to the signed-in user's clinic (ADR 0007). Kept so older clients still bind. */
     private UUID practiceId;
 
     @NotNull

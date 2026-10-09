@@ -53,7 +53,7 @@ class ReportingDbTest {
         practice = PostgresTestSupport.newPractice(jdbc);
         patient = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
         drA = practitioner("Dr Tazi");
         drB = practitioner("Dr Alaoui");
     }

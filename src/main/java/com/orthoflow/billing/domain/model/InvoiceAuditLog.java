@@ -1,5 +1,6 @@
 package com.orthoflow.billing.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -25,6 +26,10 @@ public class InvoiceAuditLog {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "invoice_id")
     private UUID invoiceId;

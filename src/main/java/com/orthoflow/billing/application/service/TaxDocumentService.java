@@ -1,5 +1,6 @@
 package com.orthoflow.billing.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.billing.domain.model.Invoice;
 import com.orthoflow.billing.domain.model.InvoiceLine;
 import com.orthoflow.billing.domain.model.Payment;
@@ -67,6 +68,7 @@ public class TaxDocumentService {
     private final JdbcTemplate jdbc;
     private final PracticeZone practiceZone;
     private final TreatmentActLookup acts;
+    private final DocumentNumbers documentNumbers;
 
     @Transactional
     public View issue(UUID practiceId, UUID actorId, Issue r) {
@@ -76,7 +78,7 @@ public class TaxDocumentService {
             throw new ConflictException("A " + r.kind() + " was already issued for this invoice; print a duplicate instead");
         }
         UUID practitionerId = r.practitionerId() != null ? r.practitionerId() : invoice.getPractitionerId();
-        TaxDocument doc = TaxDocument.builder().id(UUID.randomUUID()).practiceId(practiceId).kind(r.kind()).number(nextNumber(r.kind()))
+        TaxDocument doc = TaxDocument.builder().id(UUID.randomUUID()).practiceId(practiceId).kind(r.kind()).number(nextNumber(practiceId, r.kind()))
                 .patientId(invoice.getPatientId()).invoiceId(invoice.getId()).practitionerId(practitionerId)
                 .amount(invoice.getTotal()).notes(r.notes()).createdBy(actorId).build();
         return render(doc, invoice, language(r.lang(), practiceId), false, actorId);
@@ -215,8 +217,8 @@ public class TaxDocumentService {
         return m;
     }
 
-    private String nextNumber(TaxDocument.Kind kind) {
-        Long n = jdbc.queryForObject("SELECT nextval('tax_document_seq')", Long.class);
+    private String nextNumber(UUID practiceId, TaxDocument.Kind kind) {
+        Long n = documentNumbers.next(practiceId, "tax_document");
         return (kind == TaxDocument.Kind.FEE_NOTE ? "FN-" : "FS-") + LocalDate.now().getYear() + "-" + String.format("%05d", n);
     }
 

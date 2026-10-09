@@ -1,5 +1,6 @@
 package com.orthoflow.patient.infrastructure.adapter.persistence;
 
+import com.orthoflow.common.tenancy.CurrentPractice;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.patient.domain.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class PatientRepositoryAdapter implements PatientRepository {
 
     private final PatientJpaRepository jpaRepository;
+    private final CurrentPractice currentPractice;
 
     @Override
     public Patient save(Patient patient) {
@@ -74,11 +76,11 @@ public class PatientRepositoryAdapter implements PatientRepository {
 
     @Override
     public void deleteById(UUID id) {
-        jpaRepository.hardDeleteById(id);
+        jpaRepository.hardDeleteById(id, currentPractice.require());
     }
 
     @Override
-    public java.util.List<UUID> findIdsByPhoneSuffix(String lastDigits) {
-        return jpaRepository.findIdsByPhoneSuffix(lastDigits);
+    public java.util.List<UUID> findIdsByPhoneSuffix(UUID practiceId, String lastDigits) {
+        return jpaRepository.findIdsByPhoneSuffix(practiceId, lastDigits);
     }
 }

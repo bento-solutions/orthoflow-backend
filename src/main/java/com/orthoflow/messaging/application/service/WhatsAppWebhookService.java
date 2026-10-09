@@ -161,7 +161,7 @@ public class WhatsAppWebhookService {
         String digits = phone == null ? null : phone.replaceAll("[^0-9]", "");
         String body = data.path("body").asText("");
         UUID practiceId = properties.getWhatsapp().getPracticeId();
-        UUID patientId = digits == null ? null : patientLookup.findIdByPhoneDigits(digits).orElse(null);
+        UUID patientId = digits == null ? null : patientLookup.findIdByPhoneDigits(practiceId, digits).orElse(null);
 
         MessageEvent saved = events.save(MessageEvent.builder().practiceId(practiceId).direction("IN").eventType("MESSAGE")
                 .externalId(wamid).fromPhone(digits).body(body).patientId(patientId).build());

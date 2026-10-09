@@ -51,6 +51,7 @@ class SterilizationFlowTest extends SpringDbTest {
     void setUp() {
         jdbc = PostgresTestSupport.jdbc();
         practice = PostgresTestSupport.newPractice(jdbc);
+        signInTo(practice);
         patient = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         otherPatient = PostgresTestSupport.patient(jdbc, practice, "Karim", "Alaoui", null, null, null);
         user = UUID.randomUUID();

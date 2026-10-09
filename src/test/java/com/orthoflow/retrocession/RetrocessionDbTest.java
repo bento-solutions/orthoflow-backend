@@ -66,7 +66,7 @@ class RetrocessionDbTest {
         practice = PostgresTestSupport.newPractice(jdbc);
         patient = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", null, null, null);
         user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
         doctor = UUID.randomUUID();
         jdbc.update("INSERT INTO practitioners (id, practice_id, display_name) VALUES (?, ?, 'Dr Tazi')", doctor, practice);
 
@@ -107,7 +107,8 @@ class RetrocessionDbTest {
         when(practitioners.byIds(any())).thenReturn(Map.of(doctor, p));
         RetrocessionService simulation = new RetrocessionService(repo, new RetrocessionQuery(new NamedParameterJdbcTemplate(jdbc)), practitioners);
         return new StatementService(jdbc, simulation, repo, practitioners, id -> ZoneId.of("UTC"), new ObjectMapper(),
-                mock(LiveEventPublisher.class), mock(ActivityLog.class), mock(PdfService.class), mock(LetterheadProvider.class));
+                mock(LiveEventPublisher.class), mock(ActivityLog.class), mock(PdfService.class), mock(LetterheadProvider.class),
+                new com.orthoflow.common.numbering.DocumentNumbers(jdbc, com.orthoflow.testsupport.Tenants.fixed(practice)));
     }
 
     private void treatment(String code, String category) {
@@ -126,16 +127,16 @@ class RetrocessionDbTest {
     }
 
     private void line(UUID invoice, String actCode, String total, int order) {
-        jdbc.update("INSERT INTO invoice_lines (id, invoice_id, act_code, label, quantity, unit_price, discount_pct, line_total, sort_order) VALUES (?, ?, ?, 'x', 1, CAST(? AS numeric), 0, CAST(? AS numeric), ?)",
-                UUID.randomUUID(), invoice, actCode, total, total, order);
+        jdbc.update("INSERT INTO invoice_lines (id, invoice_id, act_code, label, quantity, unit_price, discount_pct, line_total, sort_order, practice_id) VALUES (?, ?, ?, 'x', 1, CAST(? AS numeric), 0, CAST(? AS numeric), ?, ?)",
+                UUID.randomUUID(), invoice, actCode, total, total, order, practice);
     }
 
     private void allocate(UUID invoice, String amount, String method, LocalDate date, boolean voidedReceipt) {
         UUID receipt = UUID.randomUUID();
         jdbc.update("INSERT INTO receipts (id, practice_id, patient_id, amount, method, receipt_date, recorded_by, voided_at) VALUES (?, ?, ?, CAST(? AS numeric), ?, ?, ?, ?)",
                 receipt, practice, patient, amount, method, date, user, voidedReceipt ? java.sql.Timestamp.valueOf("2026-03-20 10:00:00") : null);
-        jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by) VALUES (?, ?, ?, CAST(? AS numeric), ?, ?, ?)",
-                UUID.randomUUID(), invoice, receipt, amount, method, date, user);
+        jdbc.update("INSERT INTO payments (id, invoice_id, receipt_id, amount, method, payment_date, recorded_by, practice_id) VALUES (?, ?, ?, CAST(? AS numeric), ?, ?, ?, ?)",
+                UUID.randomUUID(), invoice, receipt, amount, method, date, user, practice);
     }
 
     private ValidateRequest request() {

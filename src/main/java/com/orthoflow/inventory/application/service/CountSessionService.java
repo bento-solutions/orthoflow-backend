@@ -1,5 +1,6 @@
 package com.orthoflow.inventory.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.inventory.application.dto.CountSessionLineUpdateRequest;
@@ -42,6 +43,7 @@ public class CountSessionService {
     private final StockItemRepository stockItemRepository;
     private final StockService stockService;
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentNumbers documentNumbers;
 
     public List<CountSession> getAllCountSessions() {
         return countSessionRepository.findAll();
@@ -178,7 +180,7 @@ public class CountSessionService {
     }
 
     private String generateSessionNumber() {
-        Long nextVal = jdbcTemplate.queryForObject("SELECT nextval('count_session_seq')", Long.class);
+        Long nextVal = documentNumbers.next("count_session");
         return "CNT-" + LocalDate.now().getYear() + "-" + String.format("%04d", nextVal);
     }
 }

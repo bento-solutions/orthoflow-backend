@@ -31,8 +31,8 @@ public class UserRepositoryAdapter implements UserRepository {
     }
 
     @Override
-    public List<User> findAll() {
-        return jpaRepository.findAll();
+    public List<User> findAllInPractice(UUID practiceId) {
+        return jpaRepository.findByPracticeIdOrderByLastNameAscFirstNameAsc(practiceId);
     }
 
     @Override

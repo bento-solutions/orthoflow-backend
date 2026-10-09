@@ -46,7 +46,7 @@ class ExpenseRulesTest {
         TransactionTemplate tx = mock(TransactionTemplate.class);
         when(tx.execute(any())).thenAnswer(inv -> ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
 
-        int created = new RecurringExpenseJob(expenses, tx).generate(LocalDate.of(2026, 10, 5));
+        int created = new RecurringExpenseJob(expenses, tx, com.orthoflow.testsupport.Tenants.direct()).generate(LocalDate.of(2026, 10, 5));
 
         assertThat(created).isEqualTo(4);
         ArgumentCaptor<Expense> copies = ArgumentCaptor.forClass(Expense.class);
@@ -66,7 +66,7 @@ class ExpenseRulesTest {
     void aTemplateNotYetDueGeneratesNothing() {
         when(expenses.recurringDue(any())).thenReturn(List.of());
 
-        assertThat(new RecurringExpenseJob(expenses, mock(TransactionTemplate.class)).generate(LocalDate.of(2026, 10, 5))).isZero();
+        assertThat(new RecurringExpenseJob(expenses, mock(TransactionTemplate.class), com.orthoflow.testsupport.Tenants.direct()).generate(LocalDate.of(2026, 10, 5))).isZero();
     }
 
     @Test

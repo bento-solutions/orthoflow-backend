@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
@@ -26,6 +27,10 @@ public class PatientTreatment {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Version
     @Column(name = "version")

@@ -1,5 +1,6 @@
 package com.orthoflow.finance.application.service;
 
+import com.orthoflow.common.tenancy.Tenancy;
 import com.orthoflow.finance.domain.model.Expense;
 import com.orthoflow.finance.infrastructure.ExpenseJpaRepository;
 import org.slf4j.Logger;
@@ -24,10 +25,12 @@ public class RecurringExpenseJob {
 
     private final ExpenseJpaRepository expenses;
     private final TransactionTemplate tx;
+    private final Tenancy tenancy;
 
-    public RecurringExpenseJob(ExpenseJpaRepository expenses, TransactionTemplate tx) {
+    public RecurringExpenseJob(ExpenseJpaRepository expenses, TransactionTemplate tx, Tenancy tenancy) {
         this.expenses = expenses;
         this.tx = tx;
+        this.tenancy = tenancy;
     }
 
     @Scheduled(cron = "${orthoflow.finance.recurring-cron:0 15 4 * * *}")
@@ -38,13 +41,13 @@ public class RecurringExpenseJob {
         }
     }
 
-    /** Generates every copy due on or before {@code today}; returns how many were created. */
+    /** Generates every copy due on or before {@code today}, in every clinic; returns how many were created. */
     public int generate(LocalDate today) {
         int created = 0;
-        List<Expense> templates = expenses.recurringDue(today);
+        List<Expense> templates = tenancy.callAcrossClinics(() -> expenses.recurringDue(today));
         for (Expense template : templates) {
             try {
-                Integer n = tx.execute(s -> copiesFor(template.getId(), today));
+                Integer n = tenancy.callAs(template.getPracticeId(), () -> tx.execute(s -> copiesFor(template.getId(), today)));
                 created += n == null ? 0 : n;
             } catch (RuntimeException e) {
                 log.error("Could not generate the recurring expense {}", template.getId(), e);

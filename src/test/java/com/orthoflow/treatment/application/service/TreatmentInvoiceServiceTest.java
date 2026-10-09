@@ -48,7 +48,7 @@ class TreatmentInvoiceServiceTest {
     void setUp() {
         service = new TreatmentInvoiceService(
                 treatmentInvoiceRepository, patientLookup, treatmentRepository,
-                stockItemRepository, consumableLedger, billingService, jdbcTemplate);
+                stockItemRepository, consumableLedger, billingService, jdbcTemplate, mock(com.orthoflow.common.numbering.DocumentNumbers.class));
     }
 
     private TreatmentInvoice draftInvoice(BigDecimal treatmentPrice) {

@@ -33,7 +33,7 @@ class TaxScheduleDbTest {
         practice = PostgresTestSupport.newPractice(jdbc);
         otherPractice = PostgresTestSupport.newPractice(jdbc);
         user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
     }
 
     private static TaxBracket band(String upTo, String rate) {

@@ -24,7 +24,7 @@ class IdleConsultationCleanupTest {
     private final ConsultationExtractionProperties properties = new ConsultationExtractionProperties();
 
     private static Consultation withId(UUID id) {
-        return Consultation.builder().id(id).build();
+        return Consultation.builder().id(id).practiceId(UUID.randomUUID()).build();
     }
 
     @Test
@@ -34,7 +34,7 @@ class IdleConsultationCleanupTest {
         UUID b = UUID.randomUUID();
         when(repo.findIdleOpen(any())).thenReturn(List.of(withId(a), withId(b)));
 
-        new IdleConsultationCleanup(repo, service, properties).run();
+        new IdleConsultationCleanup(repo, service, properties, com.orthoflow.testsupport.Tenants.direct()).run();
 
         ArgumentCaptor<OffsetDateTime> before = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(repo).findIdleOpen(before.capture());
@@ -51,7 +51,7 @@ class IdleConsultationCleanupTest {
         when(repo.findIdleOpen(any())).thenReturn(List.of(withId(a), withId(b)));
         when(service.discardIdle(a)).thenThrow(new IllegalStateException("boom"));
 
-        new IdleConsultationCleanup(repo, service, properties).run();
+        new IdleConsultationCleanup(repo, service, properties, com.orthoflow.testsupport.Tenants.direct()).run();
 
         verify(service).discardIdle(b);
     }
@@ -60,7 +60,7 @@ class IdleConsultationCleanupTest {
     void nothingIdleNothingDone() {
         when(repo.findIdleOpen(any())).thenReturn(List.of());
 
-        new IdleConsultationCleanup(repo, service, properties).run();
+        new IdleConsultationCleanup(repo, service, properties, com.orthoflow.testsupport.Tenants.direct()).run();
 
         verify(service, never()).discardIdle(any());
     }

@@ -60,11 +60,11 @@ public class PatientLookupService implements PatientLookup {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<UUID> findIdByPhoneDigits(String digits) {
+    public Optional<UUID> findIdByPhoneDigits(UUID practiceId, String digits) {
         if (digits == null || digits.length() < 9) {
             return Optional.empty();
         }
-        List<UUID> matches = patientRepository.findIdsByPhoneSuffix(digits.substring(digits.length() - 9));
+        List<UUID> matches = patientRepository.findIdsByPhoneSuffix(practiceId, digits.substring(digits.length() - 9));
         return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
     }
 

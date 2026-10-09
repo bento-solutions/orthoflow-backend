@@ -45,7 +45,7 @@ class PatientRecordMoverDbTest {
 
     private UUID chart(UUID patient) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO dental_charts (id, patient_id, chart_type) VALUES (?, ?, 'adult')", id, patient);
+        jdbc.update("INSERT INTO dental_charts (id, patient_id, chart_type, practice_id) VALUES (?, ?, 'adult', ?)", id, patient, practice);
         return id;
     }
 
@@ -59,12 +59,12 @@ class PatientRecordMoverDbTest {
         appointment(source);
         UUID invoice = UUID.randomUUID();
         UUID user = UUID.randomUUID();
-        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN')", user, user + "@x.ma");
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)", user, user + "@x.ma", practice);
         jdbc.update("INSERT INTO invoices (id, practice_id, patient_id, invoice_number, status, currency, total, region_code, created_by) VALUES (?, ?, ?, ?, 'DRAFT', 'MAD', 100, 'MA', ?)",
                 invoice, practice, source, "INV-" + invoice.toString().substring(0, 8), user);
         jdbc.update("INSERT INTO receipts (id, practice_id, patient_id, amount, method, receipt_date, recorded_by) VALUES (?, ?, ?, 50, 'CASH', current_date, ?)",
                 UUID.randomUUID(), practice, source, user);
-        jdbc.update("INSERT INTO patient_phones (id, patient_id, number) VALUES (?, ?, '0600')", UUID.randomUUID(), source);
+        jdbc.update("INSERT INTO patient_phones (id, patient_id, number, practice_id) VALUES (?, ?, '0600', ?)", UUID.randomUUID(), source, practice);
 
         assertThat(mover.preview(source)).containsEntry("appointments", 2).containsEntry("invoices", 1)
                 .containsEntry("receipts", 1).containsEntry("patient_phones", 1);

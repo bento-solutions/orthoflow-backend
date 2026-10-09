@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.orthoflow.patient.application.port.PatientSummary;
 import jakarta.persistence.*;
 import lombok.*;
@@ -22,6 +23,10 @@ public class TreatmentInvoice {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Version
     @Column(name = "version")

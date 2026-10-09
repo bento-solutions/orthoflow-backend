@@ -34,7 +34,7 @@ public interface PatientLookup {
      * Empty when none or when more than one patient shares the number, since a
      * guess there could attach a reply to the wrong person.
      */
-    Optional<UUID> findIdByPhoneDigits(String digits);
+    Optional<UUID> findIdByPhoneDigits(UUID practiceId, String digits);
 
     /** The practitioner a patient is assigned to by default, when they have one. */
     Optional<UUID> findPrimaryPractitionerId(UUID patientId);

@@ -31,7 +31,7 @@ public class StaffNotifier {
     public int toPermission(UUID practiceId, Permission permission, MessagePurpose purpose, String subject, String body,
                             String relatedType, UUID relatedId) {
         int told = 0;
-        for (var user : users.findAll()) {
+        for (var user : users.findAllInPractice(practiceId)) {
             if (!user.isActive() || !practiceId.equals(user.getPracticeId())
                     || !authorityResolver.permissionsFor(practiceId, user.getRole()).contains(permission)) {
                 continue;
@@ -49,7 +49,7 @@ public class StaffNotifier {
     public int toRole(UUID practiceId, com.orthoflow.auth.domain.model.UserRole role, MessagePurpose purpose, String subject, String body,
                       String relatedType, UUID relatedId) {
         int told = 0;
-        for (var user : users.findAll()) {
+        for (var user : users.findAllInPractice(practiceId)) {
             if (user.isActive() && practiceId.equals(user.getPracticeId()) && user.getRole() == role) {
                 messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(MessageChannel.IN_APP).purpose(purpose)
                         .recipientUserId(user.getId()).subject(subject).body(body).relatedType(relatedType).relatedId(relatedId).build());

@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.procurement.application.dto.VendorInvoiceCreateRequest;
@@ -41,6 +42,7 @@ public class VendorInvoiceService {
     private final List<com.orthoflow.procurement.application.port.VendorInvoiceListener> listeners;
     private final DeliveryNoteRepository deliveryNoteRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentNumbers documentNumbers;
 
     public List<VendorInvoice> getAllVendorInvoices() {
         return vendorInvoiceRepository.findAll();
@@ -141,7 +143,7 @@ public class VendorInvoiceService {
     }
 
     private String generateVendorInvoiceNumber() {
-        Long nextVal = jdbcTemplate.queryForObject("SELECT nextval('vendor_invoice_seq')", Long.class);
+        Long nextVal = documentNumbers.next("vendor_invoice");
         return "VI-" + LocalDate.now().getYear() + "-" + String.format("%04d", nextVal);
     }
 }

@@ -1,5 +1,6 @@
 package com.orthoflow.settings.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,9 +30,9 @@ public class PracticeSettings {
     @Column(name = "version")
     private Long version;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "working_hours_start", nullable = false)
     private Short workingHoursStart;

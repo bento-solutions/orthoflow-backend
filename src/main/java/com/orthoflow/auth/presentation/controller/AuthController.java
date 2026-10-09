@@ -1,5 +1,7 @@
 package com.orthoflow.auth.presentation.controller;
 
+import com.orthoflow.common.tenancy.Practices;
+import java.util.UUID;
 import com.orthoflow.auth.application.dto.ForgotPasswordRequest;
 import com.orthoflow.auth.application.dto.LoginRequest;
 import com.orthoflow.auth.application.dto.LoginResponse;
@@ -76,7 +78,16 @@ public class AuthController {
                 throw new UnauthorizedException("Only an administrator can create new accounts");
             }
         }
-        return authService.register(request);
+        // An administrator creates accounts in their own clinic; the very first
+        // account (nobody signed in) opens the clinic every deployment starts with.
+        UUID practiceId = signedInPractice().orElse(Practices.DEFAULT_ID);
+        return authService.register(request, practiceId);
+    }
+
+    private java.util.Optional<UUID> signedInPractice() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getPrincipal() instanceof com.orthoflow.common.security.AuthenticatedUser user
+                ? java.util.Optional.of(user.practiceId()) : java.util.Optional.empty();
     }
 
     /**

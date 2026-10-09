@@ -1,5 +1,6 @@
 package com.orthoflow.patient.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -38,9 +39,9 @@ public class Patient {
     @Column(name = "version")
     private Long version;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     /** Human-friendly reference ("P-00042"), generated or typed by staff; unique within the clinic. */
     @Column(name = "patient_code", nullable = false)

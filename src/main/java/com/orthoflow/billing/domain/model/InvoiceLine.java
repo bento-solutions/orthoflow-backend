@@ -1,5 +1,6 @@
 package com.orthoflow.billing.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -16,6 +17,10 @@ public class InvoiceLine {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "act_code")
     private String actCode;

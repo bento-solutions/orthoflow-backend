@@ -1,5 +1,6 @@
 package com.orthoflow.scheduling.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
@@ -24,9 +25,9 @@ public class Appointment {
     // A plain UUID rather than a @ManyToOne Patient — scheduling reads
     // patient data through PatientLookup, not by holding a JPA relation
     // into another module's entity graph (audit I.2).
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;

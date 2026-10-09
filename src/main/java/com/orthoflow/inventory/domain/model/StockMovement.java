@@ -1,5 +1,6 @@
 package com.orthoflow.inventory.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -17,6 +18,10 @@ public class StockMovement {
 
     @Id
     private UUID id;
+
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "stock_item_id", nullable = false)

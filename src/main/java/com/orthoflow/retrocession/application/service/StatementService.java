@@ -1,5 +1,6 @@
 package com.orthoflow.retrocession.application.service;
 
+import com.orthoflow.common.numbering.DocumentNumbers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.activity.application.service.ActivityLog;
@@ -57,6 +58,7 @@ public class StatementService {
     private final ActivityLog activityLog;
     private final PdfService pdfService;
     private final LetterheadProvider letterheadProvider;
+    private final DocumentNumbers documentNumbers;
 
     // ── Validate ──
     @Transactional
@@ -84,7 +86,7 @@ public class StatementService {
 
         UUID id = UUID.randomUUID();
         LocalDate today = LocalDate.now(practiceZone.of(practiceId));
-        Long seq = jdbc.queryForObject("SELECT nextval('retrocession_statement_seq')", Long.class);
+        Long seq = documentNumbers.next(practiceId, "retrocession_statement");
         String number = "RET-%d-%05d".formatted(today.getYear(), seq);
         try {
             jdbc.update("""

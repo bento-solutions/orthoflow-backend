@@ -1,5 +1,6 @@
 package com.orthoflow.billing.application.service;
 
+import com.orthoflow.common.tenancy.CurrentPractice;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.billing.application.dto.*;
 import com.orthoflow.billing.application.port.InvoiceAttributionGuard;
@@ -42,6 +43,7 @@ public class BillingService {
     private final PractitionerService practitioners;
     private final PatientLookup patientLookup;
     private final InvoiceAttributionGuard attributionGuard;
+    private final CurrentPractice currentPractice;
 
     /**
      * Writes to billing_audit_log, which existed since the first migration
@@ -69,12 +71,13 @@ public class BillingService {
     @Transactional
     public InvoiceResponse createInvoice(CreateInvoiceRequest request, UUID creatorId) {
         String invoiceNumber = invoiceNumberGenerator.generate(request.getRegionCode());
+        UUID practiceId = currentPractice.require();
 
         Invoice invoice = Invoice.builder()
-                .practiceId(request.getPracticeId())
+                .practiceId(practiceId)
                 .patientId(request.getPatientId())
                 .treatmentPlanId(request.getTreatmentPlanId())
-                .practitionerId(resolvePractitioner(request, creatorId))
+                .practitionerId(resolvePractitioner(practiceId, request, creatorId))
                 .invoiceNumber(invoiceNumber)
                 .status(InvoiceStatus.DRAFT)
                 .issueDate(LocalDate.now())
@@ -135,9 +138,9 @@ public class BillingService {
      * The practitioner asked for, else the patient's primary one, else the one
      * who is signed in (a doctor billing their own work), else none.
      */
-    private UUID resolvePractitioner(CreateInvoiceRequest request, UUID creatorId) {
+    private UUID resolvePractitioner(UUID practiceId, CreateInvoiceRequest request, UUID creatorId) {
         if (request.getPractitionerId() != null) {
-            practitioners.require(request.getPracticeId(), request.getPractitionerId());
+            practitioners.require(practiceId, request.getPractitionerId());
             return request.getPractitionerId();
         }
         return patientLookup.findPrimaryPractitionerId(request.getPatientId())

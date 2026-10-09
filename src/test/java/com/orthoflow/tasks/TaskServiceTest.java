@@ -42,7 +42,7 @@ class TaskServiceTest {
         currentUser = mock(CurrentUserProvider.class);
         notifier = mock(StaffNotifier.class);
         UserRepository users = mock(UserRepository.class);
-        when(users.findAll()).thenReturn(List.of());
+        when(users.findAllInPractice(any())).thenReturn(List.of());
         PatientLookup patients = mock(PatientLookup.class);
         when(patients.findSummaries(any())).thenReturn(java.util.Map.of());
         when(currentUser.requireRole()).thenReturn("ASSISTANT");
@@ -110,7 +110,7 @@ class TaskServiceTest {
         UserRepository users = mock(UserRepository.class);
         when(users.findById(any())).thenAnswer(inv -> Optional.of(com.orthoflow.auth.domain.model.User.builder().id(inv.getArgument(0)).active(true)
                 .practiceId(practice).role(UserRole.ASSISTANT).firstName("A").lastName("B").email("e").passwordHash("x").build()));
-        when(users.findAll()).thenReturn(List.of());
+        when(users.findAllInPractice(any())).thenReturn(List.of());
         when(tasks.save(any(Task.class))).thenAnswer(inv -> {
             Task t = inv.getArgument(0);
             t.setId(UUID.randomUUID());

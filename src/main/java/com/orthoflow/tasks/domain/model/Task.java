@@ -1,7 +1,7 @@
 package com.orthoflow.tasks.domain.model;
 
+import org.hibernate.annotations.TenantId;
 import com.orthoflow.auth.domain.model.UserRole;
-import com.orthoflow.common.tenancy.Practices;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,9 +30,9 @@ public class Task {
     @Id
     private UUID id;
 
-    @Column(name = "practice_id", nullable = false)
-    @Builder.Default
-    private UUID practiceId = Practices.DEFAULT_ID;
+    @TenantId
+    @Column(name = "practice_id", nullable = false, updatable = false)
+    private UUID practiceId;
 
     @Column(nullable = false)
     private String title;
