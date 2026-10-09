@@ -317,6 +317,15 @@ orthoflow:
       session-id: ${WHATSAPP_SESSION_ID:orthoflow}
       webhook-secret: ${WHATSAPP_WEBHOOK_SECRET:}
       default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:212}
+      # The clinic this session's messages belong to.
+      practice-id: ${WHATSAPP_PRACTICE_ID:00000000-0000-0000-0000-000000000001}
+      # any: keep every sender's messages (a number of the clinic's own).
+      # landing-page: the number is the bento CRM's, shared; keep only people who
+      # came through the clinic's landing page, drop everyone else's unread.
+      inbound-from: ${WHATSAPP_INBOUND_FROM:any}
+      # Text the landing page's click-to-chat link pre-fills; a message carrying it
+      # makes the sender a landing-page contact. Blank: off.
+      landing-page-marker: ${WHATSAPP_LANDING_MARKER:}
 
   # ── Help centre (F6): "Ask OrthoFlow" ───────────────────────────────
   help:

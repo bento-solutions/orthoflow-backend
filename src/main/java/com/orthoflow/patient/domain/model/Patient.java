@@ -86,6 +86,10 @@ public class Patient {
     @Column(name = "referral_source")
     private String referralSource;
 
+    /** Where the patient first came from when the application knows it (V58); null when staff entered them. */
+    @Column(name = "acquisition_channel")
+    private String acquisitionChannel;
+
     /** A standing discount, applied by default when this patient is invoiced. */
     @Column(name = "global_discount_pct", nullable = false)
     @Builder.Default

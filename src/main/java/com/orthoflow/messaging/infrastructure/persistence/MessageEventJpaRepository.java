@@ -14,10 +14,11 @@ public interface MessageEventJpaRepository extends JpaRepository<MessageEvent, U
     @Query("""
             SELECT e FROM MessageEvent e
             WHERE e.practiceId = :practiceId AND e.direction = 'IN' AND (:unhandledOnly = false OR e.handledAt IS NULL)
+              AND (:landingPageOnly = false OR e.fromLandingPage = true)
             ORDER BY e.occurredAt DESC
             """)
     List<MessageEvent> inbox(@Param("practiceId") UUID practiceId, @Param("unhandledOnly") boolean unhandledOnly,
-                             Pageable pageable);
+                             @Param("landingPageOnly") boolean landingPageOnly, Pageable pageable);
 
     @Query("SELECT COUNT(e) FROM MessageEvent e WHERE e.practiceId = :practiceId AND e.direction = 'IN' AND e.handledAt IS NULL")
     long unhandledCount(@Param("practiceId") UUID practiceId);

@@ -9,6 +9,7 @@ import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.common.tenancy.PracticeZone;
 import com.orthoflow.messaging.application.dto.OutgoingMessage;
 import com.orthoflow.messaging.application.service.ConsentService;
+import com.orthoflow.messaging.application.service.LandingPageContacts;
 import com.orthoflow.messaging.application.service.MessageService;
 import com.orthoflow.messaging.application.service.StaffNotifier;
 import com.orthoflow.messaging.domain.model.MessageChannel;
@@ -72,6 +73,7 @@ public class BookingService {
     private final StaffNotifier notifier;
     private final PracticeZone practiceZone;
     private final LiveEventPublisher liveEvents;
+    private final LandingPageContacts landingPageContacts;
 
     // ── Settings ──
     @Transactional
@@ -158,11 +160,15 @@ public class BookingService {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO booking_requests (id, practice_id, appointment_type_id, practitioner_id, starts_at, duration_minutes, first_name, last_name,
-                                              phone, email, date_of_birth, note, language)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                              phone, email, date_of_birth, note, language, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, id, practiceId, type.getId(), r.practitionerId(), r.startsAt(), type.getDefaultDurationMinutes(), r.firstName().trim(),
                 r.lastName().trim(), blankToNull(r.phone()), blankToNull(r.email()), r.dateOfBirth(), blankToNull(r.note()),
-                r.language() == null ? "fr" : r.language());
+                r.language() == null ? "fr" : r.language(), r.fromLandingPage() ? "LANDING_PAGE" : "BOOKING_PAGE");
+        if (r.fromLandingPage()) {
+            // Their WhatsApp replies are this clinic's to read, even on a number shared with the CRM.
+            landingPageContacts.record(practiceId, r.phone(), LandingPageContacts.Source.BOOKING);
+        }
         acknowledge(practiceId, id, r, zone);
         if (s.autoConfirm()) {
             try {
@@ -196,7 +202,7 @@ public class BookingService {
                 v.startsAt(), v.durationMinutes(), v.firstName(), v.lastName(), v.phone(), v.email(), v.dateOfBirth(), v.note(), v.language(),
                 v.status(), v.patientId(), v.appointmentId(), v.declineReason(), v.createdAt(),
                 "PENDING".equals(v.status()) && slotFinder.isFree(practiceId, v.startsAt(), v.durationMinutes(), v.practitionerId(),
-                        holdsExcluding(practiceId, v.startsAt().atZoneSameInstant(zone).toLocalDate(), zone, v.id())))).toList();
+                        holdsExcluding(practiceId, v.startsAt().atZoneSameInstant(zone).toLocalDate(), zone, v.id())), v.source())).toList();
     }
 
     @Transactional(readOnly = true)
@@ -235,6 +241,7 @@ public class BookingService {
                     null, row.get("date_of_birth") == null ? null : ((java.sql.Date) row.get("date_of_birth")).toLocalDate(), phone, email, null, null, null,
                     null, null, null, null, (String) row.get("language"), OffsetDateTime.now()));
         }
+        patientRegistrar.recordAcquisition(patientId, (String) row.get("source"));
         // The person agreed to be contacted on the form they filled in.
         if (!blank(phone)) consent.record(patientId, MessageChannel.WHATSAPP, true, "PUBLIC_FORM");
         if (!blank(email)) consent.record(patientId, MessageChannel.EMAIL, true, "PUBLIC_FORM");
@@ -358,7 +365,7 @@ public class BookingService {
                 rs.getString("first_name"), rs.getString("last_name"), rs.getString("phone"), rs.getString("email"),
                 rs.getObject("date_of_birth", LocalDate.class), rs.getString("note"), rs.getString("language"), rs.getString("status"),
                 rs.getObject("patient_id", UUID.class), rs.getObject("appointment_id", UUID.class), rs.getString("decline_reason"),
-                rs.getObject("created_at", OffsetDateTime.class), false);
+                rs.getObject("created_at", OffsetDateTime.class), false, rs.getString("source"));
     }
 
     private static String reference(UUID id) {

@@ -47,7 +47,7 @@ public final class MessagingDtos {
     }
 
     public record InboxRow(UUID id, String fromPhone, String body, UUID patientId, String patientName,
-                           OffsetDateTime occurredAt, OffsetDateTime handledAt) {
+                           OffsetDateTime occurredAt, OffsetDateTime handledAt, boolean fromLandingPage) {
     }
 
     public record Consent(Map<MessageChannel, Boolean> channels) {

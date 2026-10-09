@@ -49,6 +49,19 @@ public class MessagingProperties {
         private String defaultCountryCode = "212";
         /** The clinic this bridge session belongs to (until a session-to-clinic mapping exists). */
         private java.util.UUID practiceId = com.orthoflow.common.tenancy.Practices.DEFAULT_ID;
+        /**
+         * Whose messages are kept. ANY: every sender, for a number of the clinic's own.
+         * LANDING_PAGE: only people who reached the clinic through its landing page, for a
+         * number shared with the bento CRM; anyone else's message is dropped unread.
+         */
+        private InboundFrom inboundFrom = InboundFrom.ANY;
+        /**
+         * Text the landing page's click-to-chat link puts in the first message (wa.me/...?text=...).
+         * A message containing it makes its sender a landing-page contact. Blank: off.
+         */
+        private String landingPageMarker = "";
         private int timeoutMs = 15000;
     }
+
+    public enum InboundFrom { ANY, LANDING_PAGE }
 }

@@ -30,6 +30,7 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
     private final List<PatientErasureListener> erasureListeners;
     private final PatientExtrasApplier extras;
     private final CurrentUserProvider currentUser;
+    private final com.orthoflow.common.tenancy.CurrentPractice currentPractice;
 
     /**
      * A CIN matching an existing (non-archived) patient is almost always the
@@ -95,8 +96,18 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
     @Override
     @Transactional
     public UUID register(Registration r) {
-        UUID practiceId = currentUser.requirePracticeId();
+        // The clinic in scope, signed in or not: an online booking auto-confirmed from the public page has no user.
+        UUID practiceId = currentPractice.require();
         return register(practiceId, r);
+    }
+
+    @Override
+    @Transactional
+    public void recordAcquisition(UUID patientId, String channel) {
+        patientRepository.findById(patientId).filter(p -> p.getAcquisitionChannel() == null).ifPresent(p -> {
+            p.setAcquisitionChannel(channel);
+            patientRepository.save(p);
+        });
     }
 
     /** As {@link #register(Registration)} for a caller with no signed-in user (an auto-confirmed online booking). */

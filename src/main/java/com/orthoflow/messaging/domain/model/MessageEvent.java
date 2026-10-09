@@ -49,6 +49,10 @@ public class MessageEvent {
     @Column(name = "handled_at")
     private OffsetDateTime handledAt;
 
+    /** An inbound message from someone who reached the clinic through its landing page. */
+    @Column(name = "from_landing_page", nullable = false)
+    private boolean fromLandingPage;
+
     @Column(name = "occurred_at", nullable = false)
     private OffsetDateTime occurredAt;
 

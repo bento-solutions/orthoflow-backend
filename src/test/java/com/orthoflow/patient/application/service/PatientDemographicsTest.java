@@ -41,7 +41,8 @@ class PatientDemographicsTest {
                 .address("12 rue des Orangers").phone("0600000000").email("k@example.ma").build();
         when(patients.findById(id)).thenReturn(Optional.of(patient));
         when(patients.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        service = new PatientService(patients, mock(InvoiceLinkGuard.class), List.of(), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class));
+        service = new PatientService(patients, mock(InvoiceLinkGuard.class), List.of(), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class),
+                com.orthoflow.testsupport.Tenants.fixed(java.util.UUID.randomUUID()));
     }
 
     private static PatientDemographicsUpdate only(String phone, String cin) {

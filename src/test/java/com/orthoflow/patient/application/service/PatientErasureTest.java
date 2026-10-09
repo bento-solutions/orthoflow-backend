@@ -41,7 +41,8 @@ class PatientErasureTest {
         invoices = mock(InvoiceLinkGuard.class);
         voice = mock(PatientErasureListener.class);
         when(patients.findById(id)).thenReturn(Optional.of(new Patient()));
-        service = new PatientService(patients, invoices, List.of(voice), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class));
+        service = new PatientService(patients, invoices, List.of(voice), mock(PatientExtrasApplier.class), mock(CurrentUserProvider.class),
+                com.orthoflow.testsupport.Tenants.fixed(java.util.UUID.randomUUID()));
     }
 
     @Test

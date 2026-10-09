@@ -43,7 +43,18 @@ public final class BookingDtos {
                          @Size(max = 40) String phone, @Email @Size(max = 255) String email, @Past LocalDate dateOfBirth,
                          @Size(max = 1000) String note, @Pattern(regexp = "fr|en|ar") String language,
                          @AssertTrue(message = "consent is required") boolean consent,
-                         /** A hidden field a person never fills; a bot does. */ String website) {
+                         /** A hidden field a person never fills; a bot does. */ String website,
+                         /** The page the request was made on: BOOKING_PAGE (default) or the clinic's LANDING_PAGE. */
+                         @Pattern(regexp = "BOOKING_PAGE|LANDING_PAGE") String source) {
+
+        public Submit(UUID appointmentTypeId, UUID practitionerId, OffsetDateTime startsAt, String firstName, String lastName,
+                      String phone, String email, LocalDate dateOfBirth, String note, String language, boolean consent, String website) {
+            this(appointmentTypeId, practitionerId, startsAt, firstName, lastName, phone, email, dateOfBirth, note, language, consent, website, null);
+        }
+
+        public boolean fromLandingPage() {
+            return "LANDING_PAGE".equals(source);
+        }
     }
 
     /** Deliberately says nothing about the request beyond its reference. */
@@ -54,7 +65,8 @@ public final class BookingDtos {
     public record RequestView(UUID id, UUID appointmentTypeId, String typeName, UUID practitionerId, String practitionerName,
                               OffsetDateTime startsAt, int durationMinutes, String firstName, String lastName, String phone,
                               String email, LocalDate dateOfBirth, String note, String language, String status, UUID patientId,
-                              UUID appointmentId, String declineReason, OffsetDateTime createdAt, boolean slotStillFree) {
+                              UUID appointmentId, String declineReason, OffsetDateTime createdAt, boolean slotStillFree,
+                              String source) {
     }
 
     public record Confirm(UUID patientId, UUID practitionerId, UUID chairId, OffsetDateTime startsAt, Boolean ignoreBlocks) {

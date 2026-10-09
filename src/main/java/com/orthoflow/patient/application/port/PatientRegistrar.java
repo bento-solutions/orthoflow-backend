@@ -25,4 +25,7 @@ public interface PatientRegistrar {
 
     /** Fills the blanks of an existing patient from a registration; anything already recorded is kept. */
     void enrich(UUID patientId, Registration registration);
+
+    /** Records where the patient first came from ("LANDING_PAGE", "BOOKING_PAGE"), unless already known. */
+    void recordAcquisition(UUID patientId, String channel);
 }

@@ -39,7 +39,12 @@ public abstract class SpringDbTest {
      * tenant filter scopes every query to it (ADR 0007). Without it a test reads nothing.
      */
     protected static void signInTo(UUID practiceId) {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), "test@example.com", "ADMIN", practiceId);
+        signInAs(UUID.randomUUID(), practiceId);
+    }
+
+    /** As {@link #signInTo(UUID)}, as a user that exists, for work that records who did it. */
+    protected static void signInAs(UUID userId, UUID practiceId) {
+        AuthenticatedUser user = new AuthenticatedUser(userId, "test@example.com", "ADMIN", practiceId);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
     }
 

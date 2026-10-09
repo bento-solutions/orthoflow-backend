@@ -31,6 +31,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +61,7 @@ public class WhatsAppWebhookService {
     private final WhatsAppProvider provider;
     private final LiveEventPublisher liveEvents;
     private final ObjectProvider<InboundMessageListener> listeners;
+    private final LandingPageContacts landingPageContacts;
     private final AtomicReference<Reported> lastSessionReport = new AtomicReference<>();
 
     /** Constant-time check of the bridge's signature, rejecting a stale timestamp (replay). */
@@ -91,8 +93,14 @@ public class WhatsAppWebhookService {
         } catch (Exception e) {
             return failed;
         }
+        String session = properties.getWhatsapp().getSessionId();
         for (JsonNode event : root.path("events")) {
             String id = event.path("id").asText();
+            // A bridge shared with the bento CRM reports on every session it runs; only ours is ours.
+            String from = event.path("sessionId").asText(null);
+            if (from != null && session != null && !session.isBlank() && !session.equals(from)) {
+                continue;
+            }
             try {
                 apply(event.path("type").asText(), event.path("data"));
             } catch (RuntimeException e) {
@@ -161,10 +169,15 @@ public class WhatsAppWebhookService {
         String digits = phone == null ? null : phone.replaceAll("[^0-9]", "");
         String body = data.path("body").asText("");
         UUID practiceId = properties.getWhatsapp().getPracticeId();
+        boolean fromLandingPage = fromLandingPage(practiceId, digits, body);
+        if (!fromLandingPage && properties.getWhatsapp().getInboundFrom() == MessagingProperties.InboundFrom.LANDING_PAGE) {
+            // The number is shared with the bento CRM: this conversation is not the clinic's. Nothing is kept.
+            return;
+        }
         UUID patientId = digits == null ? null : patientLookup.findIdByPhoneDigits(practiceId, digits).orElse(null);
 
         MessageEvent saved = events.save(MessageEvent.builder().practiceId(practiceId).direction("IN").eventType("MESSAGE")
-                .externalId(wamid).fromPhone(digits).body(body).patientId(patientId).build());
+                .externalId(wamid).fromPhone(digits).body(body).patientId(patientId).fromLandingPage(fromLandingPage).build());
 
         boolean handled = false;
         if (patientId != null) {
@@ -182,14 +195,33 @@ public class WhatsAppWebhookService {
         }
     }
 
+    /**
+     * Whether the sender reached the clinic through its landing page: already known as such, or
+     * writing the text the landing page's click-to-chat link pre-fills (which makes them known).
+     */
+    private boolean fromLandingPage(UUID practiceId, String digits, String body) {
+        if (digits == null) {
+            return false;
+        }
+        if (landingPageContacts.isKnown(practiceId, digits)) {
+            return true;
+        }
+        String marker = properties.getWhatsapp().getLandingPageMarker();
+        if (marker != null && !marker.isBlank() && body.toLowerCase(Locale.ROOT).contains(marker.trim().toLowerCase(Locale.ROOT))) {
+            landingPageContacts.record(practiceId, digits, LandingPageContacts.Source.WHATSAPP_LINK);
+            return true;
+        }
+        return false;
+    }
+
     @Transactional(readOnly = true)
-    public List<InboxRow> inbox(UUID practiceId, boolean unhandledOnly, int limit) {
-        List<MessageEvent> rows = events.inbox(practiceId, unhandledOnly, PageRequest.of(0, Math.min(Math.max(limit, 1), 200)));
+    public List<InboxRow> inbox(UUID practiceId, boolean unhandledOnly, boolean landingPageOnly, int limit) {
+        List<MessageEvent> rows = events.inbox(practiceId, unhandledOnly, landingPageOnly, PageRequest.of(0, Math.min(Math.max(limit, 1), 200)));
         Map<UUID, com.orthoflow.patient.application.port.PatientSummary> patients = patientLookup.findSummaries(
                 rows.stream().map(MessageEvent::getPatientId).filter(java.util.Objects::nonNull).distinct().toList());
         return rows.stream().map(e -> new InboxRow(e.getId(), e.getFromPhone(), e.getBody(), e.getPatientId(),
                 e.getPatientId() == null || patients.get(e.getPatientId()) == null ? null : patients.get(e.getPatientId()).fullName(),
-                e.getOccurredAt(), e.getHandledAt())).toList();
+                e.getOccurredAt(), e.getHandledAt(), e.isFromLandingPage())).toList();
     }
 
     @Transactional

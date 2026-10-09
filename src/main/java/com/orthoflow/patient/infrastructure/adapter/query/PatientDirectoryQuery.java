@@ -62,11 +62,16 @@ public class PatientDirectoryQuery {
     private final NamedParameterJdbcTemplate jdbc;
 
     public record Filter(UUID practiceId, String search, String gender, String status, UUID practitionerId,
-                         UUID insurerId, boolean duplicatesOnly, boolean debtOnly) {
+                         UUID insurerId, boolean duplicatesOnly, boolean debtOnly, boolean landingPageOnly) {
+
+        public Filter(UUID practiceId, String search, String gender, String status, UUID practitionerId,
+                      UUID insurerId, boolean duplicatesOnly, boolean debtOnly) {
+            this(practiceId, search, gender, status, practitionerId, insurerId, duplicatesOnly, debtOnly, false);
+        }
 
         public Filter(UUID practiceId, String search, String gender, String status, UUID practitionerId,
                       UUID insurerId, boolean duplicatesOnly) {
-            this(practiceId, search, gender, status, practitionerId, insurerId, duplicatesOnly, false);
+            this(practiceId, search, gender, status, practitionerId, insurerId, duplicatesOnly, false, false);
         }
     }
 
@@ -207,6 +212,9 @@ public class PatientDirectoryQuery {
         }
         if (f.duplicatesOnly()) {
             sb.append(" AND p.id IN (SELECT a_id FROM pairs UNION SELECT b_id FROM pairs)");
+        }
+        if (f.landingPageOnly()) {
+            sb.append(" AND p.acquisition_channel = 'LANDING_PAGE'");
         }
         return sb.toString();
     }
