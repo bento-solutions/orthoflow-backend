@@ -162,6 +162,12 @@ services:
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
       WHATSAPP_SESSION_ID: ${WHATSAPP_SESSION_ID:-orthoflow}
       WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET:-}
+      # The bridge's number is the bento CRM's, shared: keep only the people who came
+      # through the clinic's landing page (WHATSAPP_INBOUND_FROM=landing-page), and
+      # recognise a click-to-chat from it by WHATSAPP_LANDING_MARKER.
+      WHATSAPP_INBOUND_FROM: ${WHATSAPP_INBOUND_FROM:-any}
+      WHATSAPP_LANDING_MARKER: ${WHATSAPP_LANDING_MARKER:-}
+      WHATSAPP_PRACTICE_ID: ${WHATSAPP_PRACTICE_ID:-00000000-0000-0000-0000-000000000001}
       # "Ask OrthoFlow" (help assistant). Off unless HELP_ASK_ENABLED=true; see .env.example.
       HELP_ASK_ENABLED: ${HELP_ASK_ENABLED:-false}
       HELP_ANTHROPIC_API_KEY: ${HELP_ANTHROPIC_API_KEY:-}
@@ -183,6 +189,10 @@ services:
     networks:
       internal: {}
       proxy: {}
+      # The CRM's WhatsApp bridge listens only on the CRM's own network, never through
+      # Traefik. Joining it is what lets this backend send through it (and the bridge
+      # post to it); Traefik still routes through `proxy` alone (traefik.docker.network).
+      crm_bridge: {}
     labels:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
@@ -230,3 +240,6 @@ networks:
     internal: true
   proxy:
     external: true
+  crm_bridge:
+    external: true
+    name: crm-backend_crm-network
