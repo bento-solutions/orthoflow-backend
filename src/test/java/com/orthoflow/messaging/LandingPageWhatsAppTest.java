@@ -147,6 +147,22 @@ class LandingPageWhatsAppTest extends SpringDbTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM appointments WHERE practice_id = ?", Integer.class, practice)).isOne();
     }
 
+    @Test
+    void anAutoConfirmedLandingPageBookingSendsTheConfirmationAndNothingElse() {
+        bookOnTheLandingPage(true);
+
+        assertThat(jdbc.queryForList("SELECT purpose FROM message_outbox WHERE practice_id = ?", String.class, practice))
+                .containsExactly("BOOKING_CONFIRMED");
+    }
+
+    @Test
+    void aLandingPageBookingWaitingForStaffIsAcknowledgedWithoutADate() {
+        bookOnTheLandingPage(false);
+
+        assertThat(jdbc.queryForList("SELECT purpose FROM message_outbox WHERE practice_id = ?", String.class, practice))
+                .containsExactly("BOOKING_RECEIVED");
+    }
+
     /** Sets up online booking, then books as the public page does: no signed-in user, the clinic from the link. */
     private void bookOnTheLandingPage(boolean autoConfirm) {
         signInTo(practice);

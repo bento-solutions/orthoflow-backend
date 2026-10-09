@@ -64,7 +64,7 @@ public class ReminderScheduler {
         if (local.getHour() == s.reminderSendHour()) {
             LocalDate today = local.toLocalDate();
             if (s.appointmentReminders()) {
-                reminders.queueAppointmentReminders(practiceId, today.plusDays(1));
+                reminders.queueAppointmentReminders(practiceId, today.plusDays(s.appointmentReminderDaysBefore()));
             }
             if (s.instalmentReminders()) {
                 reminders.queueInstalmentReminders(practiceId, today, s.instalmentDaysBefore());

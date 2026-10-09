@@ -16,7 +16,9 @@ public class MessagingSettingsService {
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "MessagingSettings")
     public record Settings(boolean appointmentReminders, @Min(0) @Max(23) int reminderSendHour, boolean instalmentReminders,
-                           @Min(0) @Max(30) int instalmentDaysBefore, boolean surveyEnabled, @Min(0) @Max(168) int surveyDelayHours) {
+                           @Min(0) @Max(30) int instalmentDaysBefore, boolean surveyEnabled, @Min(0) @Max(168) int surveyDelayHours,
+                           /** Days between the reminder and the visit; left out by a client that predates it, the stored value is kept. */
+                           @Min(0) @Max(14) Integer appointmentReminderDaysBefore) {
     }
 
     private final JdbcTemplate jdbc;
@@ -24,8 +26,8 @@ public class MessagingSettingsService {
     @Transactional
     public Settings get(UUID practiceId) {
         jdbc.update("INSERT INTO messaging_settings (practice_id) VALUES (?) ON CONFLICT DO NOTHING", practiceId);
-        return jdbc.queryForObject("SELECT appointment_reminders, reminder_send_hour, instalment_reminders, instalment_days_before, survey_enabled, survey_delay_hours FROM messaging_settings WHERE practice_id = ?",
-                (rs, i) -> new Settings(rs.getBoolean(1), rs.getInt(2), rs.getBoolean(3), rs.getInt(4), rs.getBoolean(5), rs.getInt(6)), practiceId);
+        return jdbc.queryForObject("SELECT appointment_reminders, reminder_send_hour, instalment_reminders, instalment_days_before, survey_enabled, survey_delay_hours, appointment_reminder_days_before FROM messaging_settings WHERE practice_id = ?",
+                (rs, i) -> new Settings(rs.getBoolean(1), rs.getInt(2), rs.getBoolean(3), rs.getInt(4), rs.getBoolean(5), rs.getInt(6), rs.getInt(7)), practiceId);
     }
 
     @Transactional
@@ -33,9 +35,10 @@ public class MessagingSettingsService {
         get(practiceId);
         jdbc.update("""
                 UPDATE messaging_settings SET appointment_reminders = ?, reminder_send_hour = ?, instalment_reminders = ?,
-                       instalment_days_before = ?, survey_enabled = ?, survey_delay_hours = ?, updated_at = NOW() WHERE practice_id = ?
+                       instalment_days_before = ?, survey_enabled = ?, survey_delay_hours = ?,
+                       appointment_reminder_days_before = COALESCE(?, appointment_reminder_days_before), updated_at = NOW() WHERE practice_id = ?
                 """, s.appointmentReminders(), s.reminderSendHour(), s.instalmentReminders(), s.instalmentDaysBefore(),
-                s.surveyEnabled(), s.surveyDelayHours(), practiceId);
+                s.surveyEnabled(), s.surveyDelayHours(), s.appointmentReminderDaysBefore(), practiceId);
         return get(practiceId);
     }
 }

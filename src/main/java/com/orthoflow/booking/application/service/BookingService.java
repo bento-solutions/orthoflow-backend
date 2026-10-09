@@ -169,9 +169,9 @@ public class BookingService {
             // Their WhatsApp replies are this clinic's to read, even on a number shared with the CRM.
             landingPageContacts.record(practiceId, r.phone(), LandingPageContacts.Source.BOOKING);
         }
-        acknowledge(practiceId, id, r, zone);
         if (s.autoConfirm()) {
             try {
+                // The confirmation names the day and time, so it is the only message this person gets.
                 confirm(practiceId, null, id, new Confirm(null, null, null, null, false));
                 return new Received(reference(id));
             } catch (RuntimeException e) {
@@ -179,6 +179,7 @@ public class BookingService {
                 log.warn("Auto-confirm of booking request {} failed: {}", id, e.getMessage());
             }
         }
+        acknowledge(practiceId, id, r, zone);
         notifier.toPermission(practiceId, Permission.BOOKING_REVIEW, MessagePurpose.BOOKING_RECEIVED, "Nouvelle demande de rendez-vous",
                 r.firstName().trim() + " " + r.lastName().trim() + " — " + DAY.format(r.startsAt().atZoneSameInstant(zone)) + " à "
                         + TIME.format(r.startsAt().atZoneSameInstant(zone)) + " (" + type.getNameFr() + ")", "BOOKING_REQUEST", id);
