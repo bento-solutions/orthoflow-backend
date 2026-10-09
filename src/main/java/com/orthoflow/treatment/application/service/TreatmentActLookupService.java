@@ -15,6 +15,7 @@ import java.util.Map;
 public class TreatmentActLookupService implements TreatmentActLookup {
 
     private final TreatmentRepository treatments;
+    private final NgapNomenclature nomenclature;
 
     @Override
     @Transactional(readOnly = true)
@@ -22,7 +23,8 @@ public class TreatmentActLookupService implements TreatmentActLookup {
         Map<String, Act> found = new LinkedHashMap<>();
         for (String code : treatmentCodes) {
             if (code == null || code.isBlank() || found.containsKey(code)) continue;
-            treatments.findByCode(code).ifPresent(t -> found.put(code, new Act(t.getActCode(), t.getActCoefficient())));
+            treatments.findByCode(code).ifPresent(t -> found.put(code, new Act(t.getActCode(), t.getActCoefficient(),
+                    nomenclature.find(t.getActCode()).map(a -> a.cotation(t.getActCoefficient())).orElse(null))));
         }
         return found;
     }

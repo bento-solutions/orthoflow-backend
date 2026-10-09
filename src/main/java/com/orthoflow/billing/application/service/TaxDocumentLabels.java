@@ -22,7 +22,7 @@ final class TaxDocumentLabels {
                         "paid", "Paid", "balance", "Balance due", "words", "This note is closed at the sum of",
                         "patientSignature", "Patient's signature", "practitionerSignature", "Practitioner's stamp and signature",
                         "insurer", "Insurer", "insuranceNumber", "Membership number", "birthDate", "Date of birth",
-                        "insured", "Insured person", "actCode", "Act code", "coefficient", "Coef.");
+                        "insured", "Insured person", "actCode", "Act code", "coefficient", "Rating");
             }
             case "ar" -> {
                 l.put("title", kind == TaxDocument.Kind.FEE_NOTE ? "مذكرة أتعاب" : "ورقة العلاج");
@@ -32,7 +32,7 @@ final class TaxDocumentLabels {
                         "paid", "المؤدى", "balance", "الباقي", "words", "",
                         "patientSignature", "توقيع المريض", "practitionerSignature", "خاتم وتوقيع الطبيب",
                         "insurer", "الهيئة", "insuranceNumber", "رقم الانخراط", "birthDate", "تاريخ الازدياد",
-                        "insured", "المؤمَّن", "actCode", "رمز العمل", "coefficient", "المعامل");
+                        "insured", "المؤمَّن", "actCode", "رمز العمل", "coefficient", "التسعيرة");
             }
             default -> {
                 l.put("title", kind == TaxDocument.Kind.FEE_NOTE ? "NOTE D'HONORAIRES" : "FEUILLE DE SOINS");
@@ -42,7 +42,7 @@ final class TaxDocumentLabels {
                         "paid", "Réglé", "balance", "Reste dû", "words", "Arrêtée la présente note à la somme de",
                         "patientSignature", "Signature du patient", "practitionerSignature", "Cachet et signature du praticien",
                         "insurer", "Organisme assureur", "insuranceNumber", "N° d'immatriculation", "birthDate", "Date de naissance",
-                        "insured", "Assuré(e)", "actCode", "Code acte", "coefficient", "Coef.");
+                        "insured", "Assuré(e)", "actCode", "Code acte", "coefficient", "Cotation");
             }
         }
         return l;

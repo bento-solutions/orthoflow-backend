@@ -1,6 +1,7 @@
 package com.orthoflow.treatment.application.service;
 
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.treatment.application.dto.TreatmentConsumableRequest;
 import com.orthoflow.treatment.application.dto.TreatmentRequest;
 import com.orthoflow.inventory.domain.model.StockItem;
@@ -22,6 +23,7 @@ public class TreatmentService {
 
     private final TreatmentRepository treatmentRepository;
     private final StockItemRepository stockItemRepository;
+    private final NgapNomenclature nomenclature;
 
     public List<Treatment> getAllTreatments() {
         return treatmentRepository.findAll();
@@ -59,8 +61,7 @@ public class TreatmentService {
         treatment.setActive(request.isActive());
         treatment.setCategory(request.getCategory());
         treatment.setDurationMinutes(request.getDurationMinutes());
-        treatment.setActCode(request.getActCode() == null || request.getActCode().isBlank() ? null : request.getActCode().trim());
-        treatment.setActCoefficient(request.getActCoefficient());
+        applyInsurerAct(treatment, request);
 
         treatment.getConsumables().clear();
         if (request.getConsumables() != null) {
@@ -78,6 +79,23 @@ public class TreatmentService {
         }
 
         return treatmentRepository.save(treatment);
+    }
+
+    /**
+     * The insurer's act code must be an act of the NGAP (V57); its coefficient defaults to the
+     * nomenclature's, and may be set otherwise where the text says so (a child's 50 % increase,
+     * an act noted at half its coefficient in a session with another).
+     */
+    private void applyInsurerAct(Treatment treatment, TreatmentRequest request) {
+        if (request.getActCode() == null || request.getActCode().isBlank()) {
+            treatment.setActCode(null);
+            treatment.setActCoefficient(request.getActCoefficient());
+            return;
+        }
+        NgapNomenclature.NgapAct act = nomenclature.find(request.getActCode())
+                .orElseThrow(() -> new ValidationException("Unknown NGAP act code: " + request.getActCode().trim()));
+        treatment.setActCode(act.code());
+        treatment.setActCoefficient(request.getActCoefficient() != null ? request.getActCoefficient() : act.coefficient());
     }
 
     @Transactional

@@ -11,8 +11,13 @@ import java.util.Map;
  */
 public interface TreatmentActLookup {
 
-    /** The insurer's act code and coefficient, either of which may be unset: they are left blank until the clinic confirms its coding. */
-    record Act(String actCode, BigDecimal coefficient) {
+    /**
+     * The insurer's act code and coefficient, either of which may be unset until the clinic has
+     * coded the act. {@code cotation} is what the care form shows (article 2 of the NGAP): the
+     * key letter and the coefficient, "D 15"; null when the code is not an NGAP act or there is
+     * no coefficient.
+     */
+    record Act(String actCode, BigDecimal coefficient, String cotation) {
     }
 
     /** Only the codes that name a treatment appear in the result. */

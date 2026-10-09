@@ -51,9 +51,10 @@ public class Treatment {
     private Integer durationMinutes;
 
     /**
-     * The act code and coefficient a mutual insurer reads on a care form. Left blank
-     * until the clinic confirms the Moroccan NGAP coding for its acts: a wrong code
-     * on a form is worse than none.
+     * The NGAP act (ngap_acts, V57) a mutual insurer reads on a care form, and its
+     * coefficient: the nomenclature's unless the clinic applies one of the text's
+     * adjustments. Blank until the clinic codes the act: a wrong code on a form is
+     * worse than none.
      */
     @Column(name = "act_code")
     private String actCode;

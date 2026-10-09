@@ -180,9 +180,18 @@ public class TaxDocumentService {
         return act != null && act.actCode() != null && !act.actCode().isBlank() ? act.actCode() : lineCode;
     }
 
-    /** Blank when the clinic has not set one: a made-up coefficient on a form is worse than none. */
+    /**
+     * The NGAP cotation ("D 15") when the act is coded against the nomenclature, else the bare
+     * coefficient; blank when the clinic has not set one: a made-up coefficient on a form is worse than none.
+     */
     static String coefficientText(TreatmentActLookup.Act act) {
-        return act == null || act.coefficient() == null ? null : act.coefficient().stripTrailingZeros().toPlainString();
+        if (act == null) {
+            return null;
+        }
+        if (act.cotation() != null) {
+            return act.cotation();
+        }
+        return act.coefficient() == null ? null : act.coefficient().stripTrailingZeros().toPlainString();
     }
 
     private Map<String, Object> invoiceModel(Invoice invoice, BigDecimal paid) {

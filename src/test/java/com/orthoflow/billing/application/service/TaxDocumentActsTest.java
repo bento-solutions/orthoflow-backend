@@ -15,21 +15,26 @@ class TaxDocumentActsTest {
 
     @Test
     void theInsurersCodeReplacesTheInvoiceLinesOnceTheClinicHasSetIt() {
-        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act("TO 90", new BigDecimal("90.00")))).isEqualTo("TO 90");
+        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act("D629", new BigDecimal("90.00"), "D 90"))).isEqualTo("D629");
     }
 
     @Test
     void theInvoiceLinesCodeStandsWhenNoInsurerCodeIsSet() {
         assertThat(TaxDocumentService.insurerActCode("ORTHO-01", null)).isEqualTo("ORTHO-01");
-        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act(null, null))).isEqualTo("ORTHO-01");
-        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act("  ", new BigDecimal("5")))).isEqualTo("ORTHO-01");
+        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act(null, null, null))).isEqualTo("ORTHO-01");
+        assertThat(TaxDocumentService.insurerActCode("ORTHO-01", new Act("  ", new BigDecimal("5"), null))).isEqualTo("ORTHO-01");
+    }
+
+    @Test
+    void anNgapActIsPrintedAsItsKeyLetterAndCoefficient() {
+        assertThat(TaxDocumentService.coefficientText(new Act("D702", new BigDecimal("15"), "D 15"))).isEqualTo("D 15");
     }
 
     @Test
     void aCoefficientIsPrintedWithoutTrailingZerosAndLeftBlankWhenUnset() {
-        assertThat(TaxDocumentService.coefficientText(new Act("X", new BigDecimal("90.00")))).isEqualTo("90");
-        assertThat(TaxDocumentService.coefficientText(new Act("X", new BigDecimal("12.50")))).isEqualTo("12.5");
-        assertThat(TaxDocumentService.coefficientText(new Act("X", null))).isNull();
+        assertThat(TaxDocumentService.coefficientText(new Act("X", new BigDecimal("90.00"), null))).isEqualTo("90");
+        assertThat(TaxDocumentService.coefficientText(new Act("X", new BigDecimal("12.50"), null))).isEqualTo("12.5");
+        assertThat(TaxDocumentService.coefficientText(new Act("X", null, null))).isNull();
         assertThat(TaxDocumentService.coefficientText(null)).isNull();
     }
 }
