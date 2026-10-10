@@ -1,0 +1,39 @@
+{
+  "code": "rma-dentaire",
+  "name": "RMA Watanya — Déclaration dentaire",
+  "insurerCodes": ["RMA"],
+  "template": "template.pdf",
+  "source": "Scribd capture of the RMA Watanya form (FOR-GM-022, version 2019); confirm with RMA that it is the current one",
+  "official": false,
+  "singleUse": false,
+  "note": "A 110 dpi capture of the insurer's form, so the print is soft. The policyholder's box (souscripteur, police number, stamp) is the employer's and is left blank. Prostheses and orthodontics go in the care table: the insurer's 'ODF et prothèses' table asks for the doctor's advice and is left to the front desk.",
+  "fontSize": 9,
+  "text": {
+    "insured.fullName":     {"page": 0, "x": 492, "y": 328.5, "w": 300},
+    "insured.address":      {"page": 0, "x": 492, "y": 343.5, "w": 300, "size": 8},
+    "beneficiary.fullName": {"page": 0, "x": 493, "y": 405.5, "w": 184},
+    "beneficiary.relation": {"page": 0, "x": 756, "y": 405.5, "w": 40, "size": 7.5},
+    "total":                {"page": 0, "x": 714, "y": 452,   "w": 82},
+    "doctor.place":         {"page": 0, "x": 458, "y": 512,   "w": 126},
+    "doctor.date":          {"page": 0, "x": 608, "y": 512,   "w": 66}
+  },
+  "cells": {
+    "insured.affiliation": {"page": 0, "y": 187.5, "x": [495.2, 509.1, 522.9, 536.4, 550.2, 564.0, 577.9, 591.9, 605.1, 618.6, 632.5, 646.4, 660.1, 673.9, 687.8, 701.2]}
+  },
+  "checks": {
+    "purpose.PRIOR_AGREEMENT": {"page": 0, "x": 561, "y": 159.3, "size": 9},
+    "purpose.EXECUTION":       {"page": 0, "x": 688, "y": 159.3, "size": 9}
+  },
+  "acts": {
+    "page": 1,
+    "size": 8,
+    "rows": [366.3, 380.3, 394, 407.7, 421.7, 435.3, 449, 462.3, 476.7, 490.7, 503.7, 518, 532, 545.7],
+    "columns": {
+      "date":      {"x": 423, "w": 40},
+      "teeth":     {"x": 469, "w": 49},
+      "label":     {"x": 523, "w": 48},
+      "cotation":  {"x": 577, "w": 47},
+      "amount":    {"x": 630, "w": 46, "align": "right"}
+    }
+  }
+}

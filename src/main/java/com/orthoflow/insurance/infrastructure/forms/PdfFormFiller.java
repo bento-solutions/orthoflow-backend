@@ -81,7 +81,7 @@ public class PdfFormFiller {
     private void drawText(FormLayout layout, FormValues values, Pen pen) throws IOException {
         if (layout.text() == null) return;
         for (Map.Entry<String, FormLayout.TextField> e : layout.text().entrySet()) {
-            String value = values.text(e.getKey());
+            String value = values.text(valueName(e.getKey()));
             if (value == null) continue;
             FormLayout.TextField f = e.getValue();
             float size = f.size() != null ? f.size() : layout.fontSize();
@@ -92,7 +92,7 @@ public class PdfFormFiller {
     private void drawCells(FormLayout layout, FormValues values, Pen pen) throws IOException {
         if (layout.cells() == null) return;
         for (Map.Entry<String, FormLayout.CellsField> e : layout.cells().entrySet()) {
-            String value = values.text(e.getKey());
+            String value = values.text(valueName(e.getKey()));
             if (value == null) continue;
             FormLayout.CellsField f = e.getValue();
             String chars = value.replaceAll("\\s+", "");
@@ -106,7 +106,7 @@ public class PdfFormFiller {
     private void drawChecks(FormLayout layout, FormValues values, Pen pen) throws IOException {
         if (layout.checks() == null) return;
         for (Map.Entry<String, FormLayout.Check> e : layout.checks().entrySet()) {
-            if (!values.checked(e.getKey())) continue;
+            if (!values.checked(valueName(e.getKey()))) continue;
             FormLayout.Check c = e.getValue();
             float size = c.size() != null ? c.size() : 10f;
             // The baseline sits a little under the centre so the cross lands in the middle of the box.
@@ -128,6 +128,15 @@ public class PdfFormFiller {
                 pen.write(acts.page(), col.x(), y, col.w(), size, col.align(), value);
             }
         }
+    }
+
+    /**
+     * The value a layout key asks for: "proposal.date#agreement" is "proposal.date" written a second time,
+     * as a layout's keys must be unique but a form may repeat a value (the date of a proposal, twice).
+     */
+    static String valueName(String key) {
+        int hash = key.indexOf('#');
+        return hash < 0 ? key : key.substring(0, hash);
     }
 
     /** Blank pages with the template's size and rotation, so overlay text lands where the form's boxes are. */

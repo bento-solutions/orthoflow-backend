@@ -1,0 +1,42 @@
+{
+  "code": "lamas-dentaire",
+  "name": "LA MAS — Feuille de soins dentaires (soins, prothèses, entente préalable)",
+  "insurerCodes": ["LAMAS"],
+  "template": "template.pdf",
+  "source": "https://www.lamas.ma/fr/telechargements (supplied by the clinic)",
+  "official": true,
+  "singleUse": false,
+  "note": "Page 1 is the care sheet; page 2 (prosthesis and prior agreement for special care) is filled only when the form asks for the insurer's agreement. The sheet has no box for the CIN or the date of the doctor's signature: the practitioner dates it by hand.",
+  "fontSize": 9,
+  "text": {
+    "insured.fullName":         {"page": 0, "x": 44,  "y": 159,   "w": 288},
+    "beneficiary.fullName":     {"page": 0, "x": 203, "y": 211.5, "w": 358},
+    "beneficiary.dob":          {"page": 0, "x": 156, "y": 234.5, "w": 400},
+    "beneficiary.relation":     {"page": 0, "x": 153, "y": 258.5, "w": 400},
+    "care.startDate":           {"page": 0, "x": 366, "y": 329,   "w": 190},
+    "care.endDate":             {"page": 0, "x": 351, "y": 346,   "w": 200},
+    "proposal.owner":           {"page": 1, "x": 30,  "y": 80,    "w": 255},
+    "proposal.ownerAddress":    {"page": 1, "x": 30,  "y": 93,    "w": 255, "size": 8},
+    "proposal.practitioner":    {"page": 1, "x": 303, "y": 84,    "w": 255},
+    "proposal.clinic":          {"page": 1, "x": 303, "y": 96,    "w": 255, "size": 8},
+    "proposal.clinicAddress":   {"page": 1, "x": 303, "y": 108,   "w": 255, "size": 8},
+    "proposal.total":           {"page": 1, "x": 36,  "y": 384,   "w": 85},
+    "proposal.date":            {"page": 1, "x": 32,  "y": 440,   "w": 170},
+    "proposal.date#agreement":  {"page": 1, "x": 46,  "y": 802,   "w": 125}
+  },
+  "cells": {
+    "insured.immatriculation": {"page": 0, "y": 163.5, "x": [413.6, 427.1, 441.5, 455.6, 470.0, 484.4, 498.7, 513.0, 526.9]}
+  },
+  "checks": {},
+  "acts": {
+    "page": 0,
+    "size": 8,
+    "rows": [414.5, 428, 439.5, 453.5, 467.5, 480.5, 494, 507, 521, 534.5, 547.5, 561.5, 575.5, 588.5],
+    "columns": {
+      "date":        {"x": 276, "w": 48},
+      "teeth":       {"x": 330, "w": 51},
+      "coefficient": {"x": 387, "w": 84, "align": "center"},
+      "amount":      {"x": 476, "w": 84, "align": "right"}
+    }
+  }
+}

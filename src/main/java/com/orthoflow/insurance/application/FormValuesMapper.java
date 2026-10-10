@@ -2,12 +2,14 @@ package com.orthoflow.insurance.application;
 
 import com.orthoflow.insurance.application.dto.InsuranceFormDtos.FormData;
 import com.orthoflow.insurance.application.dto.InsuranceFormDtos.Line;
+import com.orthoflow.insurance.domain.model.InsuranceForm;
 import com.orthoflow.insurance.infrastructure.forms.FormValues;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,6 +58,12 @@ public final class FormValuesMapper {
         }
         if (d.relation() != null) {
             checks.add("relation." + d.relation());
+            // For the forms that ask for the "degré de parenté" in words rather than a box to tick.
+            put(text, "beneficiary.relation", switch (d.relation()) {
+                case "SPOUSE" -> "Conjoint(e)";
+                case "CHILD" -> "Enfant";
+                default -> "Lui-même / elle-même";
+            });
         }
         if (d.purpose() != null) {
             checks.add("purpose." + d.purpose().name());
@@ -77,6 +85,8 @@ public final class FormValuesMapper {
         }
 
         List<Map<String, String>> rows = new ArrayList<>();
+        LocalDate first = null;
+        LocalDate last = null;
         for (Line l : d.lines() == null ? List.<Line>of() : d.lines()) {
             Map<String, String> row = new LinkedHashMap<>();
             put(row, "teeth", teeth(l.teeth()));
@@ -84,10 +94,35 @@ public final class FormValuesMapper {
             put(row, "label", l.label());
             put(row, "date", l.date() == null ? null : SHORT_DAY.format(l.date()));
             put(row, "cotation", l.cotation());
+            // What a column headed "coefficient de l'intervention" takes: the cotation, else the act's own code.
+            put(row, "coefficient", l.cotation() != null && !l.cotation().isBlank() ? l.cotation() : l.code());
+            if (l.date() != null) {
+                first = first == null || l.date().isBefore(first) ? l.date() : first;
+                last = last == null || l.date().isAfter(last) ? l.date() : last;
+            }
             put(row, "amount", l.amount() == null ? null : money(l.amount()));
             rows.add(row);
             checks.add("care." + CareType.of(l.code()).name());
         }
+        // Forms with a part for a prosthesis or a prior agreement (LA MAS): filled only when this form is one.
+        boolean proposal = d.purpose() == InsuranceForm.Purpose.PRIOR_AGREEMENT
+                || checks.contains("care." + CareType.PROTHESE.name());
+        if (proposal) {
+            String patient = d.beneficiary() != null && d.beneficiary().fullName() != null ? d.beneficiary().fullName()
+                    : d.insured() == null ? null : d.insured().fullName();
+            put(text, "proposal.owner", patient);
+            put(text, "proposal.ownerAddress", d.insured() == null ? null : d.insured().address());
+            put(text, "proposal.practitioner", d.practitionerName());
+            put(text, "proposal.clinic", d.clinicName());
+            put(text, "proposal.clinicAddress", d.clinicAddress());
+            if (d.total() != null && d.total().signum() > 0) put(text, "proposal.total", money(d.total()));
+            if (d.careDate() != null) put(text, "proposal.date", DAY.format(d.careDate()));
+        }
+        // "Date de début / de fin" of the treatment: the span of the acts, or the day of the form.
+        LocalDate start = first != null ? first : d.careDate();
+        LocalDate end = last != null ? last : d.careDate();
+        if (start != null) put(text, "care.startDate", DAY.format(start));
+        if (end != null) put(text, "care.endDate", DAY.format(end));
         return new FormValues(text, checks, rows);
     }
 

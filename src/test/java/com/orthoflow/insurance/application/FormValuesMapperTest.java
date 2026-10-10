@@ -45,6 +45,38 @@ class FormValuesMapperTest {
     }
 
     @Test
+    void theRelationIsWrittenInWordsAndTheTreatmentSpansTheActsDates() {
+        FormData d = data(List.of(new Line(LocalDate.of(2026, 10, 12), "36", "D708", "Obturation", "D 12", null),
+                new Line(LocalDate.of(2026, 10, 9), "11", "D708", "Obturation", null, null)));
+
+        FormValues v = FormValuesMapper.map(d);
+
+        assertThat(v.text()).containsEntry("beneficiary.relation", "Enfant").containsEntry("care.startDate", "09/10/2026")
+                .containsEntry("care.endDate", "12/10/2026");
+        // "Coefficient de l'intervention": the cotation, or the act's own code when it has none.
+        assertThat(v.rows().get(0)).containsEntry("coefficient", "D 12");
+        assertThat(v.rows().get(1)).containsEntry("coefficient", "D708");
+    }
+
+    @Test
+    void theProstheticPartOfAFormIsFilledOnlyForAProstheticOrPriorAgreementForm() {
+        assertThat(FormValuesMapper.map(data(List.of(new Line(LocalDate.of(2026, 10, 9), "36", "D708", "Obturation", "D 12", null)))).text())
+                .doesNotContainKeys("proposal.owner", "proposal.date", "proposal.total");
+
+        FormValues crown = FormValuesMapper.map(data(List.of(new Line(LocalDate.of(2026, 10, 9), "36", "D762", "Couronne", "D 50",
+                new BigDecimal("2500")))));
+        assertThat(crown.text()).containsEntry("proposal.owner", "BENNANI Yasmine").containsEntry("proposal.practitioner", "Dr Amrani")
+                .containsEntry("proposal.date", "09/10/2026").containsEntry("proposal.total", "1 000,00");
+
+        FormData agreement = new FormData("CNOPS", "CNOPS", "cnops-dentaire", "CNOPS", InsuranceForm.Purpose.PRIOR_AGREEMENT,
+                LocalDate.of(2026, 10, 9), new Insured("BENNANI Karim", null, null, null, null, null),
+                new Beneficiary(null, null, null, null), "SELF", "Dr Amrani", null, "Cabinet", null, "Casablanca", null, null,
+                List.of(new Line(null, null, "D629", "ODF", "D 90", null)), null);
+        assertThat(FormValuesMapper.map(agreement).text()).containsEntry("proposal.owner", "BENNANI Karim")
+                .containsEntry("beneficiary.relation", "Lui-même / elle-même").containsEntry("care.startDate", "09/10/2026");
+    }
+
+    @Test
     void theNgapNumberSaysWhichCareBoxIsTicked() {
         assertThat(CareType.of("D629")).isEqualTo(CareType.ODF);
         assertThat(CareType.of("d626")).isEqualTo(CareType.ODF);

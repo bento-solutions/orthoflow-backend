@@ -31,7 +31,7 @@ class PdfFormFillerTest {
 
     @Test
     void theShippedLayoutsAreFoundAndEachHasItsBlankForm() {
-        assertThat(layouts.all()).extracting(FormLayout::code).contains("cnops-dentaire", "cnss-dentaire");
+        assertThat(layouts.all()).extracting(FormLayout::code).contains("cnops-dentaire", "cnss-dentaire", "lamas-dentaire", "rma-dentaire");
         for (FormLayout l : layouts.all()) {
             assertThat(layouts.template(l)).as(l.code()).isNotEmpty();
         }
@@ -43,6 +43,8 @@ class PdfFormFillerTest {
         assertThat(layouts.forInsurer("cnss", null)).map(FormLayout::code).contains("cnss-dentaire");
         assertThat(layouts.forInsurer("CNSS", "cnops-dentaire")).map(FormLayout::code).contains("cnops-dentaire");
         assertThat(layouts.forInsurer("CNSS", FormLayouts.GENERIC)).isEmpty();
+        assertThat(layouts.forInsurer("LAMAS", null)).map(FormLayout::code).contains("lamas-dentaire");
+        assertThat(layouts.forInsurer("rma", null)).map(FormLayout::code).contains("rma-dentaire");
         assertThat(layouts.forInsurer("AXA", null)).isEmpty();
         assertThat(layouts.forInsurer(null, null)).isEmpty();
     }
@@ -77,6 +79,34 @@ class PdfFormFillerTest {
                 assertThat(doc.getPage(0).getResources().getXObjectNames()).isNotEmpty();
             }
         }
+    }
+
+    @Test
+    void theLamasAndRmaFormsCarryTheirOwnWordsOnTheirOwnPages() throws IOException {
+        FormLayout lamas = layouts.find("lamas-dentaire").orElseThrow();
+        byte[] lamasPdf = filler.fill(lamas, layouts.template(lamas), sample(), false);
+        preview("lamas-dentaire.pdf", lamasPdf);
+        try (PDDocument doc = PDDocument.load(lamasPdf)) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(2);
+            assertThat(text(doc, 1)).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("Enfant")
+                    .contains("14/03/2014").contains("09/10/2026").contains("D 90").contains("1 000,00").contains("11 21");
+            assertThat(text(doc, 2)).contains("Dr Amrani").contains("Cabinet Amrani").contains("1 250,00")
+                    .contains("09/10/2026");
+        }
+        FormLayout rma = layouts.find("rma-dentaire").orElseThrow();
+        byte[] rmaPdf = filler.fill(rma, layouts.template(rma), sample(), false);
+        preview("rma-dentaire.pdf", rmaPdf);
+        try (PDDocument doc = PDDocument.load(rmaPdf)) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(2);
+            assertThat(text(doc, 1)).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("Enfant").contains("1 250,00");
+            assertThat(text(doc, 2)).contains("09/10/26").contains("11 21").contains("D 90").contains("250,00");
+        }
+    }
+
+    @Test
+    void aKeyWithAHashIsTheSameValueWrittenAgain() {
+        assertThat(PdfFormFiller.valueName("proposal.date#agreement")).isEqualTo("proposal.date");
+        assertThat(PdfFormFiller.valueName("proposal.date")).isEqualTo("proposal.date");
     }
 
     @Test
@@ -139,9 +169,23 @@ class PdfFormFillerTest {
         text.put("practitioner.inpe", "123456789");
         text.put("doctor.place", "Casablanca");
         text.put("doctor.dateDigits", "09102026");
+        text.put("doctor.date", "09/10/2026");
+        text.put("beneficiary.dob", "14/03/2014");
+        text.put("beneficiary.relation", "Enfant");
+        text.put("care.startDate", "09/10/2026");
+        text.put("care.endDate", "09/10/2026");
+        text.put("proposal.owner", "BENNANI Yasmine");
+        text.put("proposal.ownerAddress", "12, rue des Orangers, Maârif, Casablanca");
+        text.put("proposal.practitioner", "Dr Amrani");
+        text.put("proposal.clinic", "Cabinet Amrani");
+        text.put("proposal.clinicAddress", "5, bd Zerktouni, Casablanca");
+        text.put("proposal.total", "1 250,00");
+        text.put("proposal.date", "09/10/2026");
         List<Map<String, String>> rows = List.of(
-                Map.of("teeth", "", "code", "C", "date", "09/10/26", "cotation", "C 1", "amount", "250,00"),
-                Map.of("teeth", "11 21", "code", "D629", "date", "09/10/26", "cotation", "D 90", "amount", "1 000,00"));
+                Map.of("teeth", "", "code", "C", "label", "Consultation", "date", "09/10/26", "cotation", "C 1",
+                        "coefficient", "C 1", "amount", "250,00"),
+                Map.of("teeth", "11 21", "code", "D629", "label", "Semestre ODF", "date", "09/10/26", "cotation", "D 90",
+                        "coefficient", "D 90", "amount", "1 000,00"));
         return new FormValues(text, Set.of("purpose.EXECUTION", "relation.CHILD", "sex.F", "care.ODF"), rows);
     }
 
