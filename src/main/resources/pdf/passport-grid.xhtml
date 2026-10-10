@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<!-- One table of the treatment passport. Column order is decided by the service, which reverses it for
+     Arabic: the PDF renderer lays columns out left to right whatever the document's direction. -->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<body>
+  <table class="rows" th:fragment="grid(g)">
+    <thead><tr><th th:each="h, i : ${g.headers}" th:text="${h}" th:style="${g.widths[i.index] != '' ? 'width:' + g.widths[i.index] : ''}">Header</th></tr></thead>
+    <tbody>
+      <tr th:each="row : ${g.rows}">
+        <td th:each="cell : ${row}"><div th:each="line : ${cell}" th:text="${line}">Cell</div></td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>

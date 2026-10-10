@@ -4,6 +4,7 @@ import org.hibernate.annotations.TenantId;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -50,7 +51,7 @@ public class ToothFinding {
 
     /**
      * Optional tooth surface: occlusal, mesial, distal, buccal, lingual,
-     * incisal or cervical — or up to three of them joined by hyphens
+     * incisal or cervical — or up to five of them joined by hyphens
      * ("mesial-occlusal-distal"). A compound cavity is said that way and must
      * not be reduced to one of its faces.
      */
@@ -63,6 +64,24 @@ public class ToothFinding {
 
     @Column(columnDefinition = "TEXT")
     private String note;
+
+    /**
+     * When the work was done or the condition found, if anyone knows. Null is
+     * "unknown", not "today": a filling a new patient arrives with was placed
+     * long before this clinic opened the chart.
+     */
+    @Column(name = "performed_on")
+    private LocalDate performedOn;
+
+    /** Whether this clinic did the work or the patient brought it from elsewhere. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private FindingOrigin origin = FindingOrigin.THIS_CLINIC;
+
+    /** Who did it, for external work ("Dr Benani, Casablanca"). */
+    @Column(name = "provider_name", length = 160)
+    private String providerName;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

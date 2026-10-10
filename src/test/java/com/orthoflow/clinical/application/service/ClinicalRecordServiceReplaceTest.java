@@ -223,10 +223,21 @@ class ClinicalRecordServiceReplaceTest {
     }
 
     @Test
+    void aCavityOnFourOrFiveFacesIsStoredWhole() {
+        ToothFinding old = existing("16", "caries", PATIENT);
+
+        service.replaceFindings(PATIENT, "16", List.of(old.getId()),
+                List.of(withSurface("caries", "mesial-occlusal-distal-buccal-lingual")), ACTOR);
+
+        assertThat(saved.stream().filter(f -> f != old).map(ToothFinding::getSurface))
+                .containsExactly("mesial-occlusal-distal-buccal-lingual");
+    }
+
+    @Test
     void aSurfaceThatIsNotOneOrMoreFacesWithdrawsNothing() {
         ToothFinding old = existing("16", "caries", PATIENT);
 
-        for (String bad : List.of("mesial occlusal", "mesial-occlusal-distal-buccal", "occlusal;DROP", "12", "-")) {
+        for (String bad : List.of("mesial occlusal", "mesial-occlusal-distal-buccal-lingual-cervical", "occlusal;DROP", "12", "-")) {
             assertThatThrownBy(() -> service.replaceFindings(PATIENT, "16", List.of(old.getId()),
                     List.of(withSurface("caries", bad)), ACTOR))
                     .as(bad).isInstanceOf(ValidationException.class);

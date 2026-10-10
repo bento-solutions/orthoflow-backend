@@ -32,6 +32,11 @@ public class ToothFindingRepositoryAdapter implements ToothFindingRepository {
     }
 
     @Override
+    public List<ToothFinding> findHistoryByChart(UUID chartId) {
+        return jpaRepository.findByChartIdAndStatusNotOrderByCreatedAtAsc(chartId, FindingStatus.RETRACTED);
+    }
+
+    @Override
     public List<ToothFinding> findActiveByChartAndFdi(UUID chartId, String fdi) {
         return jpaRepository.findByChartIdAndFdiAndStatusOrderByCreatedAtAsc(chartId, fdi, FindingStatus.ACTIVE);
     }
@@ -40,6 +45,16 @@ public class ToothFindingRepositoryAdapter implements ToothFindingRepository {
     public Optional<ToothFinding> findActiveByChartFdiAndCode(UUID chartId, String fdi, String findingCode) {
         return jpaRepository.findByChartIdAndFdiAndFindingCodeAndStatus(
                 chartId, fdi, findingCode, FindingStatus.ACTIVE);
+    }
+
+    @Override
+    public Optional<ToothFinding> findActiveByChartFdiCodeAndSurface(
+            UUID chartId, String fdi, String findingCode, String surface) {
+        return surface == null
+                ? jpaRepository.findByChartIdAndFdiAndFindingCodeAndSurfaceIsNullAndStatus(
+                        chartId, fdi, findingCode, FindingStatus.ACTIVE)
+                : jpaRepository.findByChartIdAndFdiAndFindingCodeAndSurfaceAndStatus(
+                        chartId, fdi, findingCode, surface, FindingStatus.ACTIVE);
     }
 
     @Override

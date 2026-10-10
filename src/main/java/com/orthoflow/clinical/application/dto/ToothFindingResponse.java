@@ -2,6 +2,7 @@ package com.orthoflow.clinical.application.dto;
 
 import lombok.Builder;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -14,8 +15,12 @@ public record ToothFindingResponse(
         String surface,
         String severity,
         String note,
+        LocalDate performedOn,
+        String origin,
+        String providerName,
         String status,
         String source,
         UUID sessionId,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt
 ) {}

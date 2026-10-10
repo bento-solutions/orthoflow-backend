@@ -160,8 +160,14 @@ public class ClinicalRecordService {
 
         validateFdi(fdi);
 
+        String surface = normaliseSurface(request.getSurface());
+        // The same finding on another surface is another lesion, so it is looked up by
+        // surface too. A bare "caries" recorded earlier is the same lesion once the
+        // doctor says where it is, so it is refined instead of left beside it.
         ToothFinding finding = toothFindingRepository
-                .findActiveByChartFdiAndCode(chart.getId(), fdi, code)
+                .findActiveByChartFdiCodeAndSurface(chart.getId(), fdi, code, surface)
+                .or(() -> surface == null ? Optional.empty()
+                        : toothFindingRepository.findActiveByChartFdiCodeAndSurface(chart.getId(), fdi, code, null))
                 .orElseGet(() -> ToothFinding.builder()
                         .chart(chart)
                         .fdi(fdi)
@@ -171,11 +177,12 @@ public class ClinicalRecordService {
                         .build());
 
         finding.setKind(definition.kind());
-        finding.setSurface(normaliseSurface(request.getSurface()));
+        finding.setSurface(surface);
         finding.setSeverity(parseSeverity(request.getSeverity()));
         if (blankToNull(request.getNote()) != null) {
             finding.setNote(request.getNote());
         }
+        applyHistory(finding, request);
         finding.setSource(request.getSource());
         finding.setSessionId(request.getSessionId());
         finding.setStatus(FindingStatus.ACTIVE);
@@ -230,6 +237,26 @@ public class ClinicalRecordService {
                         .map(this::toResponse)
                         .toList())
                 .orElseGet(List::of);
+    }
+
+    /**
+     * Everything ever concluded about the patient's teeth except what was
+     * withdrawn as a mistake: what is there now, and what was found and treated
+     * since. Newest first by the date the work was done (or recorded, when the
+     * date is unknown), which is the order a treatment log is read in.
+     */
+    @Transactional(readOnly = true)
+    public List<ToothFindingResponse> listFindingHistory(UUID patientId) {
+        return dentalChartRepository.findByPatientId(patientId)
+                .map(chart -> toothFindingRepository.findHistoryByChart(chart.getId()).stream()
+                        .sorted(java.util.Comparator.comparing(this::historyDate).reversed())
+                        .map(this::toResponse)
+                        .toList())
+                .orElseGet(List::of);
+    }
+
+    private java.time.LocalDate historyDate(ToothFinding f) {
+        return f.getPerformedOn() != null ? f.getPerformedOn() : f.getCreatedAt().toLocalDate();
     }
 
     @Transactional(readOnly = true)
@@ -543,6 +570,28 @@ public class ClinicalRecordService {
      * record.
      */
     /**
+     * Where and when the work was done. A date in the future is refused: it is a
+     * typo, and a chart that says a filling will have been placed is misleading.
+     * History fields are only touched when the request carries them, so a voice
+     * re-dictation of "caries sixteen" does not erase a date entered by hand.
+     */
+    private void applyHistory(ToothFinding finding, AddToothFindingRequest request) {
+        if (request.getPerformedOn() != null) {
+            if (request.getPerformedOn().isAfter(java.time.LocalDate.now())) {
+                throw new ValidationException("The date of a treatment cannot be in the future.");
+            }
+            finding.setPerformedOn(request.getPerformedOn());
+        }
+        String origin = blankToNull(request.getOrigin());
+        if (origin != null) {
+            finding.setOrigin(parseEnum(FindingOrigin.class, origin, "finding origin"));
+        }
+        if (request.getProviderName() != null) {
+            finding.setProviderName(blankToNull(request.getProviderName()));
+        }
+    }
+
+    /**
      * A surface is one face of the tooth or up to three joined by hyphens —
      * "occlusal", "mesial-occlusal-distal". It arrives from the browser or a
      * model, so its shape is checked rather than stored as given: anything else
@@ -553,7 +602,7 @@ public class ClinicalRecordService {
         String value = blankToNull(surface);
         if (value == null) return null;
         value = value.toLowerCase(java.util.Locale.ROOT);
-        if (!value.matches("[a-z]+(?:-[a-z]+){0,2}")) {
+        if (!value.matches("[a-z]+(?:-[a-z]+){0,4}")) {
             throw new ValidationException("Invalid tooth surface: " + surface);
         }
         return value;
@@ -598,10 +647,14 @@ public class ClinicalRecordService {
                 .surface(f.getSurface())
                 .severity(f.getSeverity() != null ? f.getSeverity().name() : null)
                 .note(f.getNote())
+                .performedOn(f.getPerformedOn())
+                .origin(f.getOrigin().name())
+                .providerName(f.getProviderName())
                 .status(f.getStatus().name())
                 .source(f.getSource())
                 .sessionId(f.getSessionId())
                 .createdAt(f.getCreatedAt())
+                .updatedAt(f.getUpdatedAt())
                 .build();
     }
 
