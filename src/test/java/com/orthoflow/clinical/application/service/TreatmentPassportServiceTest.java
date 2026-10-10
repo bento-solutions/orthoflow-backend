@@ -76,7 +76,7 @@ class TreatmentPassportServiceTest {
 
         when(patients.findIdentity(PATIENT)).thenReturn(Optional.of(new PatientIdentity(PATIENT, "P-1", "Sara",
                 "Benziane", LocalDate.of(1990, 5, 12), "F", "AB123456", "secret address", "0612345678",
-                "sara@example.test", "CNSS", "999", null, null)));
+                "sara@example.test", "CNSS", "999", null, null, null, null, null, null)));
 
         when(clinical.listFindingHistory(PATIENT)).thenReturn(List.of(
                 finding("16", "caries", "CONDITION", "distal", "ACTIVE", null, "THIS_CLINIC", null),
