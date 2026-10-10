@@ -136,6 +136,10 @@ public class SecurityConfig {
             // A consultation holds the whole conversation and what was
             // extracted from it: the same floor as the clinical record.
             .requestMatchers("/consultations/**").hasAnyRole(CLINICAL)
+            // Orthodontic photos and radiographs belong to the clinical record.
+            .requestMatchers(HttpMethod.GET, "/patients/*/photo-series", "/photo-series/**")
+                    .hasAuthority(Permission.CLINICAL_READ.name())
+            .requestMatchers("/patients/*/photo-series", "/photo-series/**").hasAuthority(Permission.CLINICAL_WRITE.name())
 
             // ── Compliance: data-subject rights are the operator's duty ──────
             .requestMatchers("/patients/*/compliance/**").hasRole(ADMIN)

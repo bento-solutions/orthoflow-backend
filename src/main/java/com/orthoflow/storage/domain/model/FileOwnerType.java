@@ -17,7 +17,9 @@ public enum FileOwnerType {
     MESSAGE_ATTACHMENT(Permission.MESSAGING_VIEW, Permission.MESSAGING_SEND, 10),
     TAX_DOCUMENT(Permission.BILLING_READ, Permission.FINANCE_MANAGE, 5),
     INSURANCE_FORM(Permission.BILLING_READ, Permission.BILLING_WRITE, 15),
-    PRESCRIPTION(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 5);
+    PRESCRIPTION(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 5),
+    /** Orthodontic photos and radiographs, owned by the patient (imaging module). */
+    CLINICAL_PHOTO(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 15);
 
     private final Permission readPermission;
     private final Permission writePermission;
