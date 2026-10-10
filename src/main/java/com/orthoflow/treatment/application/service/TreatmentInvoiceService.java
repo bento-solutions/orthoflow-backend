@@ -94,6 +94,12 @@ public class TreatmentInvoiceService {
 
     @Transactional
     public TreatmentInvoice createDraftFromTreatment(UUID patientId, UUID treatmentId, UUID createdBy) {
+        return createDraftFromTreatment(patientId, treatmentId, createdBy, null);
+    }
+
+    /** {@code surface} prices the treatment by the faces it covers (see {@link com.orthoflow.treatment.domain.model.SurfacePricing}). */
+    @Transactional
+    public TreatmentInvoice createDraftFromTreatment(UUID patientId, UUID treatmentId, UUID createdBy, String surface) {
         PatientSummary patient = patientLookup.findSummary(patientId)
                 .orElseThrow(() -> new IllegalArgumentException("Patient not found: " + patientId));
         Treatment treatment = treatmentRepository.findById(treatmentId)
@@ -105,7 +111,8 @@ public class TreatmentInvoiceService {
                 .treatment(treatment)
                 .sessionDate(LocalDate.now())
                 .status(TreatmentInvoiceStatus.DRAFT)
-                .treatmentPrice(treatment.getBasePrice())
+                .treatmentPrice(com.orthoflow.treatment.domain.model.SurfacePricing
+                        .quote(treatment.getBasePrice(), treatment.getSurfacePrices(), surface).price())
                 .createdBy(java.util.Objects.requireNonNull(createdBy, "createdBy is required"))
                 .build();
 

@@ -237,6 +237,58 @@ class VoiceCommandServiceTest {
 
     // ── Written once ────────────────────────────────────────────────────
 
+    // ── "Not caries, it's inflammation" ─────────────────────────────────
+
+    private com.orthoflow.clinical.application.dto.ToothFindingResponse onTooth(UUID id, String code) {
+        var finding = mock(com.orthoflow.clinical.application.dto.ToothFindingResponse.class);
+        when(finding.id()).thenReturn(id);
+        when(finding.findingCode()).thenReturn(code);
+        return finding;
+    }
+
+    private UUID pendingCorrection(String entities) {
+        VoiceCommandAuditResponse recorded = service.record(
+                request("clinical.addFindings", "CONFIRM", "PENDING", "CLARIFICATION"), ACTOR);
+        audits.store.get(recorded.id()).setEntities(entities);
+        return recorded.id();
+    }
+
+    @Test
+    void aCorrectionNamedByCodeWithdrawsWhatTheToothCarriesUnderThatCodeAndRecordsTheReplacement() {
+        UUID caries = UUID.randomUUID();
+        UUID deepCaries = UUID.randomUUID();
+        UUID fracture = UUID.randomUUID();
+        var onRecord = List.of(onTooth(caries, "caries"), onTooth(deepCaries, "deep_caries"), onTooth(fracture, "fracture"));
+        when(clinical.listFindingsForTooth(PATIENT, "16")).thenReturn(onRecord);
+        var added = List.of(onTooth(UUID.randomUUID(), "gingival_inflammation"));
+        when(clinical.replaceFindings(any(), any(), any(), any(), any()))
+                .thenReturn(new ClinicalRecordService.FindingReplacement(List.of(), added));
+
+        service.confirm(pendingCorrection(
+                "{\"fdi\":\"16\",\"retractCodes\":[\"caries\"],\"findings\":[{\"code\":\"gingival_inflammation\"}]}"), ACTOR);
+
+        // "caries" takes back the deep caries too; the fracture is not part of the correction.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UUID>> withdrawn = ArgumentCaptor.forClass(List.class);
+        verify(clinical).replaceFindings(eq(PATIENT), eq("16"), withdrawn.capture(), any(), eq(ACTOR));
+        assertThat(withdrawn.getValue()).containsExactlyInAnyOrder(caries, deepCaries);
+    }
+
+    @Test
+    void aCorrectionOfAFindingTheToothDoesNotCarryChangesNothing() {
+        var onRecord = List.of(onTooth(UUID.randomUUID(), "fracture"));
+        when(clinical.listFindingsForTooth(PATIENT, "16")).thenReturn(onRecord);
+        UUID id = pendingCorrection(
+                "{\"fdi\":\"16\",\"retractCodes\":[\"caries\"],\"findings\":[{\"code\":\"gingival_inflammation\"}]}");
+
+        // Recorded as failed, not lost: the doctor sees it did not apply.
+        assertThat(service.confirm(id, ACTOR).outcome()).isEqualTo(CommandOutcome.FAILED.name());
+
+        // The new finding is not added next to an old one that was never withdrawn.
+        verify(clinical, times(0)).replaceFindings(any(), any(), any(), any(), any());
+        verify(clinical, times(0)).addFindingsBatch(any(), any(), any(), any());
+    }
+
     @Test
     void confirmingTwiceWritesTheNoteOnce() {
         UUID id = pendingNote();

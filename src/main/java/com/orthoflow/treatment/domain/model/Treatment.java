@@ -66,6 +66,11 @@ public class Treatment {
     @Builder.Default
     private List<TreatmentConsumable> consumables = new ArrayList<>();
 
+    /** The clinic's tariff by number of faces; empty means base_price for everything. */
+    @OneToMany(mappedBy = "treatment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<TreatmentSurfacePrice> surfacePrices = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

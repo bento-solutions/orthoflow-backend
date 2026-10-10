@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.presentation.controller;
 
+import com.orthoflow.treatment.application.dto.TreatmentPriceResponse;
 import com.orthoflow.treatment.application.dto.TreatmentRequest;
 import com.orthoflow.treatment.application.dto.TreatmentResponse;
 import com.orthoflow.treatment.application.service.TreatmentService;
@@ -23,6 +24,13 @@ public class TreatmentController {
     public ResponseEntity<List<TreatmentResponse>> getAllTreatments() {
         return ResponseEntity.ok(treatmentService.getAllTreatments().stream()
                 .map(TreatmentResponse::from).collect(Collectors.toList()));
+    }
+
+    /** The price on a part of the tooth: {@code ?surface=mesial-occlusal} (omit for the base price). */
+    @GetMapping("/{id}/price")
+    public ResponseEntity<TreatmentPriceResponse> priceFor(@PathVariable UUID id,
+                                                           @RequestParam(required = false) String surface) {
+        return ResponseEntity.ok(treatmentService.priceFor(id, surface));
     }
 
     @GetMapping("/{id}")

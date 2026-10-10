@@ -48,4 +48,8 @@ public class TreatmentRequest {
 
     @Valid
     private List<TreatmentConsumableRequest> consumables;
+
+    /** The tariff by number of faces; null leaves it as it is, an empty list clears it. */
+    @Valid
+    private List<TreatmentSurfacePriceDto> surfacePrices;
 }

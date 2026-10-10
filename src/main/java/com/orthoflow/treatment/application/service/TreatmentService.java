@@ -5,7 +5,11 @@ import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.treatment.application.dto.TreatmentConsumableRequest;
 import com.orthoflow.treatment.application.dto.TreatmentRequest;
 import com.orthoflow.inventory.domain.model.StockItem;
+import com.orthoflow.treatment.application.dto.TreatmentPriceResponse;
+import com.orthoflow.treatment.application.dto.TreatmentSurfacePriceDto;
+import com.orthoflow.treatment.domain.model.SurfacePricing;
 import com.orthoflow.treatment.domain.model.Treatment;
+import com.orthoflow.treatment.domain.model.TreatmentSurfacePrice;
 import com.orthoflow.treatment.domain.model.TreatmentConsumable;
 import com.orthoflow.inventory.domain.repository.StockItemRepository;
 import com.orthoflow.treatment.domain.repository.TreatmentRepository;
@@ -78,7 +82,38 @@ public class TreatmentService {
             }
         }
 
+        applySurfacePrices(treatment, request.getSurfacePrices());
+
         return treatmentRepository.save(treatment);
+    }
+
+    /** One price per number of faces, replacing the tariff wholesale (null leaves it alone). */
+    private void applySurfacePrices(Treatment treatment, List<TreatmentSurfacePriceDto> prices) {
+        if (prices == null) return;
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (TreatmentSurfacePriceDto price : prices) {
+            if (!seen.add(price.surfaceCount())) {
+                throw new ValidationException("The price for " + price.surfaceCount() + " face(s) is given twice.");
+            }
+        }
+        treatment.getSurfacePrices().clear();
+        for (TreatmentSurfacePriceDto price : prices) {
+            treatment.getSurfacePrices().add(TreatmentSurfacePrice.builder()
+                    .treatment(treatment)
+                    .surfaceCount(price.surfaceCount())
+                    .price(price.price())
+                    .build());
+        }
+    }
+
+    /** What the treatment costs on this part of the tooth (null surface: the base price). */
+    @Transactional(readOnly = true)
+    public TreatmentPriceResponse priceFor(UUID treatmentId, String surface) {
+        Treatment treatment = treatmentRepository.findById(treatmentId)
+                .orElseThrow(() -> new NotFoundException("Treatment not found: " + treatmentId));
+        SurfacePricing.Quote quote = SurfacePricing.quote(treatment.getBasePrice(), treatment.getSurfacePrices(), surface);
+        return new TreatmentPriceResponse(treatment.getId(), surface, quote.faceCount(), quote.price(),
+                treatment.getBasePrice(), quote.basis());
     }
 
     /**

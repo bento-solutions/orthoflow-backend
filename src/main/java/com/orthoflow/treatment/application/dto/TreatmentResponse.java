@@ -19,7 +19,8 @@ public record TreatmentResponse(
         Integer durationMinutes,
         boolean active,
         String actCode,
-        BigDecimal actCoefficient
+        BigDecimal actCoefficient,
+        List<TreatmentSurfacePriceDto> surfacePrices
 ) {
     public static TreatmentResponse from(Treatment t) {
         if (t == null) return null;
@@ -31,7 +32,11 @@ public record TreatmentResponse(
                 t.getConsumables() == null ? List.of() :
                         t.getConsumables().stream().map(TreatmentConsumableResponse::from).collect(Collectors.toList()),
                 t.getCreatedAt(),
-                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient()
+                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient(),
+                t.getSurfacePrices() == null ? List.of() :
+                        t.getSurfacePrices().stream()
+                                .sorted(java.util.Comparator.comparingInt(p -> p.getSurfaceCount()))
+                                .map(TreatmentSurfacePriceDto::from).collect(Collectors.toList())
         );
     }
 
@@ -42,6 +47,6 @@ public record TreatmentResponse(
     public static TreatmentResponse shallow(Treatment t) {
         if (t == null) return null;
         return new TreatmentResponse(t.getId(), t.getCode(), t.getName(), t.getBasePrice(), List.of(), t.getCreatedAt(),
-                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient());
+                t.getCategory(), t.getDurationMinutes(), t.isActive(), t.getActCode(), t.getActCoefficient(), List.of());
     }
 }

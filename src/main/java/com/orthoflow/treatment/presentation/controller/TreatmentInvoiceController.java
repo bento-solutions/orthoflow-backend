@@ -43,10 +43,11 @@ public class TreatmentInvoiceController {
     @PostMapping("/draft")
     public ResponseEntity<TreatmentInvoiceResponse> createDraft(
             @RequestParam UUID patientId,
-            @RequestParam UUID treatmentId) {
+            @RequestParam UUID treatmentId,
+            @RequestParam(required = false) String surface) {
 
         return ResponseEntity.ok(TreatmentInvoiceResponse.from(treatmentInvoiceService.createDraftFromTreatment(
-                patientId, treatmentId, currentUserProvider.requireUserId())));
+                patientId, treatmentId, currentUserProvider.requireUserId(), surface)));
     }
 
     @PostMapping

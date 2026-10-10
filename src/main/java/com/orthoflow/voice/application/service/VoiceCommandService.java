@@ -258,9 +258,29 @@ public class VoiceCommandService {
                 // leave the tooth with neither.
                 List<Object> findings = listOf(e, "findings");
                 if (findings.isEmpty()) throw new ValidationException("addFindings requires at least one finding");
-                List<UUID> retractUuids = listOf(e, "retractIds").stream()
+                List<UUID> retractUuids = new ArrayList<>(listOf(e, "retractIds").stream()
                         .map(id -> UUID.fromString(String.valueOf(id)))
-                        .toList();
+                        .toList());
+
+                // "Not caries, it's inflammation": what is wrong is named by code,
+                // and resolved here against what the tooth carries when the command
+                // runs — the doctor never saw an id. Nothing matching fails the whole
+                // correction, so the new finding is not added next to the old one.
+                List<Object> retractCodes = listOf(e, "retractCodes");
+                if (!retractCodes.isEmpty()) {
+                    List<String> wanted = retractCodes.stream().map(String::valueOf).toList();
+                    List<UUID> byCode = clinicalRecordService.listFindingsForTooth(patientId, fdi).stream()
+                            // "caries" also takes back the "deep caries" dictated earlier.
+                            .filter(f -> wanted.stream().anyMatch(w ->
+                                    f.findingCode().equals(w) || f.findingCode().endsWith("_" + w)))
+                            .map(f -> f.id())
+                            .filter(id -> !retractUuids.contains(id))
+                            .toList();
+                    if (byCode.isEmpty() && retractUuids.isEmpty()) {
+                        throw new ValidationException("Nothing matching that is recorded on tooth " + fdi);
+                    }
+                    retractUuids.addAll(byCode);
+                }
 
                 List<AddToothFindingRequest> requests = new ArrayList<>();
                 for (Object item : findings) {
