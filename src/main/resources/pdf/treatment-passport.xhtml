@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${t.title}">Treatment passport</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #237489; padding-bottom: 8px; margin-bottom: 14px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 14pt; font-weight: bold; color: #237489; }
+    .legal { font-size: 8pt; color: #52606d; }
+    h1 { font-size: 16pt; margin: 6px 0 2px 0; }
+    h2 { font-size: 11pt; margin: 16px 0 4px 0; color: #215e6f; border-bottom: 1px solid #c8dde3; padding-bottom: 2px; }
+    .intro { color: #52606d; font-size: 8.5pt; margin-bottom: 8px; }
+    .box { border: 1px solid #c8dde3; padding: 6px 8px; background: #f3f9fa; }
+    .label { color: #7b8794; font-size: 8pt; text-transform: uppercase; }
+    table.rows { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.rows th { background: #e3f0f3; border: 1px solid #c8dde3; padding: 4px 6px; font-size: 8.5pt; text-align: left; }
+    table.rows td { border: 1px solid #dde3ee; padding: 4px 6px; vertical-align: top; }
+    [dir=rtl] table.rows th { text-align: right; }
+    td.fdi { width: 14mm; font-weight: bold; text-align: center; }
+    td.when { width: 24mm; }
+    td.teeth { width: 18mm; }
+    ul.plain { margin: 2px 0; padding-left: 14px; }
+    [dir=rtl] ul.plain { padding-left: 0; padding-right: 14px; }
+    .muted { color: #7b8794; }
+    .note { margin-top: 14px; font-size: 7.5pt; color: #52606d; }
+    .sign { margin-top: 26px; width: 100%; }
+    .sign td { height: 55px; vertical-align: top; }
+    .foot { margin-top: 12px; font-size: 7.5pt; color: #7b8794; border-top: 1px solid #dde3ee; padding-top: 4px; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="clinic" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
+    </td>
+    <td style="text-align:right;"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" alt=""/></td>
+  </tr></table>
+
+  <h1 th:text="${t.title}">Treatment passport</h1>
+  <div class="intro" th:text="${t.intro}">…</div>
+
+  <div class="box">
+    <div class="label" th:text="${t.patient}">Patient</div>
+    <div><b th:text="${patientName}">Patient</b></div>
+    <div th:if="${birthDate != null}" th:text="${t.birthDate + ' : ' + birthDate}"></div>
+    <div th:if="${sex != null}" th:text="${t.gender + ' : ' + sex}"></div>
+    <div class="legal" th:text="${t.issuedOn + ' ' + issuedOn}">Issued</div>
+  </div>
+
+  <h2 th:text="${t.alerts}">Allergies and medical alerts</h2>
+  <div th:if="${#lists.isEmpty(alerts)}" class="muted" th:text="${t.noAlerts}">None</div>
+  <ul class="plain" th:unless="${#lists.isEmpty(alerts)}">
+    <li th:each="a : ${alerts}" th:text="${a}">Penicillin</li>
+  </ul>
+
+  <h2 th:text="${t.teeth}">Present state of the teeth</h2>
+  <div th:if="${#lists.isEmpty(teethGrid.rows)}" class="muted" th:text="${t.noTeeth}">Nothing</div>
+  <table th:unless="${#lists.isEmpty(teethGrid.rows)}" th:replace="~{passport-grid :: grid(${teethGrid})}"></table>
+
+  <h2 th:text="${t.log}">Treatment log</h2>
+  <div th:if="${#lists.isEmpty(logGrid.rows)}" class="muted" th:text="${t.noLog}">None</div>
+  <table th:unless="${#lists.isEmpty(logGrid.rows)}" th:replace="~{passport-grid :: grid(${logGrid})}"></table>
+
+  <h2 th:text="${t.planned}">Work still to do</h2>
+  <div th:if="${#lists.isEmpty(plannedGrid.rows)}" class="muted" th:text="${t.noPlanned}">None</div>
+  <table th:unless="${#lists.isEmpty(plannedGrid.rows)}" th:replace="~{passport-grid :: grid(${plannedGrid})}"></table>
+
+  <h2 th:text="${t.gums}">Gum health</h2>
+  <div th:if="${#lists.isEmpty(gumsGrid.rows)}" class="muted" th:text="${t.noGums}">Not assessed</div>
+  <table th:unless="${#lists.isEmpty(gumsGrid.rows)}" th:replace="~{passport-grid :: grid(${gumsGrid})}"></table>
+
+  <div class="note" th:text="${t.legend}">Legend</div>
+
+  <table class="sign"><tr>
+    <td><div class="label" th:text="${t.signature}">Signature</div></td>
+  </tr></table>
+
+  <div class="foot"><span th:text="${t.consent}">Issued at the patient's request.</span> <span th:text="${t.machineCopy}">Machine copy.</span></div>
+
+</body>
+</html>

@@ -42,6 +42,12 @@ public class ClinicalRecordController {
         return clinicalRecordService.listFindings(patientId);
     }
 
+    /** Active and resolved findings of every tooth, newest first. */
+    @GetMapping("/findings/history")
+    public List<ToothFindingResponse> findingHistory(@PathVariable UUID patientId) {
+        return clinicalRecordService.listFindingHistory(patientId);
+    }
+
     @GetMapping("/teeth/{fdi}/findings")
     public List<ToothFindingResponse> listToothFindings(@PathVariable UUID patientId, @PathVariable String fdi) {
         return clinicalRecordService.listFindingsForTooth(patientId, fdi);

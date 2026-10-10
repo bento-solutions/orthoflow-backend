@@ -11,6 +11,10 @@ public interface ToothFindingRepository {
     Optional<ToothFinding> findById(UUID id);
     List<ToothFinding> findActiveByChart(UUID chartId);
     List<ToothFinding> findActiveByChartAndFdi(UUID chartId, String fdi);
+    /** Every finding of the chart that was not a mistake: active and resolved, oldest first. */
+    List<ToothFinding> findHistoryByChart(UUID chartId);
     Optional<ToothFinding> findActiveByChartFdiAndCode(UUID chartId, String fdi, String findingCode);
+    /** The active finding with exactly this surface; a null surface matches the whole-tooth one. */
+    Optional<ToothFinding> findActiveByChartFdiCodeAndSurface(UUID chartId, String fdi, String findingCode, String surface);
     List<ToothFinding> findBySession(UUID sessionId);
 }

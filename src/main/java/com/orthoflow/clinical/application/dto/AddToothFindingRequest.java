@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -21,7 +22,8 @@ public class AddToothFindingRequest {
     @Size(max = 48)
     private String findingCode;
 
-    @Size(max = 24)
+    /** One surface, or up to five joined by hyphens ("mesial-occlusal-distal-buccal"); the column holds 48. */
+    @Size(max = 48)
     private String surface;
 
     /** MILD | MODERATE | SEVERE, or null. */
@@ -29,6 +31,17 @@ public class AddToothFindingRequest {
     private String severity;
 
     private String note;
+
+    /** When it was done or found; null when unknown. Not in the future. */
+    private LocalDate performedOn;
+
+    /** THIS_CLINIC (default) or EXTERNAL. */
+    @Size(max = 16)
+    private String origin;
+
+    /** Who did it, for external work. */
+    @Size(max = 160)
+    private String providerName;
 
     /** '2d', '3d_top', 'voice', 'manual'. */
     @NotBlank
