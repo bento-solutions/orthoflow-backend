@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # OrthoFlow "parity" deploy: feature/denteam-parity, beside production.
-# Run by hand on the VPS from the parity checkout (no CI deploys this branch):
+# Runs on every push to feature/denteam-parity (.github/workflows/deploy-parity.yml in
+# either repo), or by hand on the VPS from the parity checkout:
 #
 #   cd /srv/bento/apps/orthoflow-parity && ./deploy-parity.sh
 #
