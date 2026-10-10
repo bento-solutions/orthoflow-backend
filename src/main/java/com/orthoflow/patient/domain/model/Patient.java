@@ -114,6 +114,22 @@ public class Patient {
     @Column(name = "insurance_number")
     private String insuranceNumber;
 
+    /** The CNOPS affiliation number, beside the immatriculation that {@code insuranceNumber} holds. */
+    @Column(name = "insurance_affiliation_number")
+    private String insuranceAffiliationNumber;
+
+    /** Who the patient is to the insured person: SELF, SPOUSE or CHILD. */
+    @Column(name = "insured_relation", nullable = false)
+    @Builder.Default
+    private String insuredRelation = "SELF";
+
+    /** The insured person, when it is not the patient (a child's parent, a spouse). */
+    @Column(name = "insured_name")
+    private String insuredName;
+
+    @Column(name = "insured_cin")
+    private String insuredCin;
+
     @Column(nullable = false)
     private String status;
 

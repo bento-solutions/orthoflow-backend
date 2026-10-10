@@ -192,6 +192,10 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
             existing.setStatus(request.getStatus());
         }
         extras.applyOnUpdate(existing, request, existing.getPracticeId());
+        // No insurer picked and none typed: the patient has none, so the linked one goes too.
+        if (request.getInsurerId() == null && blankToNull(request.getInsuranceProvider()) == null) {
+            existing.setInsurerId(null);
+        }
         Patient saved = patientRepository.save(existing);
         extras.replacePhones(saved.getId(), request.getPhones());
         return PatientResponse.from(saved).withPhones(extras.phonesOf(saved.getId()));

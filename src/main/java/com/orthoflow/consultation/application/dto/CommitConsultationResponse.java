@@ -24,4 +24,8 @@ public record CommitConsultationResponse(
         int amended,
         int notReviewed,
         List<CommitVoiceSessionResponse.FailedCommand> failed,
-        UUID appointmentId) {}
+        UUID appointmentId,
+        /** The insurer care forms the save filled and sent to the front desk. */
+        List<com.orthoflow.insurance.application.dto.InsuranceFormDtos.Issued> insuranceForms,
+        /** Set when the consultation saved but its insurance forms could not be made; the front desk can make them by hand. */
+        String insuranceFormError) {}

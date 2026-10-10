@@ -38,4 +38,11 @@ public interface PatientLookup {
 
     /** The practitioner a patient is assigned to by default, when they have one. */
     Optional<UUID> findPrimaryPractitionerId(UUID patientId);
+
+    /**
+     * The patient's insurer, as an insurance form needs it: the one their record links,
+     * else the clinic's insurer whose code or name matches the insurer typed as text
+     * (patients registered before insurers were a list, or through the free-text form).
+     */
+    Optional<InsurerRef> findInsurerOf(UUID patientId);
 }

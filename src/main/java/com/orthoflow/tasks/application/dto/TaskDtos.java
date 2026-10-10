@@ -24,7 +24,8 @@ public final class TaskDtos {
     @io.swagger.v3.oas.annotations.media.Schema(name = "TaskView")
     public record View(UUID id, String title, String description, UUID assigneeId, String assigneeName, UserRole assigneeRole,
                        UUID createdBy, LocalDate dueDate, Task.Priority priority, UUID patientId, String patientName,
-                       Task.Status status, OffsetDateTime doneAt, boolean overdue) {
+                       Task.Status status, OffsetDateTime doneAt, boolean overdue, Task.DocumentKind documentKind,
+                       UUID documentId) {
     }
 
     /** The "my tasks" page: what is late, what is for today, what is coming, what was ticked off today. */

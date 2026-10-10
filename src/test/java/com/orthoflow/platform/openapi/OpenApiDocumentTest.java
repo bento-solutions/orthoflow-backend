@@ -34,6 +34,20 @@ class OpenApiDocumentTest extends SpringDbTest {
         return new ObjectMapper().readTree(json);
     }
 
+    /**
+     * With {@code -Dopenapi.dump=<file>}, writes the document there, for regenerating the
+     * frontend's types without starting a server ({@code npx openapi-typescript <file> -o ...}).
+     */
+    @Test
+    void theDocumentCanBeWrittenOutForTheFrontendsTypes() throws Exception {
+        String target = System.getProperty("openapi.dump");
+        if (target != null) {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(target),
+                    mockMvc.perform(get("/v3/api-docs")).andReturn().getResponse().getContentAsString());
+        }
+        assertThat(document().at("/components/schemas").size()).isGreaterThan(100);
+    }
+
     @Test
     void aTimeOfDayIsDescribedAsTheStringItIsOnTheWire() throws Exception {
         JsonNode openTime = document().at("/components/schemas/OpeningDay/properties/openTime");

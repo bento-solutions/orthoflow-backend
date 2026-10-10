@@ -27,6 +27,8 @@ public class Task {
 
     public enum Status { OPEN, DONE, CANCELLED }
 
+    public enum DocumentKind { INSURANCE_FORM, PRESCRIPTION }
+
     @Id
     private UUID id;
 
@@ -60,6 +62,14 @@ public class Task {
 
     @Column(name = "patient_id")
     private UUID patientId;
+
+    /** The document the task is about (an insurance form to print, a prescription), if any. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_kind")
+    private DocumentKind documentKind;
+
+    @Column(name = "document_id")
+    private UUID documentId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

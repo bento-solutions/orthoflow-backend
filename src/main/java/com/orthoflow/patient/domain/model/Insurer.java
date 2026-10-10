@@ -38,6 +38,13 @@ public class Insurer {
     @Builder.Default
     private boolean active = true;
 
+    /**
+     * The paper form this insurer's patients need, when the clinic overrides the one
+     * OrthoFlow knows for the insurer's code ("generic" forces the statement of acts).
+     */
+    @Column(name = "form_code")
+    private String formCode;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

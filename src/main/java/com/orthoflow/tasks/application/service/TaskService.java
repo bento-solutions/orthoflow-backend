@@ -55,6 +55,22 @@ public class TaskService {
         return views(practiceId, List.of(saved)).get(0);
     }
 
+    /**
+     * A task about a document another module produced: an insurance form for the
+     * front desk to print, a prescription. The document's own module checks it exists.
+     */
+    @Transactional
+    public View createForDocument(UUID practiceId, UUID actorId, Request r, Task.DocumentKind kind, UUID documentId) {
+        validate(practiceId, r);
+        Task saved = tasks.save(Task.builder().practiceId(practiceId).title(r.title().trim()).description(r.description())
+                .assigneeId(r.assigneeId()).assigneeRole(r.assigneeRole()).createdBy(actorId).dueDate(r.dueDate())
+                .priority(r.priority() == null ? Task.Priority.NORMAL : r.priority()).patientId(r.patientId())
+                .documentKind(kind).documentId(documentId).build());
+        announce(practiceId, actorId, saved);
+        liveEvents.publish(practiceId, "task", saved.getId());
+        return views(practiceId, List.of(saved)).get(0);
+    }
+
     @Transactional
     public View update(UUID practiceId, UUID actorId, UUID id, Request r) {
         Task t = requireEditable(practiceId, actorId, id);
@@ -172,6 +188,7 @@ public class TaskService {
         return rows.stream().map(t -> new View(t.getId(), t.getTitle(), t.getDescription(), t.getAssigneeId(), names.get(t.getAssigneeId()),
                 t.getAssigneeRole(), t.getCreatedBy(), t.getDueDate(), t.getPriority(), t.getPatientId(),
                 t.getPatientId() == null || patients.get(t.getPatientId()) == null ? null : patients.get(t.getPatientId()).fullName(),
-                t.getStatus(), t.getDoneAt(), t.getStatus() == Task.Status.OPEN && t.getDueDate() != null && t.getDueDate().isBefore(today))).toList();
+                t.getStatus(), t.getDoneAt(), t.getStatus() == Task.Status.OPEN && t.getDueDate() != null && t.getDueDate().isBefore(today),
+                t.getDocumentKind(), t.getDocumentId())).toList();
     }
 }

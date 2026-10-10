@@ -15,7 +15,9 @@ public enum FileOwnerType {
     EXPENSE_RECEIPT(Permission.FINANCE_VIEW, Permission.EXPENSES_MANAGE, 10),
     LAB_ORDER(Permission.LAB_ORDERS_MANAGE, Permission.LAB_ORDERS_MANAGE, 15),
     MESSAGE_ATTACHMENT(Permission.MESSAGING_VIEW, Permission.MESSAGING_SEND, 10),
-    TAX_DOCUMENT(Permission.BILLING_READ, Permission.FINANCE_MANAGE, 5);
+    TAX_DOCUMENT(Permission.BILLING_READ, Permission.FINANCE_MANAGE, 5),
+    INSURANCE_FORM(Permission.BILLING_READ, Permission.BILLING_WRITE, 15),
+    PRESCRIPTION(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 5);
 
     private final Permission readPermission;
     private final Permission writePermission;

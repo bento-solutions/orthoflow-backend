@@ -72,6 +72,10 @@ public class PatientExtrasApplier {
                     .orElseThrow(() -> new NotFoundException("Insurer not found"));
             patient.setInsurerId(e.getInsurerId());
         }
+        if (e.getInsuranceAffiliationNumber() != null) patient.setInsuranceAffiliationNumber(blankToNull(e.getInsuranceAffiliationNumber()));
+        if (e.getInsuredRelation() != null) patient.setInsuredRelation(e.getInsuredRelation());
+        if (e.getInsuredName() != null) patient.setInsuredName(blankToNull(e.getInsuredName()));
+        if (e.getInsuredCin() != null) patient.setInsuredCin(blankToNull(e.getInsuredCin()));
         if (e.getPrimaryPractitionerId() != null) {
             practitionerService.require(practiceId, e.getPrimaryPractitionerId());
             patient.setPrimaryPractitionerId(e.getPrimaryPractitionerId());

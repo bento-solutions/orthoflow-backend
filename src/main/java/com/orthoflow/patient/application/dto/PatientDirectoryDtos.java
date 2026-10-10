@@ -33,11 +33,13 @@ public final class PatientDirectoryDtos {
                          String phone, String cin, String email, OffsetDateTime createdAt) {
     }
 
+    /** {@code formCode}: null keeps the form OrthoFlow knows for the code; blank clears an override. */
     public record InsurerRequest(@NotBlank @Size(max = 30) String code, @NotBlank @Size(max = 150) String name,
-                                 @Pattern(regexp = "PUBLIC|PRIVATE") String kind, Boolean active) {
+                                 @Pattern(regexp = "PUBLIC|PRIVATE") String kind, Boolean active,
+                                 @Size(max = 40) @Pattern(regexp = "^[a-z0-9-]*$") String formCode) {
     }
 
-    public record InsurerResponse(UUID id, String code, String name, String kind, boolean active) {
+    public record InsurerResponse(UUID id, String code, String name, String kind, boolean active, String formCode) {
     }
 
     public record ReferralSourceRequest(@NotBlank @Size(max = 120) String name, Boolean active, Integer displayOrder) {

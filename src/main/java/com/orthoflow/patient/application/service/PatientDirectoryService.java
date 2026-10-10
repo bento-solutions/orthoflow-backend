@@ -65,7 +65,8 @@ public class PatientDirectoryService {
             throw new ConflictException("An insurer with code " + r.code() + " already exists");
         }
         return toResponse(insurers.save(Insurer.builder().practiceId(practiceId).code(r.code().trim().toUpperCase())
-                .name(r.name().trim()).kind(r.kind() == null ? "PRIVATE" : r.kind()).active(r.active() == null || r.active()).build()));
+                .name(r.name().trim()).kind(r.kind() == null ? "PRIVATE" : r.kind()).active(r.active() == null || r.active())
+                .formCode(r.formCode() == null || r.formCode().isBlank() ? null : r.formCode()).build()));
     }
 
     @Transactional
@@ -74,6 +75,7 @@ public class PatientDirectoryService {
         i.setName(r.name().trim());
         if (r.kind() != null) i.setKind(r.kind());
         if (r.active() != null) i.setActive(r.active());
+        if (r.formCode() != null) i.setFormCode(r.formCode().isBlank() ? null : r.formCode());
         return toResponse(insurers.save(i));
     }
 
@@ -104,7 +106,7 @@ public class PatientDirectoryService {
     }
 
     private static InsurerResponse toResponse(Insurer i) {
-        return new InsurerResponse(i.getId(), i.getCode(), i.getName(), i.getKind(), i.isActive());
+        return new InsurerResponse(i.getId(), i.getCode(), i.getName(), i.getKind(), i.isActive(), i.getFormCode());
     }
 
     private static ReferralSourceResponse toResponse(ReferralSource s) {

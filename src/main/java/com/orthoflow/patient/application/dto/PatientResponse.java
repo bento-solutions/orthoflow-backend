@@ -27,6 +27,10 @@ public record PatientResponse(
         String guardianPhone,
         String insuranceProvider,
         String insuranceNumber,
+        String insuranceAffiliationNumber,
+        String insuredRelation,
+        String insuredName,
+        String insuredCin,
         String status,
         OffsetDateTime consentGivenAt,
         String consentNotes,
@@ -57,6 +61,10 @@ public record PatientResponse(
                 .guardianPhone(p.getGuardianPhone())
                 .insuranceProvider(p.getInsuranceProvider())
                 .insuranceNumber(p.getInsuranceNumber())
+                .insuranceAffiliationNumber(p.getInsuranceAffiliationNumber())
+                .insuredRelation(p.getInsuredRelation())
+                .insuredName(p.getInsuredName())
+                .insuredCin(p.getInsuredCin())
                 .status(p.getStatus())
                 .consentGivenAt(p.getConsentGivenAt())
                 .consentNotes(p.getConsentNotes())

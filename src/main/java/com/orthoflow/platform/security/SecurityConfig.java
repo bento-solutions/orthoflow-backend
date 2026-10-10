@@ -253,6 +253,14 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/tax-documents").hasAuthority(Permission.BILLING_WRITE.name())
             .requestMatchers("/tax-documents/**").hasAuthority(Permission.FINANCE_MANAGE.name())
 
+            // ── The patient's insurer's care form: filled by the session, printed by the front desk ──
+            .requestMatchers(HttpMethod.GET, "/insurance-forms", "/insurance-forms/**").hasAuthority(Permission.BILLING_READ.name())
+            .requestMatchers("/insurance-forms", "/insurance-forms/**").hasAuthority(Permission.BILLING_WRITE.name())
+
+            // ── Prescriptions: clinical, written and read by the clinical team ──
+            .requestMatchers(HttpMethod.GET, "/prescriptions", "/prescriptions/**").hasAuthority(Permission.CLINICAL_READ.name())
+            .requestMatchers("/prescriptions", "/prescriptions/**").hasAuthority(Permission.CLINICAL_WRITE.name())
+
             // ── Finance: what the clinic has taken in and spent ─────────────────
             // Totals are not front-desk data (an assistant can take a payment but
             // not read the clinic's takings); closing the cash and keeping the books

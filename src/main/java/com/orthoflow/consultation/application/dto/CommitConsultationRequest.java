@@ -149,6 +149,12 @@ public class CommitConsultationRequest {
         private Integer quantity = 1;
         @Size(max = 500)
         private String notes;
+        /**
+         * Done during this session rather than proposed. Done acts go on the insurer's
+         * care form as executed; proposed orthodontic and prosthetic acts go on a
+         * prior-agreement request.
+         */
+        private Boolean performed = false;
     }
 
     @Getter

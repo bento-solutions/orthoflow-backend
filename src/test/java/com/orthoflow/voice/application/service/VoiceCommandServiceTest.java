@@ -160,7 +160,7 @@ class VoiceCommandServiceTest {
 
     private TaskDtos.View created(UUID id, String title) {
         return new TaskDtos.View(id, title, null, null, null, UserRole.ASSISTANT, ACTOR, null, Task.Priority.NORMAL,
-                PATIENT, null, Task.Status.OPEN, null, false);
+                PATIENT, null, Task.Status.OPEN, null, false, null, null);
     }
 
     @Test

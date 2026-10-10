@@ -41,7 +41,8 @@ public class PatientLookupService implements PatientLookup {
                     : insurers.findById(p.getInsurerId()).map(com.orthoflow.patient.domain.model.Insurer::getName).orElse(p.getInsuranceProvider());
             return new com.orthoflow.patient.application.port.PatientIdentity(p.getId(), p.getPatientCode(), p.getFirstName(),
                     p.getLastName(), p.getDateOfBirth(), p.getGender(), p.getCin(), p.getAddress(), p.getPhone(), p.getEmail(),
-                    insurer, p.getInsuranceNumber(), p.getInsurerId(), p.getGuardianName());
+                    insurer, p.getInsuranceNumber(), p.getInsurerId(), p.getGuardianName(), p.getInsuranceAffiliationNumber(),
+                    p.getInsuredRelation(), p.getInsuredName(), p.getInsuredCin());
         });
     }
 
@@ -72,6 +73,24 @@ public class PatientLookupService implements PatientLookup {
     @Transactional(readOnly = true)
     public Optional<UUID> findPrimaryPractitionerId(UUID patientId) {
         return patientRepository.findById(patientId).map(Patient::getPrimaryPractitionerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<com.orthoflow.patient.application.port.InsurerRef> findInsurerOf(UUID patientId) {
+        return patientRepository.findById(patientId).flatMap(p -> {
+            if (p.getInsurerId() != null) {
+                return insurers.findById(p.getInsurerId());
+            }
+            String typed = p.getInsuranceProvider() == null ? "" : p.getInsuranceProvider().trim();
+            if (typed.isEmpty()) {
+                return Optional.empty();
+            }
+            return insurers.findByPracticeIdOrderByNameAsc(p.getPracticeId()).stream()
+                    .filter(i -> typed.equalsIgnoreCase(i.getCode()) || typed.equalsIgnoreCase(i.getName()))
+                    .findFirst();
+        }).map(i -> new com.orthoflow.patient.application.port.InsurerRef(i.getId(), i.getCode(), i.getName(), i.getKind(),
+                i.getFormCode()));
     }
 
     private static PatientSummary toSummary(Patient patient) {

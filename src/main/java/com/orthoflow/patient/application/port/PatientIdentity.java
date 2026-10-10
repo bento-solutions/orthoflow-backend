@@ -10,7 +10,8 @@ import java.util.UUID;
  */
 public record PatientIdentity(UUID id, String code, String firstName, String lastName, LocalDate dateOfBirth,
                               String gender, String cin, String address, String phone, String email,
-                              String insuranceProvider, String insuranceNumber, UUID insurerId, String guardianName) {
+                              String insuranceProvider, String insuranceNumber, UUID insurerId, String guardianName,
+                              String insuranceAffiliationNumber, String insuredRelation, String insuredName, String insuredCin) {
 
     public String fullName() {
         return firstName + " " + lastName;

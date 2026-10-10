@@ -1,0 +1,53 @@
+{
+  "code": "cnops-dentaire",
+  "name": "CNOPS — Feuille de soins dentaires (Réf. ANAM 1.1.01.01)",
+  "insurerCodes": ["CNOPS", "MGPAP", "OMFAM", "MGEN", "MGPTT", "MDII"],
+  "template": "template.pdf",
+  "source": "https://cnops.org.ma/sites/default/files/2022-10/feuille_dentaire_CNOPS.pdf",
+  "official": true,
+  "singleUse": false,
+  "note": "Filed with the CNOPS directly or through the patient's public-sector mutual, which stamps its own box. For the first orthodontic semester the CNOPS also wants the quote and the orthodontic assessment with X-rays.",
+  "fontSize": 9,
+  "text": {
+    "insured.phone":           {"page": 0, "x": 578, "y": 68.5, "w": 100},
+    "insured.fullName":        {"page": 0, "x": 495, "y": 101.5, "w": 212},
+    "insured.affiliation":     {"page": 0, "x": 488, "y": 115.5, "w": 218},
+    "insured.immatriculation": {"page": 0, "x": 509, "y": 129.5, "w": 198},
+    "insured.cin":             {"page": 0, "x": 466, "y": 143.5, "w": 240},
+    "insured.address":         {"page": 0, "x": 471, "y": 187, "w": 236, "size": 8.5},
+    "total":                   {"page": 0, "x": 524, "y": 214.5, "w": 170},
+    "beneficiary.fullName":    {"page": 0, "x": 495, "y": 272, "w": 210},
+    "doctor.place":            {"page": 0, "x": 658, "y": 469, "w": 84, "size": 8}
+  },
+  "cells": {
+    "beneficiary.dobDigits": {"page": 0, "y": 284.8, "x": [569.5, 579.2, 592.9, 602.5, 616.5, 626.2, 636.0, 645.7]},
+    "beneficiary.cin":       {"page": 0, "y": 298.5, "x": [574.5, 584.5, 594.5, 604.3, 614.2, 624.0, 633.4, 642.4]},
+    "practitioner.inpe":     {"page": 0, "y": 345.5, "x": [578.0, 587.9, 598.0, 607.9, 617.5, 627.3, 636.7, 646.0, 655.9]},
+    "agreement.number":      {"page": 0, "y": 412.5, "x": [579.7, 589.5, 599.7, 609.5, 619.2, 629.0, 638.4, 647.7]},
+    "doctor.dateDigits":     {"page": 0, "y": 479.5, "x": [668.0, 677.9, 688.7, 698.3, 710.5, 720.2, 730.0, 739.9]}
+  },
+  "checks": {
+    "purpose.PRIOR_AGREEMENT": {"page": 0, "x": 610.5, "y": 50},
+    "purpose.EXECUTION":       {"page": 0, "x": 670.0, "y": 50.3},
+    "relation.SPOUSE":         {"page": 0, "x": 585.2, "y": 160.8},
+    "relation.CHILD":          {"page": 0, "x": 655.2, "y": 160.8},
+    "sex.M":                   {"page": 0, "x": 573.8, "y": 310},
+    "sex.F":                   {"page": 0, "x": 654.5, "y": 310},
+    "care.SOINS":              {"page": 0, "x": 517.5, "y": 379},
+    "care.PROTHESE":           {"page": 0, "x": 690.5, "y": 379},
+    "care.ODF":                {"page": 0, "x": 517.5, "y": 393},
+    "care.AUTRES":             {"page": 0, "x": 690.5, "y": 393}
+  },
+  "acts": {
+    "page": 1,
+    "size": 8,
+    "rows": [73.5, 91.0, 108.7, 127.0, 145.5, 164.0, 181.5, 200.0, 218.0],
+    "columns": {
+      "teeth":    {"x": 423.5, "w": 41},
+      "code":     {"x": 468.5, "w": 42},
+      "date":     {"x": 514.5, "w": 44},
+      "cotation": {"x": 562.0, "w": 43},
+      "amount":   {"x": 646.0, "w": 46, "align": "right"}
+    }
+  }
+}

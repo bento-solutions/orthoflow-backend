@@ -39,6 +39,20 @@ public abstract class PatientExtras {
 
     private UUID insurerId;
 
+    @Size(max = 50)
+    private String insuranceAffiliationNumber;
+
+    /** Who the patient is to the insured person; the forms tick "conjoint" or "enfant" from it. */
+    @Pattern(regexp = "SELF|SPOUSE|CHILD", message = "insuredRelation must be SELF, SPOUSE or CHILD")
+    private String insuredRelation;
+
+    /** The insured person, when the patient is their spouse or child. */
+    @Size(max = 255)
+    private String insuredName;
+
+    @Size(max = 50)
+    private String insuredCin;
+
     private UUID primaryPractitionerId;
 
     private UUID photoFileId;

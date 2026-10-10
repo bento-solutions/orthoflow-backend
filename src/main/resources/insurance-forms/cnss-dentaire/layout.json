@@ -1,0 +1,52 @@
+{
+  "code": "cnss-dentaire",
+  "name": "CNSS — Feuille de soins dentaires (Réf. 610-1-04)",
+  "insurerCodes": ["CNSS"],
+  "template": "template.pdf",
+  "source": "https://www.cnss.ma (formulaire 610-1-04, supplied by the clinic)",
+  "official": true,
+  "singleUse": false,
+  "note": "The CNSS sheet is stored on its side (page rotation 270); positions are given on the page as it is read. Orthodontic treatment needs the prior agreement, asked for before the child turns 16.",
+  "fontSize": 9,
+  "text": {
+    "insured.fullName":     {"page": 0, "x": 650, "y": 109.5, "w": 270},
+    "insured.address":      {"page": 0, "x": 632, "y": 186, "w": 395},
+    "total":                {"page": 0, "x": 678, "y": 214, "w": 72},
+    "beneficiary.fullName": {"page": 0, "x": 650, "y": 276.5, "w": 272},
+    "doctor.place":         {"page": 0, "x": 864, "y": 525, "w": 115}
+  },
+  "cells": {
+    "insured.immatriculation": {"page": 0, "y": 127.0, "x": [674.5, 684.5, 694.2, 704.2, 714.0, 723.7, 733.5, 743.3, 753.7]},
+    "insured.cin":             {"page": 0, "y": 141.5, "x": [817.7, 827.5, 837.3, 847.3, 857.2, 867.0, 877.0, 887.0, 897.4]},
+    "beneficiary.dobDigits":   {"page": 0, "y": 289.0, "x": [775.2, 785.0, 800.0, 810.0, 823.5, 833.9, 844.2, 854.7]},
+    "beneficiary.cin":         {"page": 0, "y": 311.0, "x": [783.2, 793.2, 803.0, 813.2, 823.0, 832.7, 842.7, 852.7, 863.0]},
+    "practitioner.inpe":       {"page": 0, "y": 366.0, "x": [631.0, 641.0, 650.9, 660.9, 670.7, 680.3, 690.3, 700.3, 710.7]},
+    "agreement.number":        {"page": 0, "y": 462.5, "x": [766.0, 775.9, 785.7, 795.9, 805.7, 815.3, 825.3, 835.5, 845.9]},
+    "doctor.dateDigits":       {"page": 0, "y": 540.5, "x": [860.3, 870.3, 885.2, 895.3, 908.5, 918.9, 929.4, 939.9]}
+  },
+  "checks": {
+    "purpose.PRIOR_AGREEMENT": {"page": 0, "x": 762.0, "y": 67, "size": 11},
+    "purpose.EXECUTION":       {"page": 0, "x": 849.3, "y": 67, "size": 11},
+    "relation.SPOUSE":         {"page": 0, "x": 734.3, "y": 169},
+    "relation.CHILD":          {"page": 0, "x": 802.0, "y": 169},
+    "relation.SELF":           {"page": 0, "x": 875.7, "y": 169},
+    "sex.M":                   {"page": 0, "x": 842.0, "y": 327},
+    "sex.F":                   {"page": 0, "x": 897.0, "y": 327},
+    "care.SOINS":              {"page": 0, "x": 791.2, "y": 393.2, "size": 11},
+    "care.PROTHESE":           {"page": 0, "x": 791.2, "y": 409.3, "size": 11},
+    "care.ODF":                {"page": 0, "x": 791.2, "y": 425.3, "size": 11},
+    "care.AUTRES":             {"page": 0, "x": 791.2, "y": 441.2, "size": 11}
+  },
+  "acts": {
+    "page": 1,
+    "size": 8,
+    "rows": [79, 93, 107, 121, 135, 155, 169, 183, 197, 225, 239, 253, 267, 280],
+    "columns": {
+      "teeth":    {"x": 589, "w": 44},
+      "code":     {"x": 638, "w": 41},
+      "date":     {"x": 684, "w": 49},
+      "cotation": {"x": 738, "w": 45},
+      "amount":   {"x": 837, "w": 45, "align": "right"}
+    }
+  }
+}

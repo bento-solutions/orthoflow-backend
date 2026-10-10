@@ -7,6 +7,8 @@ import com.orthoflow.consultation.application.dto.CommitConsultationResponse;
 import com.orthoflow.consultation.domain.model.Consultation;
 import com.orthoflow.consultation.domain.model.ConsultationStatus;
 import com.orthoflow.consultation.domain.repository.ConsultationRepository;
+import com.orthoflow.insurance.application.dto.InsuranceFormDtos;
+import com.orthoflow.insurance.application.port.SessionInsuranceForms;
 import com.orthoflow.voice.application.dto.CommitVoiceSessionRequest;
 import com.orthoflow.voice.application.dto.CommitVoiceSessionResponse;
 import com.orthoflow.voice.application.service.VoiceSessionCommitService;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -53,6 +56,7 @@ public class ConsultationCommitService {
     private final ConsultationRecordWriter writer;
     private final VoiceSessionCommitService voiceCommit;
     private final VoiceSessionRepository voiceSessions;
+    private final SessionInsuranceForms insuranceForms;
 
     public CommitConsultationResponse commit(UUID consultationId, CommitConsultationRequest request, UUID actorId) {
         consultationService.requireEnabled();
@@ -90,6 +94,16 @@ public class ConsultationCommitService {
         }
 
         Consultation saved = writer.write(consultationId, request, actorId);
+        List<InsuranceFormDtos.Issued> forms = List.of();
+        String formError = null;
+        try {
+            forms = insuranceForms.afterSession(saved.getPracticeId(), actorId, saved.getId(), saved.getPatientId(),
+                    sessionActs(request));
+        } catch (RuntimeException e) {
+            // The record is saved and must stay saved: the paperwork can be made by hand.
+            log.warn("Consultation {} saved, but its insurance forms were not made: {}", consultationId, e.getMessage());
+            formError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        }
         return CommitConsultationResponse.builder()
                 .consultation(consultationService.toResponse(saved, true))
                 .saved(true)
@@ -99,7 +113,19 @@ public class ConsultationCommitService {
                 .notReviewed(chart == null ? 0 : chart.notReviewed())
                 .failed(List.of())
                 .appointmentId(saved.getAppointmentId())
+                .insuranceForms(forms)
+                .insuranceFormError(formError)
                 .build();
+    }
+
+    /** The plan as the insurance forms read it: each act, priced for its quantity, done today or proposed. */
+    static List<SessionInsuranceForms.SessionAct> sessionActs(CommitConsultationRequest request) {
+        return request.getTreatmentPlan().stream().map(line -> {
+            int quantity = line.getQuantity() == null ? 1 : line.getQuantity();
+            BigDecimal amount = line.getPrice() == null ? null : line.getPrice().multiply(BigDecimal.valueOf(quantity));
+            return new SessionInsuranceForms.SessionAct(line.getTreatmentId(), line.getLabel(), line.getTeeth(), amount,
+                    Boolean.TRUE.equals(line.getPerformed()));
+        }).toList();
     }
 
     /**

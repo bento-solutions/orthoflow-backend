@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<!-- An ordonnance: the clinic and the prescriber at the top, the patient, the drugs with
+     their posology, the advice, and room for the signature and stamp. French, as Moroccan
+     pharmacies read it. -->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="fr" dir="ltr">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${'Ordonnance ' + number}">Ordonnance</title>
+  <style>
+    @page { size: A5; margin: 12mm 12mm 14mm 12mm; }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 6px; margin-bottom: 10px; }
+    .head td { vertical-align: top; }
+    .doctor { font-size: 12pt; font-weight: bold; color: #1d4ed8; }
+    .legal { font-size: 7.5pt; color: #52606d; }
+    .place { text-align: right; margin: 4px 0 10px 0; }
+    .patient { margin-bottom: 12px; }
+    h1 { font-size: 13pt; text-align: center; letter-spacing: 2px; margin: 4px 0 12px 0; }
+    .rx { margin: 0 0 9px 0; page-break-inside: avoid; }
+    .drug { font-weight: bold; }
+    .dci { color: #52606d; font-style: italic; font-size: 8.5pt; }
+    .posology { margin: 1px 0 0 12px; }
+    .advice { margin-top: 12px; padding: 6px 8px; border: 1px dashed #9aa5b1; font-size: 8.5pt; }
+    .sign { margin-top: 26px; text-align: right; font-size: 8pt; color: #52606d; }
+    .foot { margin-top: 10px; font-size: 7pt; color: #7b8794; }
+  </style>
+</head>
+<body>
+  <table class="head"><tr>
+    <td>
+      <div class="doctor" th:text="${practitioner != null ? practitioner.name : letterhead.name}">Dr</div>
+      <div class="legal" th:if="${practitioner != null and practitioner.inpe != ''}" th:text="${'INPE ' + practitioner.inpe}"></div>
+      <div class="legal" th:text="${letterhead.name}">Cabinet</div>
+      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
+      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
+    </td>
+    <td style="text-align: right;"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 48px; max-width: 120px;" alt=""/></td>
+  </tr></table>
+
+  <div class="place" th:text="${signedAt}">Casablanca, le</div>
+  <div class="patient"><b th:text="${patient.name}">Patient</b><span th:if="${patient.age != null}" th:text="${' — ' + patient.age}"></span></div>
+
+  <h1>ORDONNANCE</h1>
+
+  <div class="rx" th:each="l : ${lines}">
+    <div><span class="drug" th:text="${l.drug}">Drug</span><span th:if="${l.form != null}" th:text="${' — ' + l.form}"></span></div>
+    <div class="dci" th:if="${l.dci != null}" th:text="${l.dci}">DCI</div>
+    <div class="posology" th:text="${l.posology}">Posologie</div>
+  </div>
+
+  <div class="advice" th:if="${!advice.isEmpty()}">
+    <div th:each="a : ${advice}" th:text="${a}">Conseil</div>
+  </div>
+
+  <div class="sign">Signature et cachet du praticien</div>
+  <div class="foot" th:text="${'N° ' + number}">N°</div>
+</body>
+</html>
