@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * The six-point probing record of one examination (see V64). The measurements are a document:
+ * The six-point probing record of one examination (see V67). The measurements are a document:
  * {@code toothStatus} and {@code teeth} hold JSON that {@code PerioChartService} validates and
  * canonicalises before it is stored, and reads back whole. {@code version} is the optimistic lock:
  * a chart open on two screens cannot silently overwrite itself.

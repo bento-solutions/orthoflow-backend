@@ -46,6 +46,7 @@ public class PatientDataRegistry {
             Map.entry("patient_allergies", Rule.DELETE),
             Map.entry("patient_medical_history", Rule.DELETE),
             Map.entry("periodontal_assessments", Rule.DELETE),
+            Map.entry("perio_charts", Rule.DELETE),
             Map.entry("clinical_photo_series", Rule.DELETE),
             Map.entry("voice_sessions", Rule.DELETE),
             Map.entry("consultations", Rule.DELETE),
