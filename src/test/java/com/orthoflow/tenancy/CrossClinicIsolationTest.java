@@ -84,8 +84,8 @@ class CrossClinicIsolationTest extends SpringDbTest {
         treatmentA = UUID.randomUUID();
         jdbc.update("INSERT INTO treatments (id, name, code, base_price, practice_id) VALUES (?, 'Pose bagues', ?, 5000, ?)",
                 treatmentA, "TA-" + treatmentA, clinicA);
-        jdbc.update("INSERT INTO stock_items (id, name, sku, category, unit, unit_size, unit_label, purchase_price, price_per_use, practice_id) "
-                + "VALUES (?, 'Brackets', ?, 'CONSUMABLE', 'BOX', 1, 'box', 10, 1, ?)", UUID.randomUUID(), "SKU-" + clinicA, clinicA);
+        jdbc.update("INSERT INTO stock_items (id, name, sku, category, unit, unit_of_measure, unit_size, unit_label, purchase_price, price_per_use, practice_id) "
+                + "VALUES (?, 'Brackets', ?, 'CONSUMABLE', 'BOX', 'BOX', 1, 'box', 10, 1, ?)", UUID.randomUUID(), "SKU-" + clinicA, clinicA);
         jdbc.update("INSERT INTO suppliers (id, name, practice_id) VALUES (?, 'Ortho Labo', ?)", UUID.randomUUID(), clinicA);
         invoiceA = UUID.randomUUID();
         jdbc.update("INSERT INTO invoices (id, practice_id, patient_id, invoice_number, status, currency, total, region_code, created_by) "
