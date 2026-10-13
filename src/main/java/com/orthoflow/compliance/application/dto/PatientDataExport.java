@@ -2,6 +2,8 @@ package com.orthoflow.compliance.application.dto;
 
 import com.orthoflow.billing.domain.model.Invoice;
 import com.orthoflow.clinical.application.dto.PatientClinicalRecordResponse;
+import com.orthoflow.clinical.application.dto.PerioChartDtos;
+import com.orthoflow.clinical.application.dto.PeriodontalStatusResponse;
 import com.orthoflow.consultation.application.dto.ConsultationResponse;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.scheduling.domain.model.Appointment;
@@ -37,6 +39,10 @@ public class PatientDataExport {
     private List<Invoice> invoices;
     /** Findings, notes (including dictated consultation reports), allergies and history. */
     private PatientClinicalRecordResponse clinicalRecord;
+    /** Gum state by area of the mouth, current and earlier. */
+    private PeriodontalStatusResponse periodontalStatus;
+    /** Six-point probing charts, every measurement of every examination. */
+    private List<PerioChartDtos.Chart> periodontalCharts;
     /** Dictated examinations: when, by whom, and the narrative that was signed. */
     private List<VoiceSessionResponse> voiceSessions;
     /** What was dictated and what it was understood to mean. */

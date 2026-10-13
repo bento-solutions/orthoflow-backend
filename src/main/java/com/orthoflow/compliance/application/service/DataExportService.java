@@ -1,6 +1,8 @@
 package com.orthoflow.compliance.application.service;
 
 import com.orthoflow.clinical.application.service.ClinicalRecordService;
+import com.orthoflow.clinical.application.service.PerioChartService;
+import com.orthoflow.clinical.application.service.PeriodontalService;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.billing.domain.repository.InvoiceRepository;
 import com.orthoflow.patient.domain.repository.PatientRepository;
@@ -40,6 +42,8 @@ public class DataExportService {
     private final PatientTreatmentRepository patientTreatmentRepository;
     private final InvoiceRepository invoiceRepository;
     private final ClinicalRecordService clinicalRecordService;
+    private final PeriodontalService periodontalService;
+    private final PerioChartService perioChartService;
     private final VoiceSessionService voiceSessionService;
     private final VoiceAuditService voiceAuditService;
     private final ConsultationService consultationService;
@@ -57,6 +61,8 @@ public class DataExportService {
                 .treatments(patientTreatmentRepository.findByPatientId(patientId))
                 .invoices(invoiceRepository.findByPatientId(patientId))
                 .clinicalRecord(clinicalRecordService.getRecord(patientId))
+                .periodontalStatus(periodontalService.status(patientId))
+                .periodontalCharts(perioChartService.allCharts(patientId))
                 .voiceSessions(voiceSessionService.listByPatient(patientId))
                 .voiceCommands(voiceAuditService.forPatient(patientId))
                 .consultations(consultationService.forExport(patientId))
