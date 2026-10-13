@@ -57,7 +57,7 @@ class ReminderServiceTest {
     }
 
     private PatientSummary patient(UUID id, String language) {
-        return new PatientSummary(id, "Sara", "Benziane", "s@x.ma", "0662", null, language);
+        return new PatientSummary(id, "Sara", "Benziane", "s@x.ma", "0662", null, language, "F");
     }
 
     @Test

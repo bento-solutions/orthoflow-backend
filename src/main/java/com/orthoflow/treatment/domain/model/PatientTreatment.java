@@ -68,6 +68,18 @@ public class PatientTreatment {
     @Column(name = "practitioner_id")
     private UUID practitionerId;
 
+    /**
+     * Set when this redoes an earlier treatment. The materials really were consumed
+     * again, so it is kept out of the leakage figure and reported as a re-treatment
+     * rate — a quality signal, not a loss.
+     */
+    @Column(name = "retreatment_of_id")
+    private UUID retreatmentOfId;
+
+    public boolean isRetreatment() {
+        return retreatmentOfId != null;
+    }
+
     @Column(name = "start_date")
     private LocalDate startDate;
 

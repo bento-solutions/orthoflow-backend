@@ -78,6 +78,8 @@ public class StockService {
                 .sku(request.getSku())
                 .category(request.getCategory())
                 .unit(request.getUnit())
+                .unitOfMeasure(request.getUnitOfMeasure() == null ? UnitOfMeasure.PIECE : request.getUnitOfMeasure())
+                .usesPerUnit(request.getUsesPerUnit() == null ? 1 : request.getUsesPerUnit())
                 .unitSize(request.getUnitSize())
                 .unitLabel(request.getUnitLabel())
                 .purchasePrice(request.getPurchasePrice())
@@ -114,6 +116,10 @@ public class StockService {
         item.setSku(request.getSku());
         item.setCategory(request.getCategory());
         item.setUnit(request.getUnit());
+        if (request.getUnitOfMeasure() != null) {
+            item.setUnitOfMeasure(request.getUnitOfMeasure());
+        }
+        applyUsesPerUnit(item, request.getUsesPerUnit());
         item.setUnitSize(request.getUnitSize());
         item.setUnitLabel(request.getUnitLabel());
         item.setPurchasePrice(request.getPurchasePrice());
@@ -182,6 +188,101 @@ public class StockService {
     @Transactional
     public void deleteSupplier(UUID id) {
         supplierRepository.deleteById(id);
+    }
+
+    /**
+     * Changes how many uses a unit yields, keeping the running counter inside it.
+     *
+     * <p>Lowering the capacity below where the unit in service already is would leave a
+     * counter that can never roll over, so the part-used unit is treated as spent: the
+     * counter goes back to zero. It does not deduct stock — nothing was used that was
+     * not already recorded, and silently removing a unit during an edit to a catalogue
+     * entry would be a surprising place to find a stock movement.
+     */
+    private static void applyUsesPerUnit(StockItem item, Integer requested) {
+        if (requested == null || requested == item.getUsesPerUnit()) {
+            return;
+        }
+        item.setUsesPerUnit(Math.max(1, requested));
+        if (item.getUsesOnCurrentUnit() >= item.getUsesPerUnit()) {
+            item.setUsesOnCurrentUnit(0);
+        }
+    }
+
+    // ---------------- Uses, for materials that survive more than one ----------------
+
+    /**
+     * Records {@code uses} applications of an item and takes whole units off the shelf
+     * only when they are actually spent.
+     *
+     * <p>For an ordinary item ({@code usesPerUnit == 1}) this is exactly the old
+     * behaviour: one use, one unit out. For a disc good for five polishes, the first
+     * four move a counter and nothing leaves the shelf; the fifth rolls the counter over
+     * and deducts one unit.
+     *
+     * <p>The partially-used unit is still stock — three discs with one of them two
+     * polishes in is {@code currentStock = 3, usesOnCurrentUnit = 2}. That is why
+     * consuming a use with nothing on the shelf is refused: there would be no disc to
+     * pick up.
+     *
+     * <p>Runs inside the same lock and transaction as the movement it may trigger, so a
+     * counter never advances without the deduction it implies, and an insufficient-stock
+     * refusal rolls the counter back with it.
+     */
+    @Transactional
+    public void consumeUses(UUID stockItemId, BigDecimal uses, SourceType sourceType, UUID sourceId,
+                            String sourceReference, String notes, UUID createdBy) {
+        applyUses(stockItemId, uses, true, sourceType, sourceId, sourceReference, notes, createdBy);
+    }
+
+    /** Reverses {@link #consumeUses} — the same arithmetic run backwards. */
+    @Transactional
+    public void restoreUses(UUID stockItemId, BigDecimal uses, SourceType sourceType, UUID sourceId,
+                            String sourceReference, String notes, UUID createdBy) {
+        applyUses(stockItemId, uses, false, sourceType, sourceId, sourceReference, notes, createdBy);
+    }
+
+    private void applyUses(UUID stockItemId, BigDecimal uses, boolean consuming, SourceType sourceType,
+                           UUID sourceId, String sourceReference, String notes, UUID createdBy) {
+        StockItem item = stockItemRepository.findByIdForUpdate(stockItemId)
+                .orElseThrow(() -> new IllegalArgumentException("Stock item not found: " + stockItemId));
+
+        if (!item.multiUse()) {
+            recordMovement(stockItemId, consuming ? MovementType.OUT : MovementType.RETURN, uses,
+                    sourceType, sourceId, sourceReference, notes, createdBy);
+            return;
+        }
+
+        int count = wholeUses(uses, item);
+        if (count == 0) {
+            return;
+        }
+        int perUnit = item.getUsesPerUnit();
+        int running = item.getUsesOnCurrentUnit() + (consuming ? count : -count);
+        // floorDiv/floorMod rather than / and %: running goes negative when a restore
+        // undoes past a rollover, and only the floor versions put the counter back where
+        // it was instead of landing on a negative remainder.
+        int units = Math.floorDiv(running, perUnit);
+        item.setUsesOnCurrentUnit(Math.floorMod(running, perUnit));
+        stockItemRepository.save(item);
+
+        if (units != 0) {
+            recordMovement(stockItemId, units > 0 ? MovementType.OUT : MovementType.RETURN,
+                    BigDecimal.valueOf(Math.abs(units)), sourceType, sourceId, sourceReference, notes, createdBy);
+        }
+    }
+
+    /** A use is indivisible: there is no half a polish. */
+    private static int wholeUses(BigDecimal uses, StockItem item) {
+        if (uses == null) {
+            return 0;
+        }
+        if (uses.stripTrailingZeros().scale() > 0) {
+            throw new IllegalArgumentException(
+                    "\"" + item.getName() + "\" is counted in whole uses (" + item.getUsesPerUnit()
+                            + " per unit), so " + uses.toPlainString() + " is not a quantity it can take");
+        }
+        return uses.intValueExact();
     }
 
     // ---------------- Stock Movement Logging & Logic ----------------

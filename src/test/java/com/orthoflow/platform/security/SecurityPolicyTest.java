@@ -316,6 +316,8 @@ class SecurityPolicyTest {
                 // ── Front desk (phase 1) ──────────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/front-desk", "the waiting-room board is front-desk work", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/front-desk/" + ID + "/seat", "calling a patient in is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.GET, "/waiting-room/layout", "the waiting-room plan is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/waiting-room/seats", "seating a patient is front-desk work", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/scheduling/appointment-types", "appointment types are clinic configuration", ADMIN),
                 Case.restricted(HttpMethod.POST, "/scheduling/absences", "recording an absence is the receptionist's business", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.GET, "/appointments/daily-sheet", "the day list is open to the front desk", ASSISTANT, DOCTOR, ADMIN),

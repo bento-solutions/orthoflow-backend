@@ -54,8 +54,12 @@ class FrontDeskServiceTest {
         AppointmentTypeJpaRepository types = mock(AppointmentTypeJpaRepository.class);
         when(types.findAllById(any())).thenReturn(List.of());
         PracticeZone zone = id -> ZoneId.of("Africa/Casablanca");
+        WaitingRoomLayoutService waitingRoomLayout = mock(WaitingRoomLayoutService.class);
+        when(waitingRoomLayout.liveSeatsByAppointment(any())).thenReturn(Map.of());
+        when(waitingRoomLayout.seatCount(any())).thenReturn(new WaitingRoomLayoutService.SeatCount(0, 0));
         service = new FrontDeskService(appointments, appointmentService, types, chairs, mock(WaitingRoomJpaRepository.class),
-                patients, mock(PatientRegistrar.class), practitioners, mock(ActivityLog.class), mock(LiveEventPublisher.class), zone);
+                patients, mock(PatientRegistrar.class), practitioners, mock(ActivityLog.class), mock(LiveEventPublisher.class),
+                waitingRoomLayout, zone);
         when(appointments.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(appointments.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(patients.findSummaries(anyList())).thenReturn(Map.of());
@@ -138,7 +142,7 @@ class FrontDeskServiceTest {
         when(appointments.inChair(practice)).thenReturn(List.of(seatedAfterTwenty));
         when(appointments.arrivedBetween(any(), any(), any())).thenReturn(List.of(waitingTenMinutes, seatedAfterTwenty));
         when(patients.findSummaries(anyList())).thenReturn(Map.of(
-                waitingTenMinutes.getPatientId(), new PatientSummary(waitingTenMinutes.getPatientId(), "Sara", "Benziane", null, "0600", null, "fr")));
+                waitingTenMinutes.getPatientId(), new PatientSummary(waitingTenMinutes.getPatientId(), "Sara", "Benziane", null, "0600", null, "fr", "F")));
 
         FrontDesk board = service.board(practice);
 

@@ -39,6 +39,21 @@ public class TreatmentConsumable {
     @Column(name = "quantity_used", nullable = false)
     private BigDecimal quantityUsed;
 
+    /**
+     * The band around {@link #quantityUsed} inside which a difference is simply how the
+     * work went, and is never flagged. A syringe is not drawn to the microlitre; a
+     * bracket either was or was not placed, which is why countable items default to 0.
+     */
+    @Column(name = "variance_allowance_pct", nullable = false)
+    @Builder.Default
+    private BigDecimal varianceAllowancePct = new BigDecimal("10.00");
+
+    /** The largest quantity that still counts as normal for this line. */
+    public BigDecimal toleratedCeiling() {
+        BigDecimal pct = varianceAllowancePct == null ? BigDecimal.ZERO : varianceAllowancePct;
+        return quantityUsed.add(quantityUsed.multiply(pct).movePointLeft(2));
+    }
+
     @Column(name = "is_optional", nullable = false)
     @Builder.Default
     private boolean optional = false;

@@ -171,6 +171,10 @@ public class SecurityConfig {
             .requestMatchers("/appointments", "/appointments/**").hasAuthority(Permission.AGENDA_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/front-desk").hasAuthority(Permission.AGENDA_VIEW.name())
             .requestMatchers("/front-desk/**").hasAuthority(Permission.WAITING_ROOM_MANAGE.name())
+            // The waiting-room plan is on a screen at the desk, so anyone who can read the
+            // agenda can read it; drawing the room and seating people is desk work.
+            .requestMatchers(HttpMethod.GET, "/waiting-room/layout").hasAuthority(Permission.AGENDA_VIEW.name())
+            .requestMatchers("/waiting-room/**").hasAuthority(Permission.WAITING_ROOM_MANAGE.name())
             .requestMatchers(HttpMethod.GET, "/scheduling/**").hasAuthority(Permission.AGENDA_VIEW.name())
             // Types, rooms and chairs are clinic configuration; absences, events
             // and the waiting list are the receptionist's own business.
@@ -205,6 +209,10 @@ public class SecurityConfig {
 
             // ── Reporting: margins and profitability are not front-desk data ─
             .requestMatchers("/stock/analytics/**").hasAnyRole(CLINICAL)
+            // Leakage names doctors and the forecast carries money. Neither is
+            // information the front desk needs to do its job, so both sit behind the
+            // analytics permission rather than the general stock one.
+            .requestMatchers("/stock/insights/**").hasAuthority(Permission.ANALYTICS_VIEW.name())
 
             // ── Treatment invoices (cost/consumption records) ────────────────
             .requestMatchers(HttpMethod.DELETE, "/stock/treatment-invoices/**").hasRole(ADMIN)

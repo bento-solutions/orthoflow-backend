@@ -111,10 +111,15 @@ public final class AgendaDtos {
     public record Reorder(@NotEmpty List<UUID> orderedIds) {
     }
 
+    /**
+     * {@code gender} is "M", "F" or null, and drives the marker drawn on the waiting-room
+     * plan. {@code seatId} is the seat this patient is sitting in, or null: a patient can
+     * be checked in without one, standing or because the room is full.
+     */
     public record WaitingCard(UUID appointmentId, UUID patientId, String patientName, String patientPhone,
                               String typeName, String typeColor, UUID practitionerId, String practitionerName,
                               OffsetDateTime scheduledFor, OffsetDateTime arrivedAt, long waitMinutes,
-                              int priority, UUID waitingRoomId, boolean walkIn) {
+                              int priority, UUID waitingRoomId, boolean walkIn, String gender, String seatId) {
     }
 
     public record ChairBoard(UUID chairId, String name, boolean occupied, UUID appointmentId, String patientName,
@@ -122,8 +127,18 @@ public final class AgendaDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "AgendaKpis")
+    /**
+     * {@code averageWaitMinutes} and {@code longestWaitMinutes} are null when nobody has
+     * waited yet today — an absent figure, not a zero one. Screens must render that as an
+     * empty state rather than interpolating it.
+     *
+     * <p>{@code seatsTotal} counts the seats drawn on the waiting-room plan, which have
+     * nothing to do with {@code chairsTotal}: a seat is where a patient waits, a chair is
+     * where they are treated.
+     */
     public record Kpis(int waiting, int inTreatment, int arrivedToday, Double averageWaitMinutes,
-                       Long longestWaitMinutes, int chairsTotal, int chairsOccupied) {
+                       Long longestWaitMinutes, int chairsTotal, int chairsOccupied,
+                       int seatsTotal, int seatsOccupied, int waitingMale, int waitingFemale) {
     }
 
     public record FrontDesk(Kpis kpis, List<WaitingCard> waiting, List<ChairBoard> chairs) {

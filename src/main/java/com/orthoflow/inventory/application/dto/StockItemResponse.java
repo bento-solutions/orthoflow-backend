@@ -2,6 +2,7 @@ package com.orthoflow.inventory.application.dto;
 
 import com.orthoflow.inventory.domain.model.StockCategory;
 import com.orthoflow.inventory.domain.model.StockItem;
+import com.orthoflow.inventory.domain.model.UnitOfMeasure;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -21,12 +22,27 @@ public record StockItemResponse(
         StockCategory category,
         String unit,
         String unitLabel,
+        /** The unit the system reasons about; {@code unit} is only the wording. */
+        UnitOfMeasure unitOfMeasure,
+        String unitSymbol,
+        /** Applications per unit; 1 means using it consumes it. */
+        int usesPerUnit,
+        /** How far through the unit in service — the "3" in "3/5". */
+        int usesOnCurrentUnit,
         boolean decimalSupported,
         SupplierResponse supplier,
         BigDecimal currentStock,
         BigDecimal minimumStock,
         BigDecimal purchasePrice,
         BigDecimal unitSize,
+        /**
+         * How the stock breaks down into containers: 3000 ml of lidocaine is
+         * {@code packCount = 3} of a 1000 ml bottle. Zero when the item is already
+         * counted one-to-one, where "1 × 1 pc" would only be noise.
+         */
+        int packCount,
+        /** The open container — what is left beyond the whole ones. */
+        BigDecimal packRemainder,
         BigDecimal pricePerUse,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
@@ -40,12 +56,18 @@ public record StockItemResponse(
                 item.getCategory(),
                 item.getUnit(),
                 item.getUnitLabel(),
+                item.getUnitOfMeasure(),
+                item.getUnitOfMeasure() == null ? null : item.getUnitOfMeasure().symbol(),
+                item.getUsesPerUnit(),
+                item.getUsesOnCurrentUnit(),
                 item.isDecimalSupported(),
                 SupplierResponse.from(item.getSupplier()),
                 item.getCurrentStock(),
                 item.getMinimumStock(),
                 item.getPurchasePrice(),
                 item.getUnitSize(),
+                item.packCount(),
+                item.packRemainder(),
                 item.getPricePerUse(),
                 item.getCreatedAt(),
                 item.getUpdatedAt()
