@@ -1,6 +1,7 @@
 package com.orthoflow.inventory.application.dto;
 
 import com.orthoflow.inventory.domain.model.StockCategory;
+import com.orthoflow.inventory.domain.model.UnitOfMeasure;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -30,6 +31,17 @@ public class StockItemRequest {
 
     @NotBlank
     private String unit;
+
+    /** What a quantity is counted in. Defaults to PIECE for a caller that does not say. */
+    private UnitOfMeasure unitOfMeasure;
+
+    /**
+     * Applications one unit yields before it is spent — 5 for a disc good for five
+     * polishes. Null or 1 is the ordinary case: using it consumes it.
+     */
+    @Min(1)
+    @Max(1000)
+    private Integer usesPerUnit;
 
     @NotNull
     @DecimalMin(value = "0.0001", message = "unitSize must be greater than zero")

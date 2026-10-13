@@ -101,6 +101,7 @@ public class PatientLookupService implements PatientLookup {
                 patient.getEmail(),
                 patient.getPhone(),
                 patient.getCin(),
-                patient.getPreferredLanguage());
+                patient.getPreferredLanguage(),
+                patient.getGender());
     }
 }

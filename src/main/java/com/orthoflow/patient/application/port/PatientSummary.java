@@ -18,7 +18,12 @@ public record PatientSummary(
         String email,
         String phone,
         String cin,
-        String preferredLanguage) {
+        String preferredLanguage,
+        /**
+         * "M", "F" or null when it was never recorded. Carried so the waiting-room plan
+         * can mark a seat without every screen reaching for the full patient.
+         */
+        String gender) {
 
     public String fullName() {
         return firstName + " " + lastName;

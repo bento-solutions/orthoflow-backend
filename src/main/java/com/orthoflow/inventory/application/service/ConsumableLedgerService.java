@@ -33,17 +33,25 @@ public class ConsumableLedgerService implements ConsumableLedger {
                 sourceReference, notes, actorId);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Goes through {@link StockService#consumeUses} rather than straight to a
+     * movement, because for a material that survives several uses the quantity is a
+     * number of uses, not of units: four polishes off a five-polish disc move a counter
+     * and take nothing off the shelf. For everything else — {@code usesPerUnit == 1} —
+     * that method is the same single OUT movement as before.
+     */
     @Override
     public void consume(UUID stockItemId, BigDecimal quantity, SourceType sourceType, UUID sourceId,
                          String sourceReference, String notes, UUID actorId) {
-        stockService.recordMovement(stockItemId, MovementType.OUT, quantity, sourceType, sourceId,
-                sourceReference, notes, actorId);
+        stockService.consumeUses(stockItemId, quantity, sourceType, sourceId, sourceReference, notes, actorId);
     }
 
+    /** {@inheritDoc} Runs the use arithmetic backwards, so reopening a session gives back the use, not a unit. */
     @Override
     public void restore(UUID stockItemId, BigDecimal quantity, SourceType sourceType, UUID sourceId,
                          String sourceReference, String notes, UUID actorId) {
-        stockService.recordMovement(stockItemId, MovementType.RETURN, quantity, sourceType, sourceId,
-                sourceReference, notes, actorId);
+        stockService.restoreUses(stockItemId, quantity, sourceType, sourceId, sourceReference, notes, actorId);
     }
 }

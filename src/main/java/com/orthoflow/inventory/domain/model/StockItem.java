@@ -38,8 +38,76 @@ public class StockItem {
     @Column(nullable = false)
     private StockCategory category;
 
+    /** The wording a clinic likes to read — "box of 100 pairs". Display only. */
     @Column(nullable = false)
     private String unit;
+
+    /** What a quantity of this item is actually counted in. This is the one the system reasons about. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit_of_measure", nullable = false, length = 20)
+    @Builder.Default
+    private UnitOfMeasure unitOfMeasure = UnitOfMeasure.PIECE;
+
+    /**
+     * How many applications one unit yields before it is spent — five polishes from one
+     * disc. 1 means the ordinary case: using it consumes it.
+     */
+    @Column(name = "uses_per_unit", nullable = false)
+    @Builder.Default
+    private int usesPerUnit = 1;
+
+    /**
+     * How far through the unit currently in service we are, always below
+     * {@link #usesPerUnit}: reaching it is what takes a unit off the shelf and returns
+     * this to zero.
+     */
+    @Column(name = "uses_on_current_unit", nullable = false)
+    @Builder.Default
+    private int usesOnCurrentUnit = 0;
+
+    /**
+     * Whether stock of this item arrives in a container worth counting.
+     *
+     * <p>A 1000 ml bottle of lidocaine does; a cheek retractor, whose pack is itself one
+     * unit, does not — "1 × 1 pc" is noise.
+     */
+    public boolean packaged() {
+        return unitSize != null && unitSize.compareTo(BigDecimal.ONE) > 0;
+    }
+
+    /**
+     * Whole containers the current stock amounts to — the "3" in "3 × 1000 ml".
+     *
+     * <p>Nobody can count a shelf in millilitres. 3000 ml is three bottles, and that is
+     * the number a person standing in the storeroom can actually check.
+     */
+    public int packCount() {
+        if (!packaged() || currentStock == null) {
+            return 0;
+        }
+        return currentStock.divideToIntegralValue(unitSize).intValue();
+    }
+
+    /**
+     * What is left over beyond the whole containers — the open bottle. Zero when the
+     * stock divides evenly.
+     */
+    public BigDecimal packRemainder() {
+        if (!packaged() || currentStock == null) {
+            return BigDecimal.ZERO;
+        }
+        return currentStock.remainder(unitSize);
+    }
+
+    /** Whether this item survives more than one use. */
+    public boolean multiUse() {
+        return usesPerUnit > 1;
+    }
+
+    /** Uses left on the unit in service — the "2" in "3/5". */
+    public int usesRemainingOnCurrentUnit() {
+        return Math.max(0, usesPerUnit - usesOnCurrentUnit);
+    }
 
     @Column(name = "unit_size", nullable = false)
     private BigDecimal unitSize;

@@ -58,6 +58,7 @@ public class FrontDeskService {
     private final PractitionerService practitionerService;
     private final ActivityLog activityLog;
     private final LiveEventPublisher liveEvents;
+    private final WaitingRoomLayoutService waitingRoomLayout;
     private final PracticeZone practiceZone;
 
     @Transactional
@@ -173,6 +174,7 @@ public class FrontDeskService {
         Map<UUID, AppointmentType> typeById = types.findAllById(waiting.stream().map(Appointment::getAppointmentTypeId)
                 .filter(Objects::nonNull).collect(Collectors.toSet())).stream().collect(Collectors.toMap(AppointmentType::getId, t -> t));
 
+        Map<UUID, String> seatByAppointment = waitingRoomLayout.liveSeatsByAppointment(practiceId);
         List<WaitingCard> cards = waiting.stream().map(a -> {
             PatientSummary p = patients.get(a.getPatientId());
             AppointmentType t = typeById.get(a.getAppointmentTypeId());
@@ -180,7 +182,7 @@ public class FrontDeskService {
             return new WaitingCard(a.getId(), a.getPatientId(), p == null ? null : p.fullName(), p == null ? null : p.phone(),
                     a.getType(), t == null ? null : t.getColor(), a.getPractitionerId(), pr == null ? null : pr.getDisplayName(),
                     a.getDateTime(), a.getArrivedAt(), minutes(a.getArrivedAt(), now), a.getWaitingPriority(), a.getWaitingRoomId(),
-                    "Sans rendez-vous".equals(a.getType()));
+                    "Sans rendez-vous".equals(a.getType()), p == null ? null : p.gender(), seatByAppointment.get(a.getId()));
         }).toList();
 
         Map<UUID, Appointment> byChair = seated.stream().filter(a -> a.getChairId() != null)
@@ -204,8 +206,13 @@ public class FrontDeskService {
         Double average = waits.isEmpty() ? null : Math.round(waits.stream().mapToLong(Long::longValue).average().orElse(0) * 10) / 10.0;
         Long longest = waits.stream().max(Long::compare).orElse(null);
 
+        WaitingRoomLayoutService.SeatCount seats = waitingRoomLayout.seatCount(practiceId);
+        int male = (int) cards.stream().filter(c -> "M".equalsIgnoreCase(c.gender())).count();
+        int female = (int) cards.stream().filter(c -> "F".equalsIgnoreCase(c.gender())).count();
+
         Kpis kpis = new Kpis(waiting.size(), seated.size(), arrivedToday.size(), average, longest, activeChairs.size(),
-                (int) chairBoard.stream().filter(ChairBoard::occupied).count());
+                (int) chairBoard.stream().filter(ChairBoard::occupied).count(),
+                seats.total(), seats.occupied(), male, female);
         return new FrontDesk(kpis, cards, chairBoard);
     }
 
@@ -213,6 +220,12 @@ public class FrontDeskService {
         AppointmentStatus before = a.getStatus();
         appointmentService.stampStatus(a, next);
         Appointment saved = appointments.saveAndFlush(a);
+        // A waiting-room seat is only ever held by someone who is waiting. The moment the
+        // visit moves on — into a chair, finished, cancelled — the seat goes back to the
+        // room, so the plan never shows a patient who has already left.
+        if (next != AppointmentStatus.ARRIVED) {
+            waitingRoomLayout.releaseFor(saved.getPracticeId(), saved.getId());
+        }
         activityLog.record(saved.getPracticeId(), AppointmentService.ENTITY, saved.getId(), action,
                 Map.of("status", Map.of("from", String.valueOf(before), "to", String.valueOf(next))));
         liveEvents.publish(saved.getPracticeId(), "appointment", saved.getId());
