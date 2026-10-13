@@ -13,9 +13,10 @@ import java.util.UUID;
  * other's domain types.
  *
  * <p>"Financial records" is wider than invoices now: receipts, instalment plans,
- * cheques and fee notes all carry the same accounting-law retention duty and all
- * reference the patient with {@code ON DELETE RESTRICT}, so an erasure has to be
- * refused for any of them, with the real reason, rather than failing on a foreign key.
+ * cheques, fee notes, sales orders and the stock module's treatment invoices all carry the
+ * same accounting-law retention duty and reference the patient with {@code ON DELETE RESTRICT}
+ * or no delete rule at all, so an erasure has to be refused for any of them, with the real
+ * reason, rather than failing on a foreign key.
  */
 @Component
 @RequiredArgsConstructor
@@ -31,7 +32,9 @@ public class InvoiceLinkGuardAdapter implements InvoiceLinkGuard {
                      + (SELECT count(*) FROM payment_plans WHERE patient_id = ?)
                      + (SELECT count(*) FROM cheques WHERE patient_id = ?)
                      + (SELECT count(*) FROM tax_documents WHERE patient_id = ?)
-                """, Long.class, patientId, patientId, patientId, patientId, patientId);
+                     + (SELECT count(*) FROM sales_orders WHERE patient_id = ?)
+                     + (SELECT count(*) FROM treatment_invoices WHERE patient_id = ?)
+                """, Long.class, patientId, patientId, patientId, patientId, patientId, patientId, patientId);
         return count == null ? 0 : count;
     }
 }

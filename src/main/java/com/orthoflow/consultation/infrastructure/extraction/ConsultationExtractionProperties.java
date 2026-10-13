@@ -44,16 +44,20 @@ public class ConsultationExtractionProperties {
     private String timezone = "Africa/Casablanca";
 
     /**
-     * Whether the raw conversation is kept once the consultation is saved — as
-     * a {@code CONSULTATION_TRANSCRIPT} note and on the consultation row.
+     * Whether the consultation log is kept once the consultation is saved: the
+     * conversation line by line with the time of each (the {@code consultation_transcript_lines}
+     * rows and the {@code consultations.transcript} text), filed on the patient's record as a
+     * {@code CONSULTATION_TRANSCRIPT} note. This is what lets the doctor come back after validating
+     * and check what the proposals were read from.
      *
-     * <p>Off by default and for testing only: production keeps no transcript
-     * (docs/VOICE.md §9), and {@link ConsultationRetentionGuard} refuses to start
-     * the prod profile with it on. Off, the transcript lives on the row only
-     * while the consultation is open (so a crashed tab loses nothing) and is
-     * erased when it is saved or discarded; what the doctor validated is kept.
+     * <p>On by default: the feature exists to be checked afterwards. A clinic that
+     * does not want the conversation kept turns it off, and then the lines and the
+     * text live only while the consultation is open (so a crashed tab loses
+     * nothing) and are erased when it is saved or discarded; what the doctor
+     * validated is kept either way. The patient is told which at the start of
+     * every consultation (the config endpoint carries the setting).
      */
-    private boolean retainTranscript = false;
+    private boolean retainTranscript = true;
 
     /**
      * An open consultation nothing has happened on for this long is discarded,

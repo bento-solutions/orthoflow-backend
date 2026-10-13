@@ -65,7 +65,7 @@ class ConsultationCommitServiceTest {
         ConsultationExtractionProperties properties = new ConsultationExtractionProperties();
         properties.setEnabled(true);
         ConsultationService consultationService = new ConsultationService(repo, null, null, null, null, null, properties,
-                new ObjectMapper());
+                new ObjectMapper(), mock(ConsultationLogService.class));
         service = new ConsultationCommitService(repo, consultationService, writer, voiceCommit, voiceSessions, insuranceForms);
 
         consultation = repo.save(consultation(ConsultationStatus.REVIEW));

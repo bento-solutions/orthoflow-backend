@@ -19,4 +19,13 @@ import java.util.UUID;
 public interface PatientErasureListener {
 
     void onPatientErased(UUID patientId);
+
+    /**
+     * The patient is being anonymised instead: the row stays, stripped of identity, because
+     * financial records the law makes the clinic keep still point at it. Everything a listener
+     * would remove on erasure is removed just the same, so this defaults to it.
+     */
+    default void onPatientAnonymised(UUID patientId) {
+        onPatientErased(patientId);
+    }
 }

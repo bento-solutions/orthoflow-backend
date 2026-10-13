@@ -80,21 +80,34 @@ orthoflow:
     # it stays false until someone has read it, and a vendor that receives
     # patient data without it is named in a startup warning. A free-tier key
     # is the usual reason it is not true.
+    #
+    # require-data-protection makes that statement binding: a vendor that is not
+    # attested (or whose region is outside allowed-regions, when that is set) is
+    # never sent audio or text, whatever chain names it; the stage falls through
+    # to the next vendor or to the browser's own recognition. On everywhere but
+    # the dev profile. DeepSeek is in no default chain: add it to a chain only
+    # once a DPA covers it and its region is allowed (it processes in China).
+    require-data-protection: ${VOICE_REQUIRE_DATA_PROTECTION:true}
+    allowed-regions: ${VOICE_ALLOWED_REGIONS:}
     providers:
       gemini:
         api-key: ${VOICE_GEMINI_API_KEY:}
         data-protected: ${VOICE_GEMINI_DATA_PROTECTED:false}
+        region: ${VOICE_GEMINI_REGION:}
       groq:
         api-key: ${VOICE_GROQ_API_KEY:}
         base-url: ${VOICE_GROQ_BASE_URL:https://api.groq.com/openai/v1}
         data-protected: ${VOICE_GROQ_DATA_PROTECTED:false}
+        region: ${VOICE_GROQ_REGION:US}
       deepseek:
         api-key: ${VOICE_DEEPSEEK_API_KEY:}
         base-url: ${VOICE_DEEPSEEK_BASE_URL:https://api.deepseek.com}
         data-protected: ${VOICE_DEEPSEEK_DATA_PROTECTED:false}
+        region: ${VOICE_DEEPSEEK_REGION:CN}
       assemblyai:
         api-key: ${VOICE_ASSEMBLYAI_API_KEY:}
         data-protected: ${VOICE_ASSEMBLYAI_DATA_PROTECTED:false}
+        region: ${VOICE_ASSEMBLYAI_REGION:EU}
         # The EU data-residency endpoint: consultation audio is health data.
         base-url: ${VOICE_ASSEMBLYAI_BASE_URL:https://sync.eu.assemblyai.com/v1}
     nlu:
@@ -135,7 +148,7 @@ orthoflow:
       # Tried in order when the primary is overloaded or rate-limited. Needs
       # the vendor key under orthoflow.voice.providers. Never used while the
       # primary is 'disabled'.
-      fallbacks: ${VOICE_NLU_FALLBACKS:gemini,deepseek}
+      fallbacks: ${VOICE_NLU_FALLBACKS:gemini}
       groq-model: ${VOICE_NLU_GROQ_MODEL:qwen/qwen3.8-27b}
       deepseek-model: ${VOICE_NLU_DEEPSEEK_MODEL:deepseek-flash}
     # ── Server-side speech-to-text ─────────────────────────────────────
@@ -230,7 +243,7 @@ orthoflow:
       provider: ${VOICE_SUMMARY_PROVIDER:groq}
       api-key: ${VOICE_SUMMARY_API_KEY:}
       # vendor:model, tried in order after provider/model.
-      fallbacks: ${VOICE_SUMMARY_FALLBACKS:groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      fallbacks: ${VOICE_SUMMARY_FALLBACKS:groq:qwen/qwen3.8-27b}
       # A summary runs once per consultation, so latency is irrelevant and
       # quality is not: the smaller models' French degrades noticeably on
       # medical vocabulary. llama-3.3-70b-versatile is gated behind Groq's
@@ -253,8 +266,8 @@ orthoflow:
   # The doctor and the patient talk; the whole conversation is transcribed and
   # kept, and what matters in it (identity, allergies, history, the treatment
   # plan, the next appointment) is proposed for the doctor to validate before
-  # anything reaches the record. Unlike command dictation this KEEPS the raw
-  # transcript — on purpose, so it can be reviewed later — which is why it is
+  # anything reaches the record. Unlike command dictation this KEEPS the
+  # transcript, timestamped — on purpose, so it can be checked later — which is why it is
   # its own switch, off by default. Turning it on needs a DPA with every vendor
   # in the chain, a lawful basis and a CNDP notification (Law 09-08), and the
   # doctor attests at the start of each consultation that the patient was told.
@@ -262,12 +275,13 @@ orthoflow:
     enabled: ${CONSULTATION_ENABLED:false}
     # "Today", and what "in 15 days" resolves against, is the clinic's day.
     timezone: ${CONSULTATION_TIMEZONE:Africa/Casablanca}
-    # Keep the raw conversation once the consultation is saved (a
-    # CONSULTATION_TRANSCRIPT note, and on the consultation row). TESTING ONLY:
-    # production keeps no transcript, and the prod profile refuses to start
-    # with this on. Off, the transcript is held only while the consultation is
-    # open (crash recovery) and erased when it is saved or discarded.
-    retain-transcript: ${CONSULTATION_RETAIN_TRANSCRIPT:false}
+    # Keep the consultation log once it is saved: the conversation line by line
+    # with the time of each, filed on the patient's record (a
+    # CONSULTATION_TRANSCRIPT note) and on the consultation, so the doctor can
+    # check later what the proposals were read from. On by default — that is
+    # the point of the feature. Off, the log is held only while the consultation
+    # is open (crash recovery) and erased when it is saved or discarded.
+    retain-transcript: ${CONSULTATION_RETAIN_TRANSCRIPT:true}
     # An open consultation untouched for this long is discarded, transcript and
     # all (checked hourly). Runs even with the feature off.
     idle-discard-hours: ${CONSULTATION_IDLE_DISCARD_HOURS:24}
@@ -278,7 +292,7 @@ orthoflow:
       provider: ${CONSULTATION_EXTRACTION_PROVIDER:groq}
       model: ${CONSULTATION_EXTRACTION_MODEL:openai/gpt-oss-120b}
       # vendor:model, tried in order after provider/model. Keys: orthoflow.voice.providers.
-      fallbacks: ${CONSULTATION_EXTRACTION_FALLBACKS:groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      fallbacks: ${CONSULTATION_EXTRACTION_FALLBACKS:groq:qwen/qwen3.8-27b}
       language: ${CONSULTATION_EXTRACTION_LANGUAGE:French}
       timeout-ms: ${CONSULTATION_EXTRACTION_TIMEOUT_MS:25000}
       max-output-tokens: ${CONSULTATION_EXTRACTION_MAX_OUTPUT_TOKENS:2200}

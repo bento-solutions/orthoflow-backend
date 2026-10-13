@@ -1,5 +1,8 @@
 package com.orthoflow.compliance.presentation.controller;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
+import com.orthoflow.patient.application.service.PatientService;
 import com.orthoflow.patient.domain.model.Patient;
 import com.orthoflow.compliance.application.dto.PatientDataExport;
 import com.orthoflow.compliance.application.service.DataExportService;
@@ -33,11 +36,29 @@ import java.util.UUID;
 public class DataExportController {
 
     private final DataExportService dataExportService;
+    private final PatientService patientService;
+    private final AuditLog audit;
 
     @GetMapping("/export")
     @PreAuthorize("hasRole('ADMIN')")
     public PatientDataExport exportData(@PathVariable UUID patientId) {
-        return dataExportService.exportPatientData(patientId);
+        PatientDataExport export = dataExportService.exportPatientData(patientId);
+        audit.record(AuditCategory.DATA_RIGHTS, "PATIENT_EXPORTED", patientId,
+                java.util.Map.of("tables", export.getRecords().size(), "files", export.getFiles().size()));
+        return export;
+    }
+
+    /**
+     * Erasure for a patient whose financial records the law makes the clinic keep: everything clinical and
+     * personal is removed, the financial records stay without a name, the patient becomes an archived shell.
+     * Irreversible. For a patient with no such records, erase them ({@code DELETE /patients/{id}/erase}).
+     */
+    @PostMapping("/anonymise")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void anonymise(@PathVariable UUID patientId) {
+        patientService.anonymisePatient(patientId);
+        audit.record(AuditCategory.DATA_RIGHTS, "PATIENT_ANONYMISED", patientId, java.util.Map.of());
     }
 
     public record ConsentRequest(@Size(max = 2000) String notes) {}

@@ -13,6 +13,7 @@ import lombok.Getter;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The full export of one patient's data across every module that holds a
@@ -46,4 +47,18 @@ public class PatientDataExport {
      * and what the doctor validated.
      */
     private List<ConsultationResponse> consultations;
+    /**
+     * The complete copy: every table that holds something about the patient, row by row as stored
+     * (prescriptions, insurance forms, receipts, plans, cheques, photos' records, messages, tasks,
+     * surveys, the chart down to each tooth, invoice lines and everything else). The sections above are
+     * a readable view of part of this; this is all of it, and it grows with the schema by itself.
+     */
+    private Map<String, List<Map<String, Object>>> records;
+    /** The stored files (photos, scans, documents): what each is and when it was added. The content is downloaded through the files endpoint. */
+    private List<Map<String, Object>> files;
+    /**
+     * Booking requests, registration forms, WhatsApp messages and landing-page contacts from this person that
+     * were never linked to their record (matched by name together with phone or e-mail).
+     */
+    private Map<String, List<Map<String, Object>>> copiesWithoutLink;
 }

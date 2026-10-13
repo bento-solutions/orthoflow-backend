@@ -27,6 +27,7 @@ class FallbackTranscriptionClientsTest {
     void setUp() {
         properties = new SpeechToTextProperties();
         vendors = new VoiceProviderProperties();
+        vendors.setRequireDataProtection(false);
         whisper = new GroqTranscriptionClient(properties, vendors, objectMapper);
         assembly = new AssemblyAiTranscriptionClient(properties, vendors, objectMapper);
     }
@@ -98,6 +99,22 @@ class FallbackTranscriptionClientsTest {
         assertThat(terms).contains("Calypso", "carie récurrente").hasSizeLessThanOrEqualTo(100);
         // Common phrases made the model emit them from noise.
         assertThat(terms).doesNotContain("needs a crown", "missing", "normal");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void assemblyDescribesTheRecordingInEnglishWhenTheDentistDictatesInEnglish() {
+        Map<String, Object> english = assembly.config("Calypso; tooth 16", "en");
+        Map<String, Object> french = assembly.config("Calypso; dent 16", "fr");
+        Map<String, Object> arabic = assembly.config("Calypso", "ar");
+
+        assertThat((String) english.get("prompt")).contains("in English").doesNotContain("dentiste");
+        assertThat((List<String>) english.get("keyterms_prompt")).contains("Calypso", "recurrent caries")
+                .doesNotContain("carie récurrente").hasSizeLessThanOrEqualTo(100);
+        // The clinic's language is the default, so an old browser that sends no language is unchanged.
+        assertThat((String) french.get("prompt")).contains("dentiste");
+        assertThat((String) arabic.get("prompt")).contains("dentiste");
+        assertThat((String) assembly.config("Calypso", null).get("prompt")).contains("dentiste");
     }
 
     @Test

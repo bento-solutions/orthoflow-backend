@@ -31,14 +31,34 @@ public class LandingPageContacts {
         return digits.length() < 9 ? null : digits.substring(digits.length() - 9);
     }
 
-    /** Remembers a number; the first source is kept. */
+    /**
+     * Remembers a number. A booking only says someone typed it, so a later WhatsApp message
+     * from that number (the click-to-chat link) upgrades the source: that one proves they
+     * hold the phone, see {@link #wroteFromThisNumber}.
+     */
     public void record(UUID practiceId, String phone, Source source) {
         String key = key(phone);
         if (key == null) {
             return;
         }
-        jdbc.update("INSERT INTO landing_page_contacts (practice_id, phone_key, source) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+        jdbc.update("""
+                INSERT INTO landing_page_contacts (practice_id, phone_key, source) VALUES (?, ?, ?)
+                ON CONFLICT (practice_id, phone_key) DO UPDATE SET source = EXCLUDED.source WHERE EXCLUDED.source = 'WHATSAPP_LINK'""",
                 practiceId, key, source.name());
+    }
+
+    /**
+     * Whether a message from this number reached the clinic's WhatsApp: the one thing that proves the
+     * person holds the phone. A booking form proves nothing, anyone can type any number into it.
+     */
+    public boolean wroteFromThisNumber(UUID practiceId, String phone) {
+        String key = key(phone);
+        if (key == null) {
+            return false;
+        }
+        Boolean wrote = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM landing_page_contacts WHERE practice_id = ? AND phone_key = ? AND source = 'WHATSAPP_LINK')",
+                Boolean.class, practiceId, key);
+        return Boolean.TRUE.equals(wrote);
     }
 
     public boolean isKnown(UUID practiceId, String phone) {

@@ -96,12 +96,15 @@ services:
       VOICE_ASSEMBLYAI_API_KEY: ${VOICE_ASSEMBLYAI_API_KEY:-}
       # Set a vendor's flag to true only after confirming its key is on a plan
       # that excludes training on submitted content and that a DPA is signed.
-      # Until then the backend logs a warning at startup for every vendor that
-      # receives patient audio or text. Free-tier keys usually do not qualify.
+      # Until then the backend never sends that vendor patient audio or text and
+      # says so at startup (VOICE_REQUIRE_DATA_PROTECTION, on outside the dev
+      # profile). Free-tier keys usually do not qualify.
       VOICE_GEMINI_DATA_PROTECTED: ${VOICE_GEMINI_DATA_PROTECTED:-false}
       VOICE_GROQ_DATA_PROTECTED: ${VOICE_GROQ_DATA_PROTECTED:-false}
       VOICE_DEEPSEEK_DATA_PROTECTED: ${VOICE_DEEPSEEK_DATA_PROTECTED:-false}
       VOICE_ASSEMBLYAI_DATA_PROTECTED: ${VOICE_ASSEMBLYAI_DATA_PROTECTED:-false}
+      # Only vendors processing in these regions get patient data (EU,MA, ...); empty: no restriction by region.
+      VOICE_ALLOWED_REGIONS: ${VOICE_ALLOWED_REGIONS:-}
       VOICE_STT_ENABLED: ${VOICE_STT_ENABLED:-false}
       VOICE_STT_PROVIDER: ${VOICE_STT_PROVIDER:-assemblyai}
       # Tried in order when the primary fails (429, 5xx, timeout).
@@ -122,7 +125,7 @@ services:
       # commands that fail to land.
       VOICE_NLU_PROVIDER: ${VOICE_NLU_PROVIDER:-disabled}
       VOICE_NLU_GEMINI_MODEL: ${VOICE_NLU_GEMINI_MODEL:-gemini-3.5-flash}
-      VOICE_NLU_FALLBACKS: ${VOICE_NLU_FALLBACKS:-gemini,deepseek}
+      VOICE_NLU_FALLBACKS: ${VOICE_NLU_FALLBACKS:-gemini}
       VOICE_NLU_MODEL: ${VOICE_NLU_MODEL:-claude-opus-5}
       VOICE_NLU_API_KEY: ${VOICE_NLU_API_KEY:-}
       VOICE_NLU_BASE_URL: ${VOICE_NLU_BASE_URL:-}
@@ -133,18 +136,18 @@ services:
       VOICE_SUMMARY_API_KEY: ${VOICE_SUMMARY_API_KEY:-}
       VOICE_SUMMARY_MODEL: ${VOICE_SUMMARY_MODEL:-openai/gpt-oss-120b}
       VOICE_SUMMARY_BASE_URL: ${VOICE_SUMMARY_BASE_URL:-}
-      VOICE_SUMMARY_FALLBACKS: ${VOICE_SUMMARY_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      VOICE_SUMMARY_FALLBACKS: ${VOICE_SUMMARY_FALLBACKS:-groq:qwen/qwen3.8-27b}
       VOICE_SUMMARY_LANGUAGE: ${VOICE_SUMMARY_LANGUAGE:-French}
       # Full-consultation recording: keeps the whole conversation, so it is a
       # separate switch and off until a DPA, lawful basis and CNDP notice exist.
       CONSULTATION_ENABLED: ${CONSULTATION_ENABLED:-false}
       CONSULTATION_TIMEZONE: ${CONSULTATION_TIMEZONE:-Africa/Casablanca}
-      CONSULTATION_RETAIN_TRANSCRIPT: ${CONSULTATION_RETAIN_TRANSCRIPT:-false}
+      CONSULTATION_RETAIN_TRANSCRIPT: ${CONSULTATION_RETAIN_TRANSCRIPT:-true}
       CONSULTATION_IDLE_DISCARD_HOURS: ${CONSULTATION_IDLE_DISCARD_HOURS:-24}
       CONSULTATION_EXTRACTION_ENABLED: ${CONSULTATION_EXTRACTION_ENABLED:-false}
       CONSULTATION_EXTRACTION_PROVIDER: ${CONSULTATION_EXTRACTION_PROVIDER:-groq}
       CONSULTATION_EXTRACTION_MODEL: ${CONSULTATION_EXTRACTION_MODEL:-openai/gpt-oss-120b}
-      CONSULTATION_EXTRACTION_FALLBACKS: ${CONSULTATION_EXTRACTION_FALLBACKS:-groq:qwen/qwen3.8-27b,deepseek:deepseek-flash}
+      CONSULTATION_EXTRACTION_FALLBACKS: ${CONSULTATION_EXTRACTION_FALLBACKS:-groq:qwen/qwen3.8-27b}
       # Uploaded files (patient photos, logo, receipts) live on a named volume.
       STORAGE_LOCAL_ROOT: /data/files
       # Outbound messages. Every channel is off until enabled here.

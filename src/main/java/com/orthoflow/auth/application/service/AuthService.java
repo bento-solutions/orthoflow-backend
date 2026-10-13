@@ -1,5 +1,7 @@
 package com.orthoflow.auth.application.service;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
 import com.orthoflow.auth.application.dto.*;
 import com.orthoflow.auth.application.port.PasswordResetNotifier;
 import com.orthoflow.auth.domain.model.PasswordResetToken;
@@ -24,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
 import java.util.HexFormat;
 
@@ -46,6 +49,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final SessionService sessionService;
     private final UserJpaRepository userJpaRepository;
+    private final AuditLog audit;
 
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;
@@ -58,10 +62,17 @@ public class AuthService {
     /** As {@link #login(LoginRequest)}, recording where the sign-in came from so "My account" can list it. */
     @Transactional
     public LoginResponse login(LoginRequest request, String ip, String userAgent) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
-
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (user == null) {
+            audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").actorLabel(request.getEmail())
+                    .ip(ip).detail(Map.of("reason", "unknown_account")).build());
+            throw new UnauthorizedException("Invalid email or password");
+        }
         if (!user.isActive() || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            // The response is the same either way; the log says which, for whoever investigates.
+            audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").practiceId(user.getPracticeId())
+                    .actorId(user.getId()).actorLabel(user.getEmail()).ip(ip)
+                    .detail(Map.of("reason", user.isActive() ? "wrong_password" : "inactive_account")).build());
             throw new UnauthorizedException("Invalid email or password");
         }
 
@@ -69,6 +80,8 @@ public class AuthService {
         userRepository.save(user);
         var session = sessionService.open(user.getId(), ip, userAgent);
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name(), session.getId());
+        audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN").practiceId(user.getPracticeId())
+                .actorId(user.getId()).actorLabel(user.getEmail()).ip(ip).build());
         return LoginResponse.builder()
                 .token(token)
                 .user(toResponse(user))
@@ -114,7 +127,10 @@ public class AuthService {
                 .active(true)
                 .build();
 
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("USER_REGISTERED").practiceId(practiceId)
+                .targetType("user").targetId(saved.getId()).detail(Map.of("email", saved.getEmail(), "role", saved.getRole().name())).build());
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -129,9 +145,14 @@ public class AuthService {
      */
     @Transactional
     public void requestPasswordReset(String email) {
-        userRepository.findByEmail(email)
-                .filter(User::isActive)
-                .ifPresent(this::issueResetToken);
+        User account = userRepository.findByEmail(email).filter(User::isActive).orElse(null);
+        // Logged whether or not the account exists; only the log, never the response, tells the two apart.
+        audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("PASSWORD_RESET_REQUESTED").actorLabel(email)
+                .practiceId(account == null ? null : account.getPracticeId()).actorId(account == null ? null : account.getId())
+                .detail(Map.of("account_found", account != null)).build());
+        if (account != null) {
+            issueResetToken(account);
+        }
     }
 
     /**
@@ -185,6 +206,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(false);
         userRepository.save(user);
+        audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("PASSWORD_CHANGED").practiceId(user.getPracticeId())
+                .actorId(user.getId()).actorLabel(user.getEmail()).build());
         if (currentSessionId != null) {
             sessionService.revokeOthers(userId, currentSessionId);
         } else {
@@ -212,6 +235,8 @@ public class AuthService {
 
         token.setUsedAt(OffsetDateTime.now());
         passwordResetTokenRepository.save(token);
+        audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("PASSWORD_RESET_COMPLETED").practiceId(user.getPracticeId())
+                .actorId(user.getId()).actorLabel(user.getEmail()).build());
     }
 
     private String generateRawToken() {

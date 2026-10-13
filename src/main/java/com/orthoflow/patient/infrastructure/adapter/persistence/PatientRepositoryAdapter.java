@@ -80,6 +80,11 @@ public class PatientRepositoryAdapter implements PatientRepository {
     }
 
     @Override
+    public boolean existsIncludingArchived(UUID id) {
+        return jpaRepository.existsIncludingArchived(id, currentPractice.require());
+    }
+
+    @Override
     public java.util.List<UUID> findIdsByPhoneSuffix(UUID practiceId, String lastDigits) {
         return jpaRepository.findIdsByPhoneSuffix(practiceId, lastDigits);
     }

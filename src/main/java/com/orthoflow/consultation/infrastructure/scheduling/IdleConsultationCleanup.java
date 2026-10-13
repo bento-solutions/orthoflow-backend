@@ -15,8 +15,8 @@ import java.time.OffsetDateTime;
 
 /**
  * Discards consultations nobody finished. A doctor who closes the tab and never
- * comes back leaves a whole conversation on the server; production keeps no
- * transcript, so it must not stay there forever.
+ * comes back leaves a whole conversation on the server; an unsaved, unreviewed
+ * conversation is not part of the record, so it must not stay there forever.
  *
  * <p>Runs whether or not the feature is switched on: what was recorded while it
  * was on is cleaned up after it is turned off. Each consultation is discarded

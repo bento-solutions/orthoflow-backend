@@ -147,6 +147,11 @@ public class Patient {
     @Column(name = "deleted_by")
     private UUID deletedBy;
 
+    /** When this record was stripped of everything that identifies the person (V66); null otherwise. */
+    @JsonIgnore
+    @Column(name = "anonymised_at")
+    private OffsetDateTime anonymisedAt;
+
     /**
      * When the patient (or their guardian, for a minor) consented to their
      * health data being processed — the recorded legal basis GDPR Art. 6/7

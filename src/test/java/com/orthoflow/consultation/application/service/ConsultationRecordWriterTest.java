@@ -51,6 +51,7 @@ class ConsultationRecordWriterTest {
     private ConsultationRecordWriter writer;
     private Consultation consultation;
     private ConsultationExtractionProperties properties;
+    private ConsultationLogService logs;
 
     @BeforeEach
     void setUp() {
@@ -60,7 +61,13 @@ class ConsultationRecordWriterTest {
         appointments = mock(AppointmentService.class);
         properties = new ConsultationExtractionProperties();
         properties.setRetainTranscript(true);
-        writer = new ConsultationRecordWriter(repo, patients, clinical, appointments, json, properties);
+        logs = mock(ConsultationLogService.class);
+        // The real one leads each stored line with its time; an empty conversation stays empty.
+        when(logs.timestampedTranscript(any())).thenAnswer(call -> {
+            String text = ((Consultation) call.getArgument(0)).getTranscript();
+            return text == null || text.isBlank() ? text : "[10:02:11] " + text;
+        });
+        writer = new ConsultationRecordWriter(repo, patients, clinical, appointments, json, properties, logs);
         when(appointments.createAppointment(any()))
                 .thenReturn(AppointmentResponse.builder().id(UUID.randomUUID()).build());
         consultation = repo.save(consultation(ConsultationStatus.REVIEW));
@@ -168,7 +175,8 @@ class ConsultationRecordWriterTest {
                 NoteCategory.CHIEF_COMPLAINT, NoteCategory.TREATMENT_PLAN,
                 NoteCategory.CONSULTATION_REPORT, NoteCategory.CONSULTATION_TRANSCRIPT);
         assertThat(content.getAllValues()).contains("Douleur sur la 16", "Compte rendu relu.",
-                "Bonjour docteur… toute la conversation");
+                "[10:02:11] Bonjour docteur… toute la conversation");
+        verify(logs, never()).erase(any());
     }
 
     @Test
@@ -183,6 +191,7 @@ class ConsultationRecordWriterTest {
         assertThat(category.getAllValues()).doesNotContain(NoteCategory.CONSULTATION_TRANSCRIPT);
         assertThat(saved.getTranscript()).isNull();
         assertThat(saved.getDraft()).isNull();
+        verify(logs).erase(saved.getId());
         // What the doctor validated is the record, and stays printable.
         assertThat(saved.getReviewed()).contains("pénicilline");
         assertThat(saved.getStatus()).isEqualTo(ConsultationStatus.COMPLETED);

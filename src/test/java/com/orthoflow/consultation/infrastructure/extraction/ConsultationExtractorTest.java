@@ -43,6 +43,7 @@ class ConsultationExtractorTest {
         properties.getExtraction().setModel("big");
         properties.getExtraction().setFallbacks(List.of("groq:small", "deepseek:flash"));
         vendors = new VoiceProviderProperties();
+        vendors.setRequireDataProtection(false);
         vendors.getGroq().setApiKey("g-key");
         vendors.getDeepseek().setApiKey("d-key");
         chat = mock(ChatCompletionClient.class);

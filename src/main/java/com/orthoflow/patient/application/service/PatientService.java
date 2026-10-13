@@ -248,30 +248,31 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
     }
 
     /**
-     * Permanently removes a patient and (via DB cascade) their appointments
-     * and treatment history. Restricted to ADMIN at the controller — this is
-     * the dedicated, audited path for a GDPR/Law 09-08 erasure request, not
-     * the everyday "delete patient" action.
+     * Permanently removes a patient and everything that identifies them or records their care.
+     * Restricted to ADMIN at the controller — this is the dedicated, audited path for a
+     * GDPR/Law 09-08 erasure request, not the everyday "delete patient" action.
      *
-     * <p>Invoices reference the patient with {@code ON DELETE RESTRICT}
-     * (migration V15, deliberately): a financial record carries its own
-     * accounting-law retention obligation independent of the patient's
-     * erasure right, so it must not be destroyed or orphaned as a side
-     * effect. If any invoice still points at this patient the erasure is
-     * refused with an explanation — the operator anonymises or archives those
-     * invoices first, then retries — rather than failing with the raw
-     * FK-violation 409 the caller used to get.
+     * <p>Financial records (invoices, receipts, plans, cheques, fee notes, sales and stock
+     * invoices) reference the patient with {@code ON DELETE RESTRICT} or no rule at all,
+     * deliberately: they carry their own accounting-law retention obligation independent of
+     * the patient's erasure right, so they must not be destroyed or orphaned as a side effect.
+     * While any exist the erasure is refused with an explanation, and the way forward is
+     * {@link #anonymisePatient}: the same removal of everything clinical and personal, with the
+     * financial records kept under a patient row stripped of identity.
+     *
+     * <p>An archived patient ("deleted" earlier) can still be erased: archiving hid the file, it
+     * did not remove a word of it.
      */
     @Transactional
     public void erasePatient(UUID id) {
-        getPatientById(id); // 404 if unknown, before we check anything else
+        requireIncludingArchived(id); // 404 if unknown, before we check anything else
 
-        long invoiceCount = invoiceLinkGuard.countInvoicesForPatient(id);
-        if (invoiceCount > 0) {
+        long financialCount = invoiceLinkGuard.countInvoicesForPatient(id);
+        if (financialCount > 0) {
             throw new ConflictException(
-                    "This patient still has " + invoiceCount + " financial record(s) (invoices, receipts, plans, cheques). "
+                    "This patient still has " + financialCount + " financial record(s) (invoices, receipts, plans, cheques, fee notes). "
                     + "They carry their own accounting-law retention obligation and are not removed by an erasure request. "
-                    + "Anonymise or archive those records first, then retry the erasure.");
+                    + "Anonymise the patient instead: their identity and everything clinical are removed and the financial records are kept without a name.");
         }
 
         // What the database cascade does not reach (see PatientErasureListener),
@@ -279,6 +280,24 @@ public class PatientService implements com.orthoflow.patient.application.port.Pa
         erasureListeners.forEach(listener -> listener.onPatientErased(id));
 
         patientRepository.deleteById(id);
+    }
+
+    /**
+     * Erasure for a patient whose financial records must be kept: everything clinical and
+     * personal is removed (the same listeners as {@link #erasePatient}), the financial records
+     * stay with their free text blanked, and the patient row stays as an archived shell with no
+     * identity so they still have something to point at. Not reversible.
+     */
+    @Transactional
+    public void anonymisePatient(UUID id) {
+        requireIncludingArchived(id);
+        erasureListeners.forEach(listener -> listener.onPatientAnonymised(id));
+    }
+
+    private void requireIncludingArchived(UUID id) {
+        if (patientRepository.findById(id).isEmpty() && !patientRepository.existsIncludingArchived(id)) {
+            throw new NotFoundException("Patient not found");
+        }
     }
 
     private static String blankToNull(String s) {

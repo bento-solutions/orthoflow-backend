@@ -1,5 +1,7 @@
 package com.orthoflow.auth.application.service;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
 import com.orthoflow.auth.application.dto.AdminUserDtos.*;
 import com.orthoflow.auth.domain.model.User;
 import com.orthoflow.auth.domain.model.UserRole;
@@ -15,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,6 +38,7 @@ public class UserAdminService {
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
     private final SessionService sessionService;
+    private final AuditLog audit;
 
     @Transactional(readOnly = true)
     public List<UserRow> list(UUID practiceId) {
@@ -57,6 +62,8 @@ public class UserAdminService {
                 .active(true)
                 .mustChangePassword(true)
                 .build());
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("USER_INVITED").practiceId(practiceId)
+                .targetType("user").targetId(user.getId()).detail(Map.of("email", user.getEmail(), "role", user.getRole().name())).build());
         return new Invite(row(user), authService.issueResetLink(user));
     }
 
@@ -73,6 +80,13 @@ public class UserAdminService {
             throw new ConflictException("You cannot change your own role or deactivate your own account");
         }
         boolean deactivating = user.isActive() && !request.active();
+        Map<String, Object> changes = new LinkedHashMap<>();
+        if (user.getRole() != request.role()) {
+            changes.put("role", user.getRole().name() + " -> " + request.role().name());
+        }
+        if (user.isActive() != request.active()) {
+            changes.put("active", user.isActive() + " -> " + request.active());
+        }
         user.setFirstName(request.firstName().trim());
         user.setLastName(request.lastName().trim());
         user.setRole(request.role());
@@ -80,7 +94,11 @@ public class UserAdminService {
         if (deactivating) {
             sessionService.revokeAll(userId);
         }
-        return row(users.save(user));
+        UserRow saved = row(users.save(user));
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action(changes.containsKey("role") ? "USER_ROLE_CHANGED"
+                : changes.containsKey("active") ? (request.active() ? "USER_ACTIVATED" : "USER_DEACTIVATED") : "USER_UPDATED")
+                .practiceId(practiceId).targetType("user").targetId(userId).detail(changes).build());
+        return saved;
     }
 
     /** Signs the person out everywhere and sends them a fresh link to choose a new password. */
@@ -91,6 +109,8 @@ public class UserAdminService {
         user.setSessionsValidAfter(OffsetDateTime.now());
         users.save(user);
         sessionService.revokeAll(userId);
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("USER_PASSWORD_RESET_FORCED").practiceId(practiceId)
+                .targetType("user").targetId(userId).build());
         return new Invite(row(user), authService.issueResetLink(user));
     }
 

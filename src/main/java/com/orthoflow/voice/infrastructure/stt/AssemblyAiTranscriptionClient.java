@@ -56,6 +56,26 @@ public class AssemblyAiTranscriptionClient implements TranscriptionProvider {
             + "(seize, vingt-six, trente-six, quarante et un) et décrit caries, couronnes, obturations et "
             + "l'état du parodonte. Les commandes commencent souvent par le mot Calypso.";
 
+    /**
+     * The same description for a dentist who dictates in English. Sent when the
+     * browser says English: a French scenario in front of English speech
+     * biases the recogniser towards French spellings of what it hears.
+     */
+    static final String SCENARIO_EN = "Clinical dictation by a dentist during a dental consultation, in English. "
+            + "The dentist names teeth by their number (sixteen, twenty-six, thirty-six, forty-one) and describes "
+            + "caries, crowns, fillings and the state of the gums. Commands often begin with the word Calypso. "
+            + "Anything spoken in another language is transcribed as it is heard.";
+
+    /** The English counterpart of {@link #KEY_TERMS}, held to the same rule: uncommon clinical words only. */
+    static final List<String> KEY_TERMS_EN = List.of(
+            "Calypso", "recurrent caries", "deep caries", "crown replacement", "defective crown",
+            "root canal", "devitalised", "abscess", "mobility", "periodontal pocket",
+            "gingival recession", "gingivitis", "periodontitis", "calculus", "scaling", "filling",
+            "composite", "amalgam", "inlay core", "fissure sealant", "veneer", "retained root",
+            "occlusal", "mesial", "distal", "buccal", "lingual", "palatal", "penicillin",
+            "medical history", "pulpitis", "pulp necrosis", "granuloma", "avulsion", "inlay", "onlay",
+            "mesio-occlusal", "occluso-distal", "anticoagulants");
+
     /** Uncommon clinical words only; see the class comment for why the list is short. */
     static final List<String> KEY_TERMS = List.of(
             "Calypso", "carie récurrente", "carie profonde", "couronne à remplacer", "couronne défectueuse",
@@ -118,7 +138,7 @@ public class AssemblyAiTranscriptionClient implements TranscriptionProvider {
             ByteArrayOutputStream body = new ByteArrayOutputStream();
             writePart(body, boundary, "audio", "utterance.wav", "audio/wav", audio);
             writePart(body, boundary, "config", null, "application/json",
-                    objectMapper.writeValueAsBytes(config(prompt)));
+                    objectMapper.writeValueAsBytes(config(prompt, languageOverride)));
             body.writeBytes(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -152,12 +172,23 @@ public class AssemblyAiTranscriptionClient implements TranscriptionProvider {
     }
 
     Map<String, Object> config(String hint) {
+        return config(hint, null);
+    }
+
+    /**
+     * @param language the dictation language the browser chose ({@code fr}, {@code en},
+     *                 {@code ar}); anything but English is described in French, the
+     *                 clinic's language, since Arabic dictation carries its Latin terms
+     *                 in French
+     */
+    Map<String, Object> config(String hint, String language) {
+        boolean english = language != null && language.trim().toLowerCase(Locale.ROOT).startsWith("en");
         Map<String, Object> config = new LinkedHashMap<>();
         // The scenario is fixed text. The patient's name used to be lifted from
         // the browser's hint and appended here; it is personal data and helps
         // nothing a dictated tooth or finding needs, so it is never sent.
-        config.put("prompt", SCENARIO);
-        config.put("keyterms_prompt", KEY_TERMS);
+        config.put("prompt", english ? SCENARIO_EN : SCENARIO);
+        config.put("keyterms_prompt", english ? KEY_TERMS_EN : KEY_TERMS);
         return config;
     }
 

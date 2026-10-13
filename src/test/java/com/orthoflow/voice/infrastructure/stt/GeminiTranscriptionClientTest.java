@@ -32,7 +32,9 @@ class GeminiTranscriptionClientTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         properties = new SpeechToTextProperties();
-        client = new GeminiTranscriptionClient(properties, new VoiceProviderProperties(), objectMapper);
+        VoiceProviderProperties vendors = new VoiceProviderProperties();
+        vendors.setRequireDataProtection(false);
+        client = new GeminiTranscriptionClient(properties, vendors, objectMapper);
     }
 
     /** A response whose single model_output step carries {@code text}. */
@@ -285,6 +287,7 @@ class GeminiTranscriptionClientTest {
     void isNotConfiguredWithoutAnApiKey() {
         SpeechToTextProperties unconfigured = new SpeechToTextProperties();
         VoiceProviderProperties vendors = new VoiceProviderProperties();
+        vendors.setRequireDataProtection(false);
         unconfigured.setProvider("gemini");
         assertThat(new GeminiTranscriptionClient(unconfigured, vendors, objectMapper).isConfigured()).isFalse();
 

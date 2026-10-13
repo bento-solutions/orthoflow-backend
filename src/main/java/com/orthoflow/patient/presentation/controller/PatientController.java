@@ -1,5 +1,7 @@
 package com.orthoflow.patient.presentation.controller;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
 import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.patient.application.dto.CreatePatientRequest;
 import com.orthoflow.patient.application.dto.PatientResponse;
@@ -24,6 +26,7 @@ public class PatientController {
 
     private final PatientService patientService;
     private final CurrentUserProvider currentUserProvider;
+    private final AuditLog audit;
 
     /**
      * The body is a whitelist DTO, not the {@code Patient} entity: binding the
@@ -79,12 +82,15 @@ public class PatientController {
      * and treatment history. A separate, ADMIN-only, deliberately harder to
      * reach path for a GDPR/Law 09-08 erasure request — never the default
      * "delete" action a doctor or assistant clicks day to day. Refused with
-     * an explanation if the patient still has invoices (see PatientService).
+     * an explanation if the patient still has financial records, in which case they are anonymised
+     * instead ({@code POST /patients/{id}/compliance/anonymise}).
      */
     @DeleteMapping("/{id}/erase")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
     public void erasePatient(@PathVariable UUID id) {
         patientService.erasePatient(id);
+        // After the fact and in its own transaction: the trace of an erasure must outlive the person it concerns.
+        audit.record(AuditCategory.DATA_RIGHTS, "PATIENT_ERASED", id, java.util.Map.of());
     }
 }

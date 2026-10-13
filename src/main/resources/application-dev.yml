@@ -14,3 +14,9 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     com.orthoflow: DEBUG
+
+orthoflow:
+  voice:
+    # No patient data on a development machine: vendor keys work without the
+    # data-protection attestation that every other profile insists on.
+    require-data-protection: ${VOICE_REQUIRE_DATA_PROTECTION:false}

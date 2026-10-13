@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Builder;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -24,6 +25,8 @@ public record ConsultationResponse(
         String locale,
         OffsetDateTime patientInformedAt,
         String transcript,
+        /** The same conversation line by line with the time of each; null in a list, like the transcript. */
+        List<ConsultationLogResponse.Line> lines,
         JsonNode draft,
         /** The doctor's decisions on the panel so far; with the transcript only, null once saved. */
         JsonNode reviewState,

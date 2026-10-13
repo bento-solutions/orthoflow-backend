@@ -20,6 +20,9 @@ public interface PatientJpaRepository extends JpaRepository<Patient, UUID> {
     @Query(value = "DELETE FROM patients WHERE id = :id AND practice_id = :practiceId", nativeQuery = true)
     void hardDeleteById(UUID id, UUID practiceId);
 
+    @Query(value = "SELECT count(*) > 0 FROM patients WHERE id = :id AND practice_id = :practiceId", nativeQuery = true)
+    boolean existsIncludingArchived(UUID id, UUID practiceId);
+
     @Query("SELECT p FROM Patient p WHERE " +
             "LOWER(p.firstName) LIKE LOWER(CONCAT('%', :term, '%')) OR " +
             "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :term, '%')) OR " +

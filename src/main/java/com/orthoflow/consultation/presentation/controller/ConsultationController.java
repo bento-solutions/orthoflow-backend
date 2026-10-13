@@ -4,11 +4,13 @@ import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.consultation.application.dto.CommitConsultationRequest;
 import com.orthoflow.consultation.application.dto.CommitConsultationResponse;
 import com.orthoflow.consultation.application.dto.ConsultationConfigResponse;
+import com.orthoflow.consultation.application.dto.ConsultationLogResponse;
 import com.orthoflow.consultation.application.dto.ConsultationResponse;
 import com.orthoflow.consultation.application.dto.ExtractionResponse;
 import com.orthoflow.consultation.application.dto.StartConsultationRequest;
 import com.orthoflow.consultation.application.dto.TranscriptRequest;
 import com.orthoflow.consultation.application.service.ConsultationCommitService;
+import com.orthoflow.consultation.application.service.ConsultationLogService;
 import com.orthoflow.consultation.application.service.ConsultationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
@@ -37,6 +39,7 @@ public class ConsultationController {
 
     private final ConsultationService consultationService;
     private final ConsultationCommitService commitService;
+    private final ConsultationLogService logService;
     private final CurrentUserProvider currentUserProvider;
 
     /** Whether to offer the feature, and whether a model reads the conversation. */
@@ -71,12 +74,24 @@ public class ConsultationController {
     }
 
     /**
+     * The consultation log: what was said and when, the commands the examination
+     * understood and what became of them, and what the doctor validated. Open
+     * to the doctor after the consultation is saved, for as long as it is kept.
+     */
+    @GetMapping("/{id}/log")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ConsultationLogResponse log(@PathVariable UUID id) {
+        return logService.log(id);
+    }
+
+    /**
      * Reads the conversation so far and says what it established. Also saves the
      * transcript it is sent. Rate-limited per user: it can call a paid model.
      */
     @PostMapping("/{id}/extract")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ExtractionResponse extract(@PathVariable UUID id, @Valid @RequestBody TranscriptRequest request) {
+        logService.record(id, request.getLines());
         return consultationService.extract(id, request.getTranscript());
     }
 
@@ -103,6 +118,7 @@ public class ConsultationController {
     @PostMapping("/{id}/end")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ConsultationResponse end(@PathVariable UUID id, @Valid @RequestBody TranscriptRequest request) {
+        logService.record(id, request.getLines());
         return consultationService.end(id, request.getTranscript());
     }
 

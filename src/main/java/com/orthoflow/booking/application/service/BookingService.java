@@ -13,7 +13,9 @@ import com.orthoflow.messaging.application.service.LandingPageContacts;
 import com.orthoflow.messaging.application.service.MessageService;
 import com.orthoflow.messaging.application.service.StaffNotifier;
 import com.orthoflow.messaging.domain.model.MessageChannel;
+import com.orthoflow.messaging.application.service.PhoneNumbers;
 import com.orthoflow.messaging.domain.model.MessagePurpose;
+import com.orthoflow.messaging.infrastructure.MessagingProperties;
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientRegistrar;
 import com.orthoflow.publicapi.application.service.PublicLinkService;
@@ -50,6 +52,14 @@ import java.util.stream.Collectors;
  * clinic has chosen auto-confirm (off by default). Pending requests hold their slot
  * so two people cannot ask for the same time, and the slot is checked again at the
  * moment of the request, not trusted from when the page loaded.
+ *
+ * <p>The page is public and the clinic's WhatsApp number may be shared with the CRM, so
+ * nothing here lets a stranger make that number message someone else: a number typed
+ * into the form proves nothing, so the automatic acknowledgement, the auto-confirm and
+ * the decline notice go only to a number the clinic already knows the holder of (a patient's,
+ * or one that wrote to the clinic's WhatsApp). Everyone else hears from the clinic after a
+ * member of staff has read the request and confirmed it. Requests per contact and per
+ * clinic are capped so a script cannot fill the diary with held slots.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,6 +68,12 @@ public class BookingService {
     private static final Logger log = LoggerFactory.getLogger(BookingService.class);
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+    /** Requests one phone number or e-mail address may have waiting for an answer. */
+    public static final int MAX_PENDING_PER_CONTACT = 2;
+    /** Requests one phone number or e-mail address may make in a day, whatever became of them. */
+    public static final int MAX_REQUESTS_PER_CONTACT_PER_DAY = 4;
+    /** Requests waiting for staff in one clinic, so held slots cannot be used to make online booking look full. */
+    public static final int MAX_PENDING_PER_CLINIC = 150;
 
     private final JdbcTemplate jdbc;
     private final PublicLinkService publicLinks;
@@ -74,6 +90,7 @@ public class BookingService {
     private final PracticeZone practiceZone;
     private final LiveEventPublisher liveEvents;
     private final LandingPageContacts landingPageContacts;
+    private final MessagingProperties messagingProperties;
 
     // ── Settings ──
     @Transactional
@@ -148,6 +165,10 @@ public class BookingService {
         if (blank(r.phone()) && blank(r.email())) {
             throw new ValidationException("Give a phone number or an email so the clinic can answer you");
         }
+        if (!blank(r.phone()) && PhoneNumbers.toInternationalDigits(r.phone(), messagingProperties.getWhatsapp().getDefaultCountryCode()) == null) {
+            throw new ValidationException("That phone number does not look right. Include the area or country code.");
+        }
+        enforceLimits(practiceId, r);
         ZoneId zone = practiceZone.of(practiceId);
         OffsetDateTime now = OffsetDateTime.now();
         if (r.startsAt().isBefore(now.plusHours(s.leadTimeHours())) || r.startsAt().isAfter(now.plusDays(s.maxDaysAhead()))) {
@@ -169,17 +190,22 @@ public class BookingService {
             // Their WhatsApp replies are this clinic's to read, even on a number shared with the CRM.
             landingPageContacts.record(practiceId, r.phone(), LandingPageContacts.Source.BOOKING);
         }
-        if (s.autoConfirm()) {
+        // Only a contact the clinic can vouch for is answered without a human reading the request first.
+        Optional<UUID> knownPatient = blank(r.phone()) ? Optional.empty() : knownPatient(practiceId, r.phone());
+        boolean proven = knownPatient.isPresent() || landingPageContacts.wroteFromThisNumber(practiceId, r.phone());
+        if (s.autoConfirm() && proven) {
             try {
                 // The confirmation names the day and time, so it is the only message this person gets.
-                confirm(practiceId, null, id, new Confirm(null, null, null, null, false));
+                confirm(practiceId, null, id, new Confirm(knownPatient.orElse(null), null, null, null, false));
                 return new Received(reference(id));
             } catch (RuntimeException e) {
                 // Could not auto-confirm (no free practitioner, a conflict): it stays a request for staff.
                 log.warn("Auto-confirm of booking request {} failed: {}", id, e.getMessage());
             }
         }
-        acknowledge(practiceId, id, r, zone);
+        if (proven) {
+            acknowledge(practiceId, id, r);
+        }
         notifier.toPermission(practiceId, Permission.BOOKING_REVIEW, MessagePurpose.BOOKING_RECEIVED, "Nouvelle demande de rendez-vous",
                 r.firstName().trim() + " " + r.lastName().trim() + " — " + DAY.format(r.startsAt().atZoneSameInstant(zone)) + " à "
                         + TIME.format(r.startsAt().atZoneSameInstant(zone)) + " (" + type.getNameFr() + ")", "BOOKING_REQUEST", id);
@@ -275,8 +301,13 @@ public class BookingService {
         jdbc.update("UPDATE booking_requests SET status = 'DECLINED', decline_reason = ?, decided_by = ?, decided_at = NOW() WHERE id = ?", blankToNull(reason), actorId, requestId);
         String phone = (String) row.get("phone");
         UUID patientId = (UUID) row.get("patient_id");
-        messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(blank(phone) ? MessageChannel.EMAIL : MessageChannel.WHATSAPP)
-                .purpose(MessagePurpose.BOOKING_DECLINED).patientId(patientId).recipient(blank(phone) ? (String) row.get("email") : phone)
+        if (blank(phone) || !(knownPatient(practiceId, phone).isPresent() || landingPageContacts.wroteFromThisNumber(practiceId, phone))) {
+            // A number typed into a public form may belong to someone else: staff phone these people instead.
+            liveEvents.publish(practiceId, "booking-request", requestId);
+            return;
+        }
+        messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(MessageChannel.WHATSAPP)
+                .purpose(MessagePurpose.BOOKING_DECLINED).patientId(patientId).recipient(phone)
                 .language((String) row.get("language")).variables(Map.of("patientName", row.get("first_name") + " " + row.get("last_name")))
                 .skipConsentCheck(true).build());
         liveEvents.publish(practiceId, "booking-request", requestId);
@@ -352,12 +383,40 @@ public class BookingService {
         return rows.get(0);
     }
 
-    private void acknowledge(UUID practiceId, UUID requestId, Submit r, ZoneId zone) {
-        boolean byPhone = !blank(r.phone());
-        messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(byPhone ? MessageChannel.WHATSAPP : MessageChannel.EMAIL)
-                .purpose(MessagePurpose.BOOKING_RECEIVED).recipient(byPhone ? r.phone() : r.email()).language(r.language() == null ? "fr" : r.language())
+    private void acknowledge(UUID practiceId, UUID requestId, Submit r) {
+        messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(MessageChannel.WHATSAPP)
+                .purpose(MessagePurpose.BOOKING_RECEIVED).recipient(r.phone()).language(r.language() == null ? "fr" : r.language())
                 .variables(Map.of("patientName", r.firstName().trim() + " " + r.lastName().trim())).relatedType("BOOKING_REQUEST")
                 .relatedId(requestId).dedupeKey("booking-ack:" + requestId).skipConsentCheck(true).build());
+    }
+
+    /** The one patient of this clinic who has this number; empty when none or several share it. */
+    private Optional<UUID> knownPatient(UUID practiceId, String phone) {
+        String key = LandingPageContacts.key(phone);
+        return key == null ? Optional.empty() : patientLookup.findIdByPhoneDigits(practiceId, key);
+    }
+
+    /** What one contact, and one clinic, may have outstanding; the page answers "later" rather than filling the inbox. */
+    private void enforceLimits(UUID practiceId, Submit r) {
+        String key = LandingPageContacts.key(r.phone());
+        String email = blankToNull(r.email()) == null ? null : r.email().trim().toLowerCase(Locale.ROOT);
+        if (key != null || email != null) {
+            String match = "practice_id = ? AND (phone_digits(phone) = ? OR lower(email) = ?)";
+            Integer pending = jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE " + match + " AND status = 'PENDING'",
+                    Integer.class, practiceId, key, email);
+            if (pending != null && pending >= MAX_PENDING_PER_CONTACT) {
+                throw new ConflictException("You already have requests waiting for an answer. The clinic will contact you.");
+            }
+            Integer today = jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE " + match + " AND created_at > NOW() - INTERVAL '1 day'",
+                    Integer.class, practiceId, key, email);
+            if (today != null && today >= MAX_REQUESTS_PER_CONTACT_PER_DAY) {
+                throw new ConflictException("Too many requests today. Please call the clinic.");
+            }
+        }
+        Integer clinicPending = jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE practice_id = ? AND status = 'PENDING'", Integer.class, practiceId);
+        if (clinicPending != null && clinicPending >= MAX_PENDING_PER_CLINIC) {
+            throw new ConflictException("Online booking is not taking new requests right now. Please call the clinic.");
+        }
     }
 
     private RequestView view(java.sql.ResultSet rs) throws java.sql.SQLException {

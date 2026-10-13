@@ -121,7 +121,7 @@ class LandingPageWhatsAppTest extends SpringDbTest {
 
     @Test
     void aBookingMadeOnTheLandingPageLetsTheirRepliesThroughAndFlagsThePatient() {
-        bookOnTheLandingPage(false);
+        bookOnTheLandingPage(false, false);
 
         deliver(SESSION, "+212600000004", "Merci, à bientôt");
         assertThat(stored("212600000004")).isOne();
@@ -139,7 +139,7 @@ class LandingPageWhatsAppTest extends SpringDbTest {
 
     @Test
     void anAutoConfirmedLandingPageBookingCreatesTheFlaggedPatientWithNobodySignedIn() {
-        bookOnTheLandingPage(true);
+        bookOnTheLandingPage(true, true);
 
         String channel = jdbc.queryForObject("SELECT acquisition_channel FROM patients WHERE practice_id = ? AND last_name = 'Idrissi'",
                 String.class, practice);
@@ -149,7 +149,7 @@ class LandingPageWhatsAppTest extends SpringDbTest {
 
     @Test
     void anAutoConfirmedLandingPageBookingSendsTheConfirmationAndNothingElse() {
-        bookOnTheLandingPage(true);
+        bookOnTheLandingPage(true, true);
 
         assertThat(jdbc.queryForList("SELECT purpose FROM message_outbox WHERE practice_id = ?", String.class, practice))
                 .containsExactly("BOOKING_CONFIRMED");
@@ -157,14 +157,48 @@ class LandingPageWhatsAppTest extends SpringDbTest {
 
     @Test
     void aLandingPageBookingWaitingForStaffIsAcknowledgedWithoutADate() {
-        bookOnTheLandingPage(false);
+        bookOnTheLandingPage(false, true);
 
         assertThat(jdbc.queryForList("SELECT purpose FROM message_outbox WHERE practice_id = ?", String.class, practice))
                 .containsExactly("BOOKING_RECEIVED");
     }
 
+    @Test
+    void aNumberTypedIntoTheFormByAStrangerIsNeverMessagedBeforeStaffHaveReadTheRequest() {
+        bookOnTheLandingPage(true, false);
+
+        // Auto-confirm is on, but nobody proved they hold the phone: it waits for staff, creates no patient, sends nothing.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message_outbox WHERE practice_id = ?", Integer.class, practice)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM patients WHERE practice_id = ?", Integer.class, practice)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE practice_id = ? AND status = 'PENDING'", Integer.class, practice)).isOne();
+    }
+
+    @Test
+    void decliningAStrangersRequestSendsThemNothing() {
+        bookOnTheLandingPage(false, false);
+        UUID admin = UUID.randomUUID();
+        jdbc.update("INSERT INTO users (id, email, password_hash, first_name, last_name, role, practice_id) VALUES (?, ?, 'x', 'A', 'B', 'ADMIN', ?)",
+                admin, admin + "@x.ma", practice);
+        signInAs(admin, practice);
+        UUID request = jdbc.queryForObject("SELECT id FROM booking_requests WHERE practice_id = ?", UUID.class, practice);
+
+        booking.decline(practice, admin, request, "Fully booked");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message_outbox WHERE practice_id = ?", Integer.class, practice)).isZero();
+    }
+
+    @Test
+    void aWhatsAppFromTheNumberUpgradesABookingContactToProvenOwnership() {
+        contacts.record(practice, "0600000009", LandingPageContacts.Source.BOOKING);
+        assertThat(contacts.wroteFromThisNumber(practice, "0600000009")).isFalse();
+
+        deliver(SESSION, "+212600000009", "Merci");
+
+        assertThat(contacts.wroteFromThisNumber(practice, "0600000009")).isTrue();
+    }
+
     /** Sets up online booking, then books as the public page does: no signed-in user, the clinic from the link. */
-    private void bookOnTheLandingPage(boolean autoConfirm) {
+    private void bookOnTheLandingPage(boolean autoConfirm, boolean holderProven) {
         signInTo(practice);
         booking.saveSettings(practice, new Settings(true, 0, 30, 30, autoConfirm));
         String token = links.sharedToken(practice, PublicLinkPurpose.BOOKING);
@@ -175,6 +209,9 @@ class LandingPageWhatsAppTest extends SpringDbTest {
         for (int weekday = 1; weekday <= 7; weekday++) {
             jdbc.update("INSERT INTO practice_opening_hours (id, practice_id, weekday, open_time, close_time) VALUES (?, ?, ?, '09:00', '18:00')",
                     UUID.randomUUID(), practice, weekday);
+        }
+        if (holderProven) {
+            contacts.record(practice, "06 00 00 00 04", LandingPageContacts.Source.WHATSAPP_LINK);
         }
         signOut();
 

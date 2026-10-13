@@ -51,6 +51,7 @@ class ConsultationServiceTest {
     private TreatmentRepository treatments;
     private ConsultationExtractor extractor;
     private ConsultationExtractionProperties properties;
+    private ConsultationLogService logs;
     private ConsultationService service;
 
     @BeforeEach
@@ -63,8 +64,9 @@ class ConsultationServiceTest {
         extractor = mock(ConsultationExtractor.class);
         properties = new ConsultationExtractionProperties();
         properties.setEnabled(true);
+        logs = mock(ConsultationLogService.class);
         service = new ConsultationService(repo, voiceSessions, voiceAudit, patients, treatments, extractor, properties,
-                new ObjectMapper());
+                new ObjectMapper(), logs);
 
         when(patients.exists(PATIENT)).thenReturn(true);
         when(voiceSessions.start(any(), eq(ACTOR))).thenReturn(session("ACTIVE"));
@@ -324,6 +326,8 @@ class ConsultationServiceTest {
         ArgumentCaptor<CompleteVoiceSessionRequest> completion = ArgumentCaptor.forClass(CompleteVoiceSessionRequest.class);
         verify(voiceSessions).end(eq(VOICE_SESSION), completion.capture(), eq(ACTOR));
         assertThat(completion.getValue().getStatus()).isEqualTo("ABANDONED");
+        // The timed log goes with the text: a discarded conversation is not kept in pieces.
+        verify(logs).erase(c.getId());
     }
 
     @Test
@@ -414,6 +418,7 @@ class ConsultationServiceTest {
 
         assertThat(service.discardIdle(c.getId())).isFalse();
 
+        verify(logs).erase(c.getId());
         Consultation after = repo.rows.get(c.getId());
         assertThat(after.getStatus()).isEqualTo(ConsultationStatus.REVIEW);
         assertThat(after.getTranscript()).isNull();

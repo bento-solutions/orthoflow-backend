@@ -55,6 +55,7 @@ class ConsultationRecordWriter {
     private final AppointmentService appointments;
     private final ObjectMapper objectMapper;
     private final ConsultationExtractionProperties properties;
+    private final ConsultationLogService logs;
 
     @Transactional
     public Consultation write(UUID consultationId, CommitConsultationRequest request, UUID actorId) {
@@ -88,6 +89,7 @@ class ConsultationRecordWriter {
             // is the record now. The draft goes too: its quotes are the transcript.
             consultation.setTranscript(null);
             consultation.setDraft(null);
+            logs.erase(consultation.getId());
         }
         return consultations.save(consultation);
     }
@@ -144,10 +146,11 @@ class ConsultationRecordWriter {
         note(patientId, noteSession, NoteCategory.CHIEF_COMPLAINT, request.getChiefComplaint(), actorId);
         note(patientId, noteSession, NoteCategory.TREATMENT_PLAN, planText(request), actorId);
         note(patientId, noteSession, NoteCategory.CONSULTATION_REPORT, request.getReport(), actorId);
-        // The raw conversation, kept for later review — only where retention is
-        // switched on, which is testing only (see ConsultationRetentionGuard).
+        // The raw conversation, timestamped, kept for the doctor to check later —
+        // where retention is switched on (orthoflow.consultation.retain-transcript).
         if (properties.isRetainTranscript()) {
-            note(patientId, noteSession, NoteCategory.CONSULTATION_TRANSCRIPT, consultation.getTranscript(), actorId);
+            note(patientId, noteSession, NoteCategory.CONSULTATION_TRANSCRIPT,
+                    logs.timestampedTranscript(consultation), actorId);
         }
     }
 

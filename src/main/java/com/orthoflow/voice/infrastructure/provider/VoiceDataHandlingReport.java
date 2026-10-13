@@ -87,7 +87,7 @@ public class VoiceDataHandlingReport {
             Set<String> held = new TreeSet<>();
             for (String name : vendorNames) {
                 VoiceProviderProperties.Vendor vendor = vendors.vendor(name);
-                if (vendor != null && vendor.hasKey()) held.add(name);
+                if (vendor != null && vendor.hasConfiguredKey()) held.add(name);
             }
             return held;
         });
@@ -95,12 +95,12 @@ public class VoiceDataHandlingReport {
         return byStage;
     }
 
-    /** Vendors that would receive patient data and are not attested, with the stages they serve. */
+    /** Vendors that would receive patient data and are not attested (or are outside the allowed regions), with the stages they serve. */
     Map<String, List<String>> unattested() {
         Map<String, List<String>> result = new LinkedHashMap<>();
         receivers().forEach((stage, names) -> names.forEach(name -> {
             VoiceProviderProperties.Vendor vendor = vendors.vendor(name);
-            if (vendor != null && !vendor.isDataProtected()) {
+            if (vendor != null && (!vendor.isDataProtected() || vendor.isBlocked())) {
                 result.computeIfAbsent(name, k -> new ArrayList<>()).add(stage);
             }
         }));
@@ -109,11 +109,20 @@ public class VoiceDataHandlingReport {
 
     @EventListener(ApplicationReadyEvent.class)
     void report() {
-        unattested().forEach((vendor, stages) -> log.warn(
-                "Patient data goes to '{}' ({}) and that vendor is not marked data-protected. Confirm the key "
-                        + "is on a plan that excludes training on submitted content and that a DPA is in place, "
-                        + "then set orthoflow.voice.providers.{}.data-protected=true (VOICE_{}_DATA_PROTECTED). "
-                        + "Free-tier keys usually are not.",
-                vendor, String.join(", ", stages), vendor, vendor.toUpperCase()));
+        unattested().forEach((vendor, stages) -> {
+            if (vendors.isRequireDataProtection()) {
+                log.error("'{}' has a key but is NOT used for {}: it is not attested as data-protected"
+                                + " (orthoflow.voice.providers.{}.data-protected / VOICE_{}_DATA_PROTECTED) or its region '{}' is not in"
+                                + " orthoflow.voice.allowed-regions {}. Patient data is never sent to it; the stage falls through to the next vendor"
+                                + " or to the on-device fallback.",
+                        vendor, String.join(", ", stages), vendor, vendor.toUpperCase(), vendors.vendor(vendor).getRegion(), vendors.getAllowedRegions());
+            } else {
+                log.warn("Patient data goes to '{}' ({}) and that vendor is not marked data-protected. Protection is not being enforced"
+                                + " (VOICE_REQUIRE_DATA_PROTECTION=false: acceptable on a machine with no patient data, never in production)."
+                                + " Confirm the key is on a plan that excludes training on submitted content and that a DPA is in place,"
+                                + " then set orthoflow.voice.providers.{}.data-protected=true (VOICE_{}_DATA_PROTECTED).",
+                        vendor, String.join(", ", stages), vendor, vendor.toUpperCase());
+            }
+        });
     }
 }

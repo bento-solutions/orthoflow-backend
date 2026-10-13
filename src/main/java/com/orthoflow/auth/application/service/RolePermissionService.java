@@ -1,5 +1,7 @@
 package com.orthoflow.auth.application.service;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
 import com.orthoflow.auth.application.port.AuthorityResolver;
 import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.auth.domain.model.UserRole;
@@ -39,6 +41,7 @@ public class RolePermissionService implements AuthorityResolver {
     }
 
     private final JdbcTemplate jdbc;
+    private final AuditLog audit;
     private final Map<Key, Cached> cache = new ConcurrentHashMap<>();
 
     @Override
@@ -93,6 +96,9 @@ public class RolePermissionService implements AuthorityResolver {
                     practiceId, role.name(), permission.name());
         }
         cache.remove(new Key(practiceId, role));
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("ROLE_PERMISSIONS_CHANGED").practiceId(practiceId)
+                .actorId(actorId).targetType("role").detail(Map.of("role", role.name(),
+                        "permissions", permissions.stream().map(Enum::name).sorted().toList())).build());
     }
 
     /** Drops a role's customisation so it follows the code-defined defaults again. */
@@ -100,6 +106,8 @@ public class RolePermissionService implements AuthorityResolver {
     public void reset(UUID practiceId, UserRole role) {
         jdbc.update("DELETE FROM role_permission_sets WHERE practice_id = ? AND role = ?", practiceId, role.name());
         cache.remove(new Key(practiceId, role));
+        audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("ROLE_PERMISSIONS_RESET").practiceId(practiceId)
+                .targetType("role").detail(Map.of("role", role.name())).build());
     }
 
     private Set<Permission> load(UUID practiceId, UserRole role) {

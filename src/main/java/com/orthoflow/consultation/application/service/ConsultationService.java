@@ -70,6 +70,7 @@ public class ConsultationService {
     private final ConsultationExtractor extractor;
     private final ConsultationExtractionProperties properties;
     private final ObjectMapper objectMapper;
+    private final ConsultationLogService logs;
 
     public ConsultationConfigResponse config() {
         return new ConsultationConfigResponse(properties.isEnabled(), properties.isEnabled() && extractor.isModelEnabled(),
@@ -202,6 +203,7 @@ public class ConsultationService {
         consultation.setTranscript(null);
         consultation.setDraft(null);
         consultation.setReviewState(null);
+        logs.erase(consultation.getId());
         moveVoiceSession(consultation, VoiceSessionStatus.ABANDONED,
                 VoiceSessionStatus.ACTIVE, VoiceSessionStatus.PENDING_REVIEW);
         return consultations.save(consultation);
@@ -230,6 +232,7 @@ public class ConsultationService {
             consultation.setTranscript(null);
             consultation.setDraft(null);
             consultation.setReviewState(null);
+            logs.erase(consultation.getId());
             consultations.save(consultation);
             return false;
         }
@@ -402,6 +405,7 @@ public class ConsultationService {
                 .locale(c.getLocale())
                 .patientInformedAt(c.getPatientInformedAt())
                 .transcript(withTranscript ? c.getTranscript() : null)
+                .lines(withTranscript ? logs.lines(c.getId()) : null)
                 .draft(withTranscript ? readJson(c.getDraft()) : null)
                 .reviewState(withTranscript ? readJson(c.getReviewState()) : null)
                 .reviewed(readJson(c.getReviewed()))

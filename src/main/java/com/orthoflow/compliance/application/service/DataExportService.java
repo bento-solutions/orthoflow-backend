@@ -43,6 +43,7 @@ public class DataExportService {
     private final VoiceSessionService voiceSessionService;
     private final VoiceAuditService voiceAuditService;
     private final ConsultationService consultationService;
+    private final PatientRecordsExporter recordsExporter;
 
     @Transactional(readOnly = true)
     public PatientDataExport exportPatientData(UUID patientId) {
@@ -59,6 +60,9 @@ public class DataExportService {
                 .voiceSessions(voiceSessionService.listByPatient(patientId))
                 .voiceCommands(voiceAuditService.forPatient(patientId))
                 .consultations(consultationService.forExport(patientId))
+                .records(recordsExporter.records(patientId))
+                .files(recordsExporter.files(patientId))
+                .copiesWithoutLink(recordsExporter.unlinkedCopies(patientId))
                 .build();
     }
 

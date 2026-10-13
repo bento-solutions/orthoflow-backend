@@ -210,6 +210,8 @@ public class WhatsAppWebhookService {
             return false;
         }
         if (landingPageContacts.isKnown(practiceId, digits)) {
+            // A message from the number is the proof that the person who typed it into a booking form holds the phone.
+            landingPageContacts.record(practiceId, digits, LandingPageContacts.Source.WHATSAPP_LINK);
             return true;
         }
         String marker = properties.getWhatsapp().getLandingPageMarker();

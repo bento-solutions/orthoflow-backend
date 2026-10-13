@@ -22,4 +22,7 @@ public interface PatientRepository {
     boolean existsByPhone(String phone);
     List<UUID> findIdsByPhoneSuffix(UUID practiceId, String lastDigits);
     void deleteById(UUID id);
+
+    /** Whether this clinic has the patient, archived or not: an erasure request may concern someone whose file was "deleted" earlier. */
+    boolean existsIncludingArchived(UUID id);
 }
