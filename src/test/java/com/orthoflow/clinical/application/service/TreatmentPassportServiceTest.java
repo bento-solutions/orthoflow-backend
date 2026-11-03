@@ -9,6 +9,10 @@ import com.orthoflow.clinical.application.dto.PeriodontalAssessmentResponse;
 import com.orthoflow.clinical.application.dto.PeriodontalStatusResponse;
 import com.orthoflow.clinical.application.dto.ToothFindingResponse;
 import com.orthoflow.clinical.application.dto.TreatmentPassport;
+import com.orthoflow.clinical.domain.model.ChartType;
+import com.orthoflow.clinical.domain.model.DentalChart;
+import com.orthoflow.clinical.domain.model.ToothState;
+import com.orthoflow.clinical.domain.repository.DentalChartRepository;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.port.LetterheadProvider;
@@ -54,6 +58,7 @@ class TreatmentPassportServiceTest {
     private PatientLookup patients;
     private PatientTreatmentRepository treatments;
     private ActivityLog activity;
+    private DentalChartRepository charts;
     private TreatmentPassportService service;
 
     private static ToothFindingResponse finding(String fdi, String code, String kind, String surface, String status,
@@ -98,7 +103,14 @@ class TreatmentPassportServiceTest {
                 .teeth("11").status(PatientTreatmentStatus.CANCELLED).build();
         when(treatments.findByPatientId(PATIENT)).thenReturn(List.of(done, ongoing, cancelled));
 
-        service = new TreatmentPassportService(clinical, periodontal, patients, letterheads, treatments,
+        charts = mock(DentalChartRepository.class);
+        DentalChart chart = DentalChart.builder().patientId(PATIENT).chartType(ChartType.adult).build();
+        chart.getToothStates().add(ToothState.builder().chart(chart).fdi("16").status("caries").build());
+        chart.getToothStates().add(ToothState.builder().chart(chart).fdi("26").status("crown").build());
+        chart.getToothStates().add(ToothState.builder().chart(chart).fdi("47").status("missing").build());
+        when(charts.findByPatientId(PATIENT)).thenReturn(Optional.of(chart));
+
+        service = new TreatmentPassportService(clinical, periodontal, patients, letterheads, treatments, charts,
                 new PdfService(new PdfTemplateConfig().pdfTemplateEngine()), activity);
     }
 
@@ -192,6 +204,65 @@ class TreatmentPassportServiceTest {
 
         assertThat(new String(ar, 0, 5)).isEqualTo("%PDF-");
         assertThat(textOf(ar)).isNotBlank();
+    }
+
+    @Test
+    void theChartPutsWhatWasAdministeredFirstAndLettersEveryTooth() {
+        var chart = service.build(PRACTICE, PATIENT).chart();
+
+        assertThat(chart.dentition()).isEqualTo("adult");
+        assertThat(chart.legend()).extracting(e -> e.key() + ":" + e.group() + ":" + (e.code() != null ? e.code() : e.name()))
+                .containsExactly(
+                        "A:DONE:caries", "B:DONE:existing_amalgam", "C:DONE:existing_crown", "D:DONE:Scaling",
+                        "E:CONDITION:caries", "F:PLANNED:filling_required", "G:PLANNED:Root canal");
+        assertThat(chart.teeth()).extracting(t -> t.fdi() + ":" + String.join("", t.keys()) + ":" + t.status() + ":" + t.done() + ":" + t.owed())
+                .containsExactly(
+                        "16:BE:caries:true:false", "26:C:crown:true:false", "36:F:present:false:true", "37:G:present:false:true",
+                        "46:A:present:true:false", "47::missing:false:false");
+    }
+
+    @Test
+    void aTreatedConditionIsDrawnAsTreatmentNotAsTheCondition() {
+        var legend = service.build(PRACTICE, PATIENT).chart().legend();
+
+        assertThat(legend.get(0).symbol()).isEqualTo("ring");
+        assertThat(legend.get(1).symbol()).isEqualTo("solid");
+        assertThat(legend.get(2).symbol()).isEqualTo("hatch");
+        assertThat(legend.get(4).symbol()).isEqualTo("stipple");
+        assertThat(legend.get(5).symbol()).isEqualTo("dashed");
+    }
+
+    @Test
+    void theChartDocumentHasTheLegendInWordsAndIsRecorded() throws Exception {
+        String fr = textOf(service.chartPdf(PRACTICE, PATIENT, "fr"));
+
+        assertThat(fr).contains("Schéma dentaire").contains("Légende").contains("Soins réalisés").contains("Pathologies")
+                .contains("Soins restant à réaliser").contains("Couronne").contains("Dr Alaoui").contains("20/11/2021")
+                .contains("Sara Benziane").contains("Droite du patient").contains("Toute la bouche");
+        assertThat(fr).doesNotContain("0612345678");
+        verify(activity).record(eq(PRACTICE), eq("PATIENT"), eq(PATIENT), eq("DENTAL_CHART_EXPORTED"), any());
+
+        assertThat(textOf(service.chartPdf(PRACTICE, PATIENT, "en"))).contains("Treatments administered").contains("Crown");
+        assertThat(textOf(service.chartPdf(PRACTICE, PATIENT, "ar"))).isNotBlank();
+    }
+
+    @Test
+    void thePassportCarriesTheChart() throws Exception {
+        assertThat(textOf(service.pdf(PRACTICE, PATIENT, "fr"))).contains("Schéma dentaire").contains("Légende");
+    }
+
+    @Test
+    void aChildNeverChartedGetsThePrimaryChart() throws Exception {
+        when(charts.findByPatientId(PATIENT)).thenReturn(Optional.empty());
+        when(patients.findIdentity(PATIENT)).thenReturn(Optional.of(new PatientIdentity(PATIENT, "P-2", "Yassine",
+                "Benziane", LocalDate.now().minusYears(6), "M", null, null, null, null, null, null, null, null, null, null, null, null)));
+        when(clinical.listFindingHistory(PATIENT)).thenReturn(List.of(
+                finding("54", "caries", "CONDITION", "occlusal", "ACTIVE", null, "THIS_CLINIC", null)));
+
+        var chart = service.build(PRACTICE, PATIENT).chart();
+
+        assertThat(chart.dentition()).isEqualTo("child");
+        assertThat(textOf(service.chartPdf(PRACTICE, PATIENT, "fr"))).contains("Carie");
     }
 
     @Test

@@ -57,6 +57,20 @@ final class TreatmentPassportLabels {
         Map.entry("implant_required", new String[] {"Implant needed", "Implant à faire", "زرعة مطلوبة"}),
         Map.entry("bridge_required", new String[] {"Bridge needed", "Bridge à faire", "جسر مطلوب"}),
         Map.entry("veneer_required", new String[] {"Veneer needed", "Facette à faire", "قشرة مطلوبة"}),
+        Map.entry("cavity", new String[] {"Cavity", "Cavité", "تجويف"}),
+        Map.entry("existing_filling", new String[] {"Filling", "Obturation", "حشوة"}),
+        Map.entry("avulsion", new String[] {"Avulsion", "Avulsion", "انخلاع"}),
+        Map.entry("extensive_destruction", new String[] {"Extensive destruction", "Destruction étendue", "تلف واسع"}),
+        Map.entry("necrosis", new String[] {"Necrosis", "Nécrose", "نخر"}),
+        Map.entry("infection", new String[] {"Infection", "Infection", "عدوى"}),
+        Map.entry("pain", new String[] {"Pain", "Douleur", "ألم"}),
+        Map.entry("swelling", new String[] {"Swelling", "Tuméfaction", "تورّم"}),
+        Map.entry("bleeding", new String[] {"Bleeding", "Saignement", "نزيف"}),
+        Map.entry("malposition", new String[] {"Malposition", "Malposition", "سوء الوضع"}),
+        Map.entry("gingival_inflammation", new String[] {"Gingival inflammation", "Inflammation gingivale", "التهاب اللثة"}),
+        Map.entry("gingival_recession", new String[] {"Gingival recession", "Récession gingivale", "انحسار اللثة"}),
+        Map.entry("periodontal_pocket", new String[] {"Periodontal pocket", "Poche parodontale", "جيب لثوي"}),
+        Map.entry("plaque_calculus", new String[] {"Plaque and calculus", "Plaque et tartre", "لويحة وجير"}),
         Map.entry("monitor", new String[] {"Monitor", "À surveiller", "مراقبة"}),
         Map.entry("follow_up", new String[] {"Follow-up", "Suivi", "متابعة"})
     );
@@ -133,7 +147,42 @@ final class TreatmentPassportLabels {
             "A structured copy of this passport, readable by software, is available from the clinic.",
             "Une copie structurée de ce passeport, lisible par un logiciel, est disponible auprès du cabinet.",
             "تتوفر لدى العيادة نسخة منظمة من هذا الجواز يمكن للبرمجيات قراءتها."}),
-        Map.entry("signature", new String[] {"Practitioner’s stamp and signature", "Cachet et signature du praticien", "ختم وتوقيع الطبيب"})
+        Map.entry("signature", new String[] {"Practitioner’s stamp and signature", "Cachet et signature du praticien", "ختم وتوقيع الطبيب"}),
+        Map.entry("chart", new String[] {"Dental chart", "Schéma dentaire", "مخطط الأسنان"}),
+        Map.entry("chartIntro", new String[] {
+            "The teeth seen from the biting side, with the patient’s right on the left. The letters beside a tooth refer to the legend.",
+            "Les dents vues côté mastication, la droite du patient à gauche. Les lettres à côté d’une dent renvoient à la légende.",
+            "الأسنان من جهة المضغ، ويمين المريض على اليسار. تشير الأحرف بجانب السن إلى مفتاح الرموز."}),
+        Map.entry("chartLegend", new String[] {"Legend", "Légende", "مفتاح الرموز"}),
+        Map.entry("chartNothing", new String[] {"Nothing recorded on the chart yet.", "Rien d’enregistré sur le schéma pour l’instant.", "لم يُسجَّل شيء على المخطط بعد."}),
+        Map.entry("patientRight", new String[] {"Patient’s right", "Droite du patient", "يمين المريض"}),
+        Map.entry("patientLeft", new String[] {"Patient’s left", "Gauche du patient", "يسار المريض"}),
+        Map.entry("legendKey", new String[] {"Key", "Repère", "الرمز"}),
+        Map.entry("legendWhat", new String[] {"What", "Quoi", "ماذا"}),
+        Map.entry("legendWhere", new String[] {"Teeth, date and who", "Dents, date et praticien", "الأسنان والتاريخ والطبيب"}),
+        Map.entry("wholeMouth", new String[] {"Whole mouth", "Toute la bouche", "الفم كاملًا"}),
+        Map.entry("inProgress", new String[] {"in progress", "en cours", "قيد الإنجاز"}),
+        Map.entry("groupDONE", new String[] {"Treatments administered", "Soins réalisés", "العلاجات المنجزة"}),
+        Map.entry("groupCONDITION", new String[] {"Conditions", "Pathologies", "الحالات المرضية"}),
+        Map.entry("groupPLANNED", new String[] {"Work still to do", "Soins restant à réaliser", "علاجات متبقية"}),
+        Map.entry("groupWATCH", new String[] {"To watch", "À surveiller", "للمراقبة"}),
+        Map.entry("groupABSENT", new String[] {"Absent teeth", "Dents absentes", "الأسنان المفقودة"})
+    );
+
+    /** A finding that said work was owed, once the work is done: key → {en, fr, ar}. */
+    private static final Map<String, String[]> DONE = Map.ofEntries(
+        Map.entry("filling_required", new String[] {"Filling done", "Obturation réalisée", "حشوة منجزة"}),
+        Map.entry("sealant_required", new String[] {"Sealant placed", "Scellement réalisé", "سدّ الشقوق منجز"}),
+        Map.entry("restoration_required", new String[] {"Restoration done", "Restauration réalisée", "ترميم منجز"}),
+        Map.entry("crown_required", new String[] {"Crown placed", "Couronne posée", "تاج مركَّب"}),
+        Map.entry("crown_replacement_required", new String[] {"Crown replaced", "Couronne remplacée", "تاج مستبدل"}),
+        Map.entry("root_canal_required", new String[] {"Root canal done", "Dévitalisation réalisée", "علاج عصب منجز"}),
+        Map.entry("extraction_required", new String[] {"Extraction done", "Extraction réalisée", "خلع منجز"}),
+        Map.entry("implant_required", new String[] {"Implant placed", "Implant posé", "زرعة مركَّبة"}),
+        Map.entry("bridge_required", new String[] {"Bridge placed", "Bridge posé", "جسر مركَّب"}),
+        Map.entry("veneer_required", new String[] {"Veneer placed", "Facette posée", "قشرة مركَّبة"}),
+        Map.entry("scaling_required", new String[] {"Scaling done", "Détartrage réalisé", "تقليح منجز"}),
+        Map.entry("periodontal_treatment_required", new String[] {"Periodontal treatment done", "Traitement parodontal réalisé", "علاج لثوي منجز"})
     );
 
     private final int index;
@@ -166,6 +215,12 @@ final class TreatmentPassportLabels {
         if (row != null) return row[index];
         String words = code.replace('_', ' ');
         return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
+    }
+
+    /** A finding that has been treated: what was owed, now done, or what was wrong, now treated. */
+    String treated(String code) {
+        String[] row = DONE.get(code);
+        return row != null ? row[index] : finding(code) + " — " + text("treated");
     }
 
     String surface(String surface) {

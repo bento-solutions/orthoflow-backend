@@ -37,6 +37,16 @@ public class TreatmentPassportController {
                 .body(service.export(currentUser.requirePracticeId(), patientId));
     }
 
+    /** The dental chart and its legend, on their own. */
+    @GetMapping("/chart.pdf")
+    public ResponseEntity<byte[]> chartPdf(@PathVariable UUID patientId, @RequestParam(defaultValue = "fr") String lang) {
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "attachment; filename=\"dental-chart.pdf\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(service.chartPdf(currentUser.requirePracticeId(), patientId, lang));
+    }
+
     /** The printed copy. */
     @GetMapping("/download.pdf")
     public ResponseEntity<byte[]> pdf(@PathVariable UUID patientId, @RequestParam(defaultValue = "fr") String lang) {

@@ -7,12 +7,18 @@ import com.orthoflow.clinical.application.dto.PeriodontalAssessmentResponse;
 import com.orthoflow.clinical.application.dto.ToothFindingResponse;
 import com.orthoflow.clinical.application.dto.TreatmentPassport;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportAllergy;
+import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportChart;
+import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportChartEntry;
+import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportChartUse;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportClinic;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportFinding;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportGum;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportHistoryItem;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportPatient;
 import com.orthoflow.clinical.application.dto.TreatmentPassport.PassportWork;
+import com.orthoflow.clinical.domain.model.DentalChart;
+import com.orthoflow.clinical.domain.model.ToothState;
+import com.orthoflow.clinical.domain.repository.DentalChartRepository;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.port.LetterheadProvider;
@@ -28,9 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +65,7 @@ public class TreatmentPassportService {
     private final PatientLookup patients;
     private final LetterheadProvider letterheads;
     private final PatientTreatmentRepository treatments;
+    private final DentalChartRepository charts;
     private final PdfService pdf;
     private final ActivityLog activity;
 
@@ -96,7 +105,8 @@ public class TreatmentPassportService {
             }
         }
 
-        for (PatientTreatment t : treatments.findByPatientId(patientId)) {
+        List<PatientTreatment> patientTreatments = treatments.findByPatientId(patientId);
+        for (PatientTreatment t : patientTreatments) {
             List<String> teethOf = t.getTeeth() == null || t.getTeeth().isBlank() ? List.<String>of()
                     : Arrays.stream(t.getTeeth().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
             String name = t.getTreatment().getName();
@@ -130,7 +140,23 @@ public class TreatmentPassportService {
                 allergies.stream().map(a -> new PassportAllergy(a.substance(), a.reaction(), a.severity())).toList(),
                 medical.stream().map(m -> new PassportHistoryItem(m.category(), m.label(), m.detail())).toList(),
                 teeth, planned, log,
-                gums.stream().map(g -> new PassportGum(g.region(), g.condition(), g.stage(), g.assessedOn(), g.note())).toList());
+                gums.stream().map(g -> new PassportGum(g.region(), g.condition(), g.stage(), g.assessedOn(), g.note())).toList(),
+                chartOf(patient, history, patientTreatments));
+    }
+
+    private PassportChart chartOf(PatientIdentity patient, List<ToothFindingResponse> history, List<PatientTreatment> patientTreatments) {
+        DentalChart chart = charts.findByPatientId(patient.id()).orElse(null);
+        String dentition = chart != null ? chart.getChartType().name() : dentitionForAge(patient.dateOfBirth());
+        Map<String, String> status = new HashMap<>();
+        if (chart != null) {
+            for (ToothState tooth : chart.getToothStates()) status.put(tooth.getFdi(), tooth.getStatus());
+        }
+        return TreatmentChartBuilder.build(dentition, status, history, patientTreatments);
+    }
+
+    /** The screen's rule (DentalChartService in the frontend), for a patient whose chart was never opened. */
+    private static String dentitionForAge(LocalDate dateOfBirth) {
+        return dateOfBirth != null && Period.between(dateOfBirth, LocalDate.now()).getYears() < 12 ? "child" : "adult";
     }
 
     /** The machine-readable copy a doctor hands over. Recorded in the activity log. */
@@ -153,6 +179,18 @@ public class TreatmentPassportService {
         return bytes;
     }
 
+    /** The chart and its legend on their own. Recorded in the activity log: it leaves the system too. */
+    @Transactional
+    public byte[] chartPdf(UUID practiceId, UUID patientId, String lang) {
+        TreatmentPassport passport = build(practiceId, patientId);
+        TreatmentPassportLabels labels = TreatmentPassportLabels.of(lang);
+        Letterhead letterhead = letterheads.forPractice(practiceId);
+        byte[] bytes = pdf.render("dental-chart", model(passport, letterhead, labels), labels.language());
+        activity.record(practiceId, "PATIENT", patientId, "DENTAL_CHART_EXPORTED",
+                Map.of("format", "pdf", "language", labels.language()));
+        return bytes;
+    }
+
     // ── The printed view ────────────────────────────────────────────────
 
     /** Everything the template shows, already in words of the chosen language. */
@@ -162,7 +200,7 @@ public class TreatmentPassportService {
         Map<String, String> text = new LinkedHashMap<>();
         for (String key : List.of("title", "intro", "patient", "birthDate", "gender", "issuedOn", "alerts", "noAlerts",
                 "teeth", "noTeeth", "tooth", "state", "log", "noLog", "date", "work", "doneBy", "planned", "noPlanned",
-                "gums", "noGums", "area", "legend", "consent", "machineCopy", "signature")) {
+                "gums", "noGums", "area", "legend", "consent", "machineCopy", "signature", "chart")) {
             text.put(key, l.text(key));
         }
         model.put("t", text);
@@ -214,7 +252,86 @@ public class TreatmentPassportService {
                     List.of(g.assessedOn() == null ? "" : DAY.format(g.assessedOn()))));
         }
         model.put("gumsGrid", grid(rtl, List.of(l.text("area"), l.text("state"), l.text("date")), List.of("", "", "24mm"), gumRows));
+        model.put("chart", chartModel(p, l, rtl));
         return model;
+    }
+
+    /** The chart as the template draws it: the image, and the legend in the chosen language. */
+    private Map<String, Object> chartModel(TreatmentPassport p, TreatmentPassportLabels l, boolean rtl) {
+        // What is on each face of each tooth, the same as the screen's five-part marks.
+        Map<String, Map<String, String>> marks = new HashMap<>();
+        for (PassportFinding f : p.teeth()) {
+            OdontogramRenderer.addMark(marks, f.fdi(), f.surfaces(), f.kind());
+        }
+        for (PassportWork w : p.planned()) {
+            if (!"REQUIRED".equals(w.outcome())) continue;
+            for (String fdi : w.teeth()) OdontogramRenderer.addMark(marks, fdi, w.surfaces(), "TREATMENT_REQUIRED");
+        }
+
+        Map<String, List<List<Map<String, String>>>> groups = new LinkedHashMap<>();
+        for (PassportChartEntry entry : p.chart().legend()) {
+            List<Map<String, String>> row = new ArrayList<>(List.of(
+                    cell("key", entry.key()),
+                    cell("swatch", OdontogramRenderer.swatchDataUri(entry.group(), entry.symbol())),
+                    cell("what", legendName(entry, l)),
+                    cell("where", legendWhere(entry, l))));
+            if (rtl) java.util.Collections.reverse(row);
+            groups.computeIfAbsent(entry.group(), g -> new ArrayList<>()).add(row);
+        }
+        List<Map<String, Object>> groupList = new ArrayList<>();
+        groups.forEach((group, rows) -> {
+            Map<String, Object> g = new LinkedHashMap<>();
+            g.put("title", l.text("group" + group));
+            g.put("rows", rows);
+            groupList.add(g);
+        });
+
+        List<String> widths = new ArrayList<>(List.of("9mm", "9mm", "58mm", "106mm"));
+        if (rtl) java.util.Collections.reverse(widths);
+
+        Map<String, Object> chart = new LinkedHashMap<>();
+        chart.put("image", OdontogramRenderer.chartDataUri(p.chart(), marks));
+        chart.put("intro", l.text("chartIntro"));
+        chart.put("leftLabel", l.text("patientRight"));
+        chart.put("rightLabel", l.text("patientLeft"));
+        chart.put("legendTitle", l.text("chartLegend"));
+        chart.put("empty", l.text("chartNothing"));
+        chart.put("groups", groupList);
+        chart.put("widths", widths);
+        return chart;
+    }
+
+    private static Map<String, String> cell(String kind, String value) {
+        return Map.of("kind", kind, "value", value);
+    }
+
+    private String legendName(PassportChartEntry entry, TreatmentPassportLabels l) {
+        String name;
+        if (entry.name() != null) {
+            name = entry.name();
+            if (entry.actCode() != null && !entry.actCode().isBlank()) name += " [" + entry.actCode() + "]";
+        } else {
+            name = "TREATED".equals(entry.outcome()) ? l.treated(entry.code()) : l.finding(entry.code());
+        }
+        if ("IN_PROGRESS".equals(entry.outcome())) name += " — " + l.text("inProgress");
+        return name;
+    }
+
+    /** "16 (MO) — 05/11/2024, Elsewhere, Dr Benani" for each use. */
+    private String legendWhere(PassportChartEntry entry, TreatmentPassportLabels l) {
+        List<String> parts = new ArrayList<>();
+        for (PassportChartUse use : entry.uses()) {
+            StringBuilder part = new StringBuilder(use.teeth().isEmpty() ? l.text("wholeMouth") : String.join(", ", use.teeth()));
+            String where = TreatmentPassportLabels.shorthand(String.join("-", use.surfaces()));
+            if (!where.isEmpty()) part.append(" (").append(where).append(')');
+            List<String> details = new ArrayList<>();
+            if (use.date() != null) details.add(DAY.format(use.date()));
+            String origin = origin(use.origin(), use.provider(), null, l);
+            if (!origin.isEmpty()) details.add(origin);
+            if (!details.isEmpty()) part.append(" — ").append(String.join(", ", details));
+            parts.add(part.toString());
+        }
+        return String.join(" ; ", parts);
     }
 
     private String findingLine(PassportFinding f, TreatmentPassportLabels l) {

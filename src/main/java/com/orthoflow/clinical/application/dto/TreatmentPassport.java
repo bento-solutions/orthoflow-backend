@@ -30,7 +30,8 @@ public record TreatmentPassport(
         List<PassportFinding> teeth,
         List<PassportWork> planned,
         List<PassportWork> log,
-        List<PassportGum> gums
+        List<PassportGum> gums,
+        PassportChart chart
 ) {
 
     public static final String FORMAT = "orthoflow.treatment-passport";
@@ -66,4 +67,38 @@ public record TreatmentPassport(
 
     @Schema(name = "PassportGum")
     public record PassportGum(String region, String condition, Integer stage, LocalDate assessedOn, String note) {}
+
+    /**
+     * The dental chart and its legend, as printed. Each thing recorded has a line in the
+     * legend and a letter ({@code key}); a tooth carries the letters of what concerns it,
+     * so the drawing and the legend can be read against each other, in greyscale too.
+     *
+     * <p>{@code dentition} is adult or child.
+     */
+    @Schema(name = "PassportChart")
+    public record PassportChart(String dentition, List<PassportChartTooth> teeth, List<PassportChartEntry> legend) {}
+
+    /**
+     * A tooth with something on it. {@code done} says treatment has been administered on it;
+     * {@code owed} says some is still to come.
+     */
+    @Schema(name = "PassportChartTooth")
+    public record PassportChartTooth(String fdi, String status, List<String> keys, boolean done, boolean owed) {}
+
+    /**
+     * One line of the legend: one kind of finding or one treatment of the clinic's catalogue.
+     *
+     * <p>{@code group} is DONE (administered), CONDITION, PLANNED, WATCH or ABSENT.
+     * {@code symbol} is how the chart draws it: hatch, solid, endo, dotted, stipple, jag, bars,
+     * cross, dot, ring or dashed. {@code outcome} is as in {@link PassportWork}, and for a
+     * condition or absence, ACTIVE.
+     */
+    @Schema(name = "PassportChartEntry")
+    public record PassportChartEntry(String key, String group, String symbol, String code, String name,
+                                     String actCode, String outcome, List<PassportChartUse> uses) {}
+
+    /** Where and when: {@code teeth} is empty for work on the whole mouth, such as scaling. */
+    @Schema(name = "PassportChartUse")
+    public record PassportChartUse(List<String> teeth, List<String> surfaces, LocalDate date, String origin,
+                                   String provider) {}
 }

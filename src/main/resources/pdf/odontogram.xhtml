@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<!-- The dental chart and its legend, shared by the treatment passport and the chart document.
+     Column order comes from the service, which reverses it for Arabic: the PDF renderer lays
+     columns out left to right whatever the document's direction. -->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<body>
+  <div th:fragment="chart(c)">
+    <div class="intro" th:text="${c.intro}">How to read it</div>
+    <table class="chart-frame"><tr>
+      <td class="chart-side" th:text="${c.leftLabel}">Patient's right</td>
+      <td class="chart-image"><img th:src="${c.image}" alt=""/></td>
+      <td class="chart-side" th:text="${c.rightLabel}">Patient's left</td>
+    </tr></table>
+
+    <h3 class="chart-legend-title" th:text="${c.legendTitle}">Legend</h3>
+    <div th:if="${#lists.isEmpty(c.groups)}" class="muted" th:text="${c.empty}">Nothing recorded</div>
+    <div th:each="group : ${c.groups}" class="legend-group">
+      <div class="legend-head" th:text="${group.title}">Treatments administered</div>
+      <table class="legend">
+        <colgroup><col th:each="w : ${c.widths}" th:style="${'width:' + w}"/></colgroup>
+        <tr th:each="row : ${group.rows}">
+          <td th:each="cell : ${row}" th:class="${cell.kind}">
+            <img th:if="${cell.kind == 'swatch'}" th:src="${cell.value}" alt=""/>
+            <span th:unless="${cell.kind == 'swatch'}" th:text="${cell.value}">Text</span>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

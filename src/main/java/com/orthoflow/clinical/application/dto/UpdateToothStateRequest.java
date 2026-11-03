@@ -13,7 +13,7 @@ public class UpdateToothStateRequest {
 
     private String notes;
 
-    /** Which UI surface made the change: '2d', '3d_top', '3d_frontal', '3d_internal', '3d_roots'. */
+    /** Which UI surface made the change: '2d' or '3d'; older rows also carry '3d_top' and its like. */
     @NotBlank
     private String source;
 }

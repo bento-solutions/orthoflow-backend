@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <style th:fragment="style">
+    @page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; color: #666; direction: ltr; } }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+    .head { width: 100%; border-bottom: 2px solid #237489; padding-bottom: 8px; margin-bottom: 14px; }
+    .head td { vertical-align: top; }
+    .clinic { font-size: 14pt; font-weight: bold; color: #237489; }
+    .legal { font-size: 8pt; color: #52606d; }
+    h1 { font-size: 16pt; margin: 6px 0 4px 0; }
+    h2 { font-size: 11pt; margin: 16px 0 4px 0; color: #215e6f; border-bottom: 1px solid #c8dde3; padding-bottom: 2px; }
+    h3.chart-legend-title { font-size: 10pt; margin: 8px 0 4px 0; color: #215e6f; }
+    .intro { color: #52606d; font-size: 8.5pt; margin: 4px 0 8px 0; }
+    .box { border: 1px solid #c8dde3; padding: 6px 8px; background: #f3f9fa; }
+    .label { color: #7b8794; font-size: 8pt; text-transform: uppercase; }
+    table.rows { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.rows th { background: #e3f0f3; border: 1px solid #c8dde3; padding: 4px 6px; font-size: 8.5pt; text-align: left; }
+    table.rows td { border: 1px solid #dde3ee; padding: 4px 6px; vertical-align: top; }
+    [dir=rtl] table.rows th { text-align: right; }
+    td.fdi { width: 14mm; font-weight: bold; text-align: center; }
+    td.when { width: 24mm; }
+    td.teeth { width: 18mm; }
+    ul.plain { margin: 2px 0; padding-left: 14px; }
+    [dir=rtl] ul.plain { padding-left: 0; padding-right: 14px; }
+    .muted { color: #7b8794; }
+    .note { margin-top: 14px; font-size: 7.5pt; color: #52606d; }
+    .sign { margin-top: 26px; width: 100%; }
+    .sign td { height: 55px; vertical-align: top; }
+    .foot { margin-top: 12px; font-size: 7.5pt; color: #7b8794; border-top: 1px solid #dde3ee; padding-top: 4px; }
+    table.chart-frame { width: 100%; border-collapse: collapse; }
+    td.chart-image { width: 108mm; text-align: center; }
+    td.chart-image img { width: 108mm; }
+    td.chart-side { vertical-align: middle; text-align: center; font-size: 8pt; color: #52606d; }
+    .legend-group { margin-bottom: 6px; }
+    .legend-head { font-size: 8.5pt; font-weight: bold; color: #1f2933; background: #e3f0f3; padding: 2px 6px; }
+    table.legend { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    table.legend tr { page-break-inside: avoid; }
+    table.legend td { border-bottom: 1px solid #dde3ee; padding: 2px 4px; vertical-align: top; font-size: 8.5pt; }
+    table.legend td.key { font-weight: bold; text-align: center; }
+    table.legend td.swatch { text-align: center; }
+    table.legend td.swatch img { width: 4.6mm; height: 4.6mm; }
+    table.legend td.where { color: #3e4c59; font-size: 8pt; }
+  </style>
+</head>
+<body></body>
+</html>

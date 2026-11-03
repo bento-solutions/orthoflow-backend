@@ -43,7 +43,7 @@ public class AddToothFindingRequest {
     @Size(max = 160)
     private String providerName;
 
-    /** '2d', '3d_top', 'voice', 'manual'. */
+    /** '2d', '3d', 'voice', 'manual'. */
     @NotBlank
     @Size(max = 20)
     private String source;

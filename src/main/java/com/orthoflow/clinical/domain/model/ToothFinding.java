@@ -88,7 +88,7 @@ public class ToothFinding {
     @Column(nullable = false, length = 16)
     private FindingStatus status = FindingStatus.ACTIVE;
 
-    /** '2d', '3d_top', 'voice', 'manual'… — same vocabulary as ToothStateEvent. */
+    /** '2d', '3d', 'voice', 'manual'… — same vocabulary as ToothStateEvent. */
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String source = "manual";
