@@ -100,11 +100,12 @@ public class PatientTreatmentService {
 
         pt.getConsumables().addAll(buildConsumables(pt, request.getConsumables(), treatment));
 
-        if (pt.getStatus() == PatientTreatmentStatus.COMPLETED) {
-            deductStock(pt, createdBy);
+        // Saved first: the stock movements reference the treatment by its id, which it only has once persisted.
+        PatientTreatment saved = patientTreatmentRepository.save(pt);
+        if (saved.getStatus() == PatientTreatmentStatus.COMPLETED) {
+            deductStock(saved, createdBy);
         }
-
-        return patientTreatmentRepository.save(pt);
+        return saved;
     }
 
     @Transactional
