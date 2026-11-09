@@ -20,7 +20,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The parity stack holds the same kind of data as production will: it is
+  # deployed only after the tests pass (audit H5).
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
   deploy:
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:

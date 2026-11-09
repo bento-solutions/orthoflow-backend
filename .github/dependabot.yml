@@ -1,0 +1,24 @@
+# Weekly pull requests for outdated or vulnerable dependencies (audit H5/H8):
+# Spring Boot sat on 3.2.5 for over a year with nothing saying so. Each PR runs
+# ci.yml, so an upgrade that breaks a test is visible before it is merged.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    target-branch: feature/denteam-parity
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.micrometer*"]
+  - package-ecosystem: docker
+    directory: /
+    target-branch: feature/denteam-parity
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: feature/denteam-parity
+    schedule:
+      interval: monthly

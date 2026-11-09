@@ -1,11 +1,18 @@
 name: Backend CI
 
+# Runs on every pull request, and as the first job of both deploy workflows
+# (deploy.yml for main, deploy-parity.yml for feature/denteam-parity), which
+# call it through workflow_call and deploy only if it passes (audit H5): a red
+# build no longer reaches the VPS. There is no separate push trigger, so a push
+# to a deployed branch runs it once, inside its deploy.
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches: [main, feature/denteam-parity]
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -85,6 +92,8 @@ jobs:
         with:
           repository: bento-solutions/orthoflow-front
           path: frontend
+          # The frontend branch of the same name: the parity backend is checked against the parity frontend.
+          ref: ${{ github.head_ref || github.ref_name }}
           token: ${{ secrets.FRONTEND_REPO_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up JDK 21
@@ -119,14 +128,21 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
+      # Blocking: a backend change that the frontend's types do not know about
+      # fails here, not in the browser. The generator is the frontend's own
+      # pinned openapi-typescript, so its output matches what the frontend
+      # commits (`npm run generate:api-types`).
       - name: Regenerate frontend API types from the live document
-        continue-on-error: true
+        working-directory: frontend
         run: |
-          npx --yes openapi-typescript openapi.json -o /tmp/api-types.d.ts
-          diff -u frontend/src/app/core/api-types.d.ts /tmp/api-types.d.ts || \
-            (echo "::warning::Frontend API types have drifted from backend OpenAPI spec. Run 'npm run generate:api-types' in the frontend repo to sync." && true)
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx openapi-typescript ../openapi.json -o /tmp/api-types.d.ts
+          diff -u src/app/core/api-types.d.ts /tmp/api-types.d.ts || {
+            echo "::error::Frontend API types have drifted from the backend's OpenAPI document. Run 'npm run generate:api-types' in the frontend repo and commit the result."
+            exit 1
+          }
 
   dependency-review:
     # Flags newly-introduced dependencies with known advisories straight from
@@ -134,13 +150,14 @@ jobs:
     # download, no API key, so it can't add the flakiness a full OWASP
     # dependency-check scan would (audit VII.2/P1#23: backend had zero
     # dependency scanning of any kind).
+    # Blocking on pull requests: a dependency with a known high-severity
+    # advisory does not get merged. Needs the repository's dependency graph
+    # (Settings -> Code security), which public repositories have by default.
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Dependency review
         uses: actions/dependency-review-action@v4
-        continue-on-error: true
         with:
           fail-on-severity: high
