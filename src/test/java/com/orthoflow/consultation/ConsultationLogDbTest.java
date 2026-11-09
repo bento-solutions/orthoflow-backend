@@ -80,7 +80,9 @@ class ConsultationLogDbTest extends SpringDbTest {
         assertThat(log.lines()).extracting(ConsultationLogResponse.Line::text)
                 .containsExactly("Bonjour docteur", "Dent 16, carie");
         assertThat(log.lines()).extracting(ConsultationLogResponse.Line::phase).containsExactly("INTAKE", "EXAMINATION");
-        assertThat(log.lines().get(1).at().toInstant()).isEqualTo(t.plusSeconds(12).toInstant());
+        // Postgres keeps microseconds; a Linux clock gives nanoseconds.
+        assertThat(log.lines().get(1).at().toInstant())
+                .isEqualTo(t.plusSeconds(12).toInstant().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
         assertThat(jdbc.queryForObject("SELECT practice_id FROM consultation_transcript_lines WHERE consultation_id = ? AND seq = 0",
                 UUID.class, c.id())).isEqualTo(practice);
     }
