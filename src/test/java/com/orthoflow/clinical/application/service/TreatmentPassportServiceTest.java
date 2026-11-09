@@ -180,7 +180,7 @@ class TreatmentPassportServiceTest {
     }
 
     private static String textOf(byte[] pdf) throws Exception {
-        try (PDDocument doc = PDDocument.load(pdf)) {
+        try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
             return new PDFTextStripper().getText(doc);
         }
     }

@@ -103,12 +103,13 @@ public class MessagingController {
 
     @GetMapping("/patients/{patientId}/consent")
     public Consent consent(@PathVariable UUID patientId) {
-        return new Consent(consentService.forPatient(patientId));
+        return new Consent(consentService.forPatientOf(currentUser.requirePracticeId(), patientId));
     }
 
     @PutMapping("/patients/{patientId}/consent")
     public Consent setConsent(@PathVariable UUID patientId, @Valid @RequestBody SetConsent request) {
-        consentService.record(patientId, request.channel(), request.optedIn(), "STAFF");
-        return new Consent(consentService.forPatient(patientId));
+        UUID practiceId = currentUser.requirePracticeId();
+        consentService.recordFor(practiceId, patientId, request.channel(), request.optedIn(), "STAFF");
+        return new Consent(consentService.forPatientOf(practiceId, patientId));
     }
 }

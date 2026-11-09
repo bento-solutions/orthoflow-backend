@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class PatientLookupService implements PatientLookup {
 
     private final PatientRepository patientRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final com.orthoflow.patient.infrastructure.adapter.persistence.InsurerJpaRepository insurers;
 
     @Override
@@ -103,5 +104,25 @@ public class PatientLookupService implements PatientLookup {
                 patient.getCin(),
                 patient.getPreferredLanguage(),
                 patient.getGender());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> displayNames(UUID practiceId, java.util.Collection<UUID> patientIds) {
+        List<UUID> ids = patientIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> names = new java.util.HashMap<>();
+        // Native on purpose: the entity hides archived patients, and these rows outlive them.
+        new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc).query(
+                "SELECT id, first_name, last_name FROM patients WHERE practice_id = :practice AND id IN (:ids)",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("practice", practiceId).addValue("ids", ids),
+                rs -> {
+                    String name = ((rs.getString("first_name") == null ? "" : rs.getString("first_name")) + " "
+                            + (rs.getString("last_name") == null ? "" : rs.getString("last_name"))).trim();
+                    names.put(rs.getObject("id", UUID.class), name);
+                });
+        return names;
     }
 }

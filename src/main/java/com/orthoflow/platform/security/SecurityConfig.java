@@ -115,9 +115,13 @@ public class SecurityConfig {
             // their role. Not public — a token that is already refused (expired,
             // deactivated account, issued before a password reset) gets a 401.
             .requestMatchers(HttpMethod.POST, "/auth/refresh").hasAnyRole(EVERYONE)
-            // Reachable only from inside the Docker network — Traefik proxies
-            // /api/v1/** and nothing else (docker-compose.production.yml).
-            .requestMatchers("/actuator/**").permitAll()
+            // Liveness for Docker and Traefik. Actuator sits under /api/v1, so it
+            // IS proxied to the internet: only health and info are public, and
+            // only health and info are exposed by default (application.yml).
+            // Metrics name every route, its latency and the JVM: ADMIN only if a
+            // deployment turns them on.
+            .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+            .requestMatchers("/actuator/**").hasRole("ADMIN")
             // API shape only, no patient data, and disabled outright in prod
             // via springdoc.api-docs.enabled=false.
             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

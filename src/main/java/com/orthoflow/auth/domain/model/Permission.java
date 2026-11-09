@@ -61,10 +61,14 @@ public enum Permission {
 
     static {
         DEFAULTS.put(ADMIN, EnumSet.allOf(Permission.class));
+        // A doctor bills their own care but does not, by default, see the clinic's
+        // books (cash closing, expenses and their receipts, cheques, tax documents):
+        // a collaborating doctor paid by retrocession is not the owner (audit M7).
+        // The owner is an ADMIN; an admin can still grant finance to a doctor.
         DEFAULTS.put(DOCTOR, EnumSet.of(
                 PATIENT_READ, PATIENT_WRITE, CLINICAL_READ, CLINICAL_WRITE,
                 AGENDA_VIEW, AGENDA_MANAGE, WAITING_ROOM_MANAGE,
-                BILLING_READ, BILLING_WRITE, FINANCE_VIEW, FINANCE_MANAGE,
+                BILLING_READ, BILLING_WRITE,
                 RETROCESSION_VIEW,
                 STOCK_READ, STOCK_WRITE, LAB_ORDERS_MANAGE, TASKS_MANAGE,
                 MESSAGING_SEND, MESSAGING_VIEW, BOOKING_REVIEW, SURVEYS_VIEW, ANALYTICS_VIEW,

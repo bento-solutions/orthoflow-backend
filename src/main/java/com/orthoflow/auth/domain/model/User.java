@@ -53,6 +53,13 @@ public class User {
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
+    /** Wrong passwords since the last good sign-in; reaching the limit locks the account for a while (AuthService). */
+    @Column(name = "failed_logins", nullable = false)
+    private int failedLogins;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
     /**
      * Tokens issued before this instant are rejected by {@code JwtAuthFilter},
      * even if still within their expiry. Stamped with {@code now()} on a

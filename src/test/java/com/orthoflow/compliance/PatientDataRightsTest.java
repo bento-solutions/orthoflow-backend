@@ -7,13 +7,22 @@ import com.orthoflow.compliance.application.service.DataExportService;
 import com.orthoflow.compliance.application.service.PatientDataPurger;
 import com.orthoflow.compliance.application.service.PatientDataRegistry;
 import com.orthoflow.compliance.application.service.PublicIntakeRetentionJob;
+import com.orthoflow.billing.application.service.TaxDocumentService;
 import com.orthoflow.patient.application.service.PatientService;
+import com.orthoflow.storage.application.port.StorageService;
+import com.orthoflow.storage.application.service.FileService;
+import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.testsupport.PostgresTestSupport;
 import com.orthoflow.testsupport.SpringDbTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.io.IOException;
+import java.io.InputStream;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +46,14 @@ class PatientDataRightsTest extends SpringDbTest {
     private PatientDataRegistry registry;
     @Autowired
     private PublicIntakeRetentionJob intakeRetention;
+    @Autowired
+    private FileService fileService;
+    @Autowired
+    private StorageService storage;
+    @Autowired
+    private PlatformTransactionManager transactions;
+    @Autowired
+    private TaxDocumentService taxDocuments;
 
     private JdbcTemplate jdbc;
     private UUID practice;
@@ -57,6 +74,19 @@ class PatientDataRightsTest extends SpringDbTest {
 
     private int count(String sql, Object... args) {
         return jdbc.queryForObject(sql, Integer.class, args);
+    }
+
+    /** A stored PDF filed under {@code owner}, bytes on disk included; returns its storage key. */
+    private String storedFile(FileOwnerType type, UUID owner) {
+        return fileService.storeGenerated(practice, type, owner, "doc.pdf", "application/pdf", "%PDF-1.4 Sara Benziane".getBytes(), admin).getStorageKey();
+    }
+
+    private boolean onDisk(String key) {
+        try (InputStream in = storage.open(key)) {
+            return in != null;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private UUID invoice() {
@@ -142,6 +172,42 @@ class PatientDataRightsTest extends SpringDbTest {
     }
 
     @Test
+    void erasureRemovesTheFilesFiledUnderThePatientsRecordsAndTheExportListsThem() {
+        clinicalAndContactData();
+        UUID rx = jdbc.queryForObject("SELECT id FROM prescriptions WHERE patient_id = ?", UUID.class, patient);
+        UUID form = jdbc.queryForObject("SELECT id FROM insurance_forms WHERE patient_id = ?", UUID.class, patient);
+        String rxPdf = storedFile(FileOwnerType.PRESCRIPTION, rx);
+        String formPdf = storedFile(FileOwnerType.INSURANCE_FORM, form);
+        String scan = storedFile(FileOwnerType.PATIENT_DOCUMENT, patient);
+        String someoneElses = storedFile(FileOwnerType.PRESCRIPTION, UUID.randomUUID());
+        jdbc.update("UPDATE prescriptions SET file_id = (SELECT id FROM files WHERE storage_key = ?) WHERE id = ?", rxPdf, rx);
+
+        assertThat(exports.exportPatientData(patient).getFiles()).hasSize(3);
+
+        patients.erasePatient(patient);
+
+        assertThat(count("SELECT count(*) FROM files WHERE storage_key IN (?, ?, ?)", rxPdf, formPdf, scan)).isZero();
+        assertThat(onDisk(rxPdf)).isFalse();
+        assertThat(onDisk(formPdf)).isFalse();
+        assertThat(onDisk(scan)).isFalse();
+        assertThat(onDisk(someoneElses)).isTrue();
+    }
+
+    @Test
+    void anErasureThatRollsBackLosesNoFile() {
+        String scan = storedFile(FileOwnerType.PATIENT_DOCUMENT, patient);
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            patients.erasePatient(patient);
+            throw new IllegalStateException("something fails after the listeners ran");
+        })).hasMessageContaining("fails after");
+
+        assertThat(count("SELECT count(*) FROM patients WHERE id = ?", patient)).isOne();
+        assertThat(count("SELECT count(*) FROM files WHERE storage_key = ?", scan)).isOne();
+        assertThat(onDisk(scan)).isTrue();
+    }
+
+    @Test
     void erasureAlsoRemovesTheCopiesNothingLinkedButLeavesAnotherPersonsRequest() {
         clinicalAndContactData();
 
@@ -221,6 +287,25 @@ class PatientDataRightsTest extends SpringDbTest {
         }
         assertThat(count("SELECT count(*) FROM pending_patients WHERE practice_id = ?", practice)).isZero();
         assertThat(count("SELECT count(*) FROM activity_events WHERE practice_id = ? AND entity_id = ?", practice, patient)).isZero();
+    }
+
+    @Test
+    void anonymisingReplacesTheStoredFeeNoteThatPrintedTheName() {
+        UUID invoice = invoice();
+        UUID note = UUID.randomUUID();
+        jdbc.update("INSERT INTO tax_documents (id, practice_id, kind, number, patient_id, invoice_id, amount) VALUES (?, ?, 'FEE_NOTE', ?, ?, ?, 1500)",
+                note, practice, "NH-" + note.toString().substring(0, 8), patient, invoice);
+        String printed = storedFile(FileOwnerType.TAX_DOCUMENT, note);
+        jdbc.update("UPDATE tax_documents SET file_id = (SELECT id FROM files WHERE storage_key = ?) WHERE id = ?", printed, note);
+
+        patients.anonymisePatient(patient);
+
+        assertThat(count("SELECT count(*) FROM tax_documents WHERE id = ?", note)).isOne();
+        assertThat(count("SELECT count(*) FROM files WHERE storage_key = ?", printed)).isZero();
+        assertThat(onDisk(printed)).isFalse();
+        // Downloaded again, it is printed from the record, with nobody named in it.
+        assertThat(new String(taxDocuments.file(practice, note), 0, 5)).isEqualTo("%PDF-");
+        assertThat(jdbc.queryForObject("SELECT file_id FROM tax_documents WHERE id = ?", UUID.class, note)).isNotNull();
     }
 
     @Test

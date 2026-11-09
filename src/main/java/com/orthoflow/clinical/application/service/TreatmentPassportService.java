@@ -291,6 +291,7 @@ public class TreatmentPassportService {
 
         Map<String, Object> chart = new LinkedHashMap<>();
         chart.put("image", OdontogramRenderer.chartDataUri(p.chart(), marks));
+        chart.put("imageAlt", l.text("chartImageAlt"));
         chart.put("intro", l.text("chartIntro"));
         chart.put("leftLabel", l.text("patientRight"));
         chart.put("rightLabel", l.text("patientLeft"));

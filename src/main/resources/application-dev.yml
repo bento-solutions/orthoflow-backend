@@ -16,6 +16,10 @@ logging:
     com.orthoflow: DEBUG
 
 orthoflow:
+  auth:
+    # No mail on a development machine: the reset link goes to the log instead
+    # (MailPasswordResetNotifier). Never on in any other profile.
+    log-reset-links: ${AUTH_LOG_RESET_LINKS:true}
   voice:
     # No patient data on a development machine: vendor keys work without the
     # data-protection attestation that every other profile insists on.

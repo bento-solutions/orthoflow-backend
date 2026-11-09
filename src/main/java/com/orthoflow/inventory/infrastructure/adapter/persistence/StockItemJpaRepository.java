@@ -35,4 +35,11 @@ public interface StockItemJpaRepository
     @Query("SELECT DISTINCT dnl.stockItem FROM DeliveryNoteLine dnl " +
             "WHERE dnl.stockItem.active = true AND dnl.expiryDate BETWEEN :today AND :cutoff")
     List<StockItem> findExpiring(@Param("today") LocalDate today, @Param("cutoff") LocalDate cutoff);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT COALESCE(SUM(COALESCE(i.currentStock, 0) * COALESCE(i.purchasePrice, 0)), 0),
+                   SUM(CASE WHEN COALESCE(i.currentStock, 0) <= 0 THEN 1 ELSE 0 END)
+            FROM StockItem i WHERE i.active = true
+            """)
+    java.util.List<Object[]> activeTotals();
 }

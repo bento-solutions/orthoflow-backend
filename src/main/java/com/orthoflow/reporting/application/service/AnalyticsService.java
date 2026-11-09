@@ -44,19 +44,14 @@ public class AnalyticsService {
     private final CountSessionRepository countSessionRepository;
 
     public List<TreatmentProfitabilityResponse> getTreatmentProfitability() {
-        List<TreatmentInvoice> finalized = treatmentInvoiceRepository.findAll().stream()
-                .filter(inv -> inv.getStatus() == TreatmentInvoiceStatus.FINALIZED)
-                .toList();
-
-        // Fold in Java (single fetch above) — keyed by treatment id, insertion-ordered for stable output.
+        // Summed by the database, per treatment: the clinic's invoices are never loaded into memory (audit P2).
         LinkedHashMap<UUID, TreatmentAccumulator> byTreatment = new LinkedHashMap<>();
-        for (TreatmentInvoice invoice : finalized) {
-            Treatment treatment = invoice.getTreatment();
-            TreatmentAccumulator acc = byTreatment.computeIfAbsent(treatment.getId(),
-                    k -> new TreatmentAccumulator(treatment.getId(), treatment.getName()));
-            acc.totalRevenue = acc.totalRevenue.add(nvl(invoice.getTreatmentPrice()));
-            acc.totalMaterialCost = acc.totalMaterialCost.add(nvl(invoice.getConsumablesCost()));
-            acc.sessionCount++;
+        for (TreatmentInvoiceRepository.TreatmentTotals row : treatmentInvoiceRepository.finalizedTotalsByTreatment()) {
+            TreatmentAccumulator acc = new TreatmentAccumulator(row.treatmentId(), row.treatmentName());
+            acc.totalRevenue = nvl(row.revenue());
+            acc.totalMaterialCost = nvl(row.materialCost());
+            acc.sessionCount = row.sessions();
+            byTreatment.put(row.treatmentId(), acc);
         }
 
         List<TreatmentProfitabilityResponse> result = new ArrayList<>();
@@ -79,18 +74,11 @@ public class AnalyticsService {
     }
 
     public InventoryKPIResponse getInventoryKPI() {
-        List<StockItem> activeItems = stockItemRepository.findAll().stream()
-                .filter(StockItem::isActive)
-                .toList();
-
-        BigDecimal currentInventoryValue = activeItems.stream()
-                .map(item -> nvl(item.getCurrentStock()).multiply(nvl(item.getPurchasePrice())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        StockItemRepository.ActiveTotals totals = stockItemRepository.activeTotals();
+        BigDecimal currentInventoryValue = nvl(totals.value());
 
         long lowStockItemCount = stockItemRepository.findLowStock().size();
-        long outOfStockItemCount = activeItems.stream()
-                .filter(item -> nvl(item.getCurrentStock()).compareTo(BigDecimal.ZERO) <= 0)
-                .count();
+        long outOfStockItemCount = totals.outOfStock();
 
         LocalDate today = LocalDate.now();
         long expiringItemCount = stockItemRepository
@@ -98,11 +86,7 @@ public class AnalyticsService {
 
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime monthStart = now.toLocalDate().withDayOfMonth(1).atStartOfDay().atOffset(now.getOffset());
-        List<StockMovement> monthOutMovements = stockMovementRepository
-                .findByMovementTypeAndCreatedAtBetween(MovementType.OUT, monthStart, now);
-        BigDecimal monthlyInventoryCost = monthOutMovements.stream()
-                .map(m -> nvl(m.getQuantity()).multiply(nvl(m.getStockItem().getPurchasePrice())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal monthlyInventoryCost = nvl(stockMovementRepository.costOfMovementsBetween(MovementType.OUT, monthStart, now));
 
         BigDecimal inventoryLossGainValue = BigDecimal.ZERO;
         BigDecimal inventoryVariancePercent = BigDecimal.ZERO;
@@ -116,25 +100,13 @@ public class AnalyticsService {
         }
 
         OffsetDateTime lookbackStart = now.minusDays(TOP_CONSUMED_LOOKBACK_DAYS);
-        List<StockMovement> recentOutMovements = stockMovementRepository
-                .findByMovementTypeAndCreatedAtBetween(MovementType.OUT, lookbackStart, now);
-
-        LinkedHashMap<UUID, ConsumptionAccumulator> byItem = new LinkedHashMap<>();
-        for (StockMovement movement : recentOutMovements) {
-            StockItem item = movement.getStockItem();
-            ConsumptionAccumulator acc = byItem.computeIfAbsent(item.getId(),
-                    k -> new ConsumptionAccumulator(item.getId(), item.getName(), nvl(item.getPurchasePrice())));
-            acc.totalConsumed = acc.totalConsumed.add(nvl(movement.getQuantity()));
-        }
-
-        List<TopConsumedItemResponse> topConsumedItems = byItem.values().stream()
-                .sorted((a, b) -> b.totalConsumed.compareTo(a.totalConsumed))
-                .limit(TOP_CONSUMED_LIMIT)
-                .map(acc -> TopConsumedItemResponse.builder()
-                        .stockItemId(acc.stockItemId)
-                        .stockItemName(acc.stockItemName)
-                        .totalConsumed(acc.totalConsumed)
-                        .totalCost(acc.totalConsumed.multiply(acc.purchasePrice))
+        List<TopConsumedItemResponse> topConsumedItems = stockMovementRepository
+                .topItemsBetween(MovementType.OUT, lookbackStart, now, TOP_CONSUMED_LIMIT).stream()
+                .map(item -> TopConsumedItemResponse.builder()
+                        .stockItemId(item.stockItemId())
+                        .stockItemName(item.name())
+                        .totalConsumed(nvl(item.quantity()))
+                        .totalCost(nvl(item.quantity()).multiply(nvl(item.purchasePrice())))
                         .build())
                 .toList();
 
@@ -164,19 +136,6 @@ public class AnalyticsService {
         TreatmentAccumulator(UUID treatmentId, String treatmentName) {
             this.treatmentId = treatmentId;
             this.treatmentName = treatmentName;
-        }
-    }
-
-    private static class ConsumptionAccumulator {
-        final UUID stockItemId;
-        final String stockItemName;
-        final BigDecimal purchasePrice;
-        BigDecimal totalConsumed = BigDecimal.ZERO;
-
-        ConsumptionAccumulator(UUID stockItemId, String stockItemName, BigDecimal purchasePrice) {
-            this.stockItemId = stockItemId;
-            this.stockItemName = stockItemName;
-            this.purchasePrice = purchasePrice;
         }
     }
 }

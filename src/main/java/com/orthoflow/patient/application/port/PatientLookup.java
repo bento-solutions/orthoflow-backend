@@ -26,6 +26,14 @@ public interface PatientLookup {
      */
     Map<UUID, PatientSummary> findSummaries(List<UUID> patientIds);
 
+    /**
+     * "First Last" for each of these patients of the clinic, archived and anonymised ones included: a
+     * financial record outlives the patient file, and its list still has to say whose it is.
+     */
+    default Map<UUID, String> displayNames(UUID practiceId, java.util.Collection<UUID> patientIds) {
+        return Map.of();
+    }
+
     boolean exists(UUID patientId);
 
     /**

@@ -124,15 +124,29 @@ class BookingAbuseLimitsTest extends SpringDbTest {
         assertThatThrownBy(() -> request(5, "0600003333", null)).isInstanceOf(ConflictException.class);
     }
 
-    @Test
-    void aClinicWithTooManyRequestsWaitingTakesNoMore() {
-        for (int i = 0; i < BookingService.MAX_PENDING_PER_CLINIC; i++) {
+    private void fillTheClinicWithStrangers() {
+        for (int i = 0; i < BookingService.MAX_UNPROVEN_PENDING_PER_CLINIC; i++) {
             jdbc.update("""
                     INSERT INTO booking_requests (id, practice_id, appointment_type_id, starts_at, duration_minutes, first_name, last_name, phone)
                     VALUES (?, ?, ?, NOW() + INTERVAL '5 days', 30, 'A', 'B', ?)
                     """, UUID.randomUUID(), practice, type, "06" + String.format("%08d", 50_000_000 + i));
         }
+    }
+
+    @Test
+    void aClinicWithTooManyRequestsWaitingFromStrangersTakesNoMoreFromStrangers() {
+        fillTheClinicWithStrangers();
 
         assertThatThrownBy(() -> request(0, "0600009999", null)).isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void aScriptInventingNumbersCannotCloseOnlineBookingToTheClinicsOwnPatients() {
+        fillTheClinicWithStrangers();
+        PostgresTestSupport.patient(jdbc, practice, "Nadia", "Tazi", "1990-01-01", "0611112222", null);
+
+        request(1, "0611112222", null);
+
+        assertThat(stored()).isEqualTo(BookingService.MAX_UNPROVEN_PENDING_PER_CLINIC + 1);
     }
 }

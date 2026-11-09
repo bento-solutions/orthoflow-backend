@@ -41,6 +41,7 @@ public class PatientRecordsExporter {
     private final PatientDataRegistry registry;
     private final UnlinkedCopies unlinked;
     private final ObjectMapper objectMapper;
+    private final PatientFiles patientFiles;
 
     public Map<String, List<Map<String, Object>>> records(UUID patientId) {
         Map<String, String> predicates = new LinkedHashMap<>();
@@ -81,10 +82,12 @@ public class PatientRecordsExporter {
         return out;
     }
 
-    /** Stored files (photos, scans, documents) that belong to the patient: who and what, never the storage path. */
+    /**
+     * Stored files that are the patient's: their photos, scans and documents, and the PDFs of their
+     * prescriptions, care forms, lab orders and fee notes ({@link PatientFiles}). Who and what, never the storage path.
+     */
     public List<Map<String, Object>> files(UUID patientId) {
-        return rows(unlinked.named(), "SELECT (to_jsonb(f) - 'storage_key')::text FROM files f WHERE owner_id = :p AND deleted_at IS NULL ORDER BY created_at",
-                new MapSqlParameterSource("p", patientId));
+        return rows(unlinked.named(), patientFiles.exportQuery(), new MapSqlParameterSource("p", patientId));
     }
 
     /** Requests, forms and messages from the same person that were never linked to the record (see {@link UnlinkedCopies}). */

@@ -129,7 +129,15 @@ class CrossClinicIsolationTest extends SpringDbTest {
     @Test
     void anotherClinicsPatientIsNotFoundById() {
         signInTo(clinicB);
-        assertThatThrownBy(() -> patients.findById(patientA)).isInstanceOf(NotFoundException.class);
+        // Hibernate 6.6 applies the clinic to a load by id itself, so the row is not found at all; before
+        // it, the row was loaded and TenantLoadGuard refused it. Either way the other clinic sees nothing.
+        java.util.Optional<Patient> found;
+        try {
+            found = patients.findById(patientA);
+        } catch (NotFoundException refusedByTheLoadGuard) {
+            found = java.util.Optional.empty();
+        }
+        assertThat(found).isEmpty();
         assertThatThrownBy(() -> patientService.getPatient(patientA)).isInstanceOf(NotFoundException.class);
         assertThat(patients.existsById(patientA)).isFalse();
     }

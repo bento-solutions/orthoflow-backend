@@ -22,6 +22,8 @@ public class InvoiceController {
 
     private final BillingService billingService;
     private final CurrentUserProvider currentUserProvider;
+    private final com.orthoflow.billing.application.service.InvoicePdfService invoicePdf;
+    private final com.orthoflow.export.application.service.ExportService exportService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -39,6 +41,14 @@ public class InvoiceController {
     @GetMapping("/{id}")
     public InvoiceResponse getInvoice(@PathVariable UUID id) {
         return billingService.getInvoice(id);
+    }
+
+    /** The printed invoice, with the clinic's letterhead, in {@code lang} (fr, en, ar). */
+    @GetMapping("/{id}/pdf")
+    public org.springframework.http.ResponseEntity<byte[]> pdf(@PathVariable UUID id, @RequestParam(defaultValue = "fr") String lang) {
+        var rendered = invoicePdf.render(id, lang);
+        return exportService.download(rendered.bytes(), com.orthoflow.export.application.dto.ExportFormat.PDF,
+                "facture-" + (rendered.number() == null ? id : rendered.number()));
     }
 
     /** Body {"practitionerId": "..."}; null clears the attribution. */

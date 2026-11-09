@@ -41,9 +41,10 @@ public class PatientDirectoryService {
     @Transactional(readOnly = true)
     public Kpis kpis(UUID practiceId) {
         var zone = practiceZone.of(practiceId);
-        OffsetDateTime monthStart = OffsetDateTime.now().atZoneSameInstant(zone).toLocalDate().withDayOfMonth(1)
-                .atStartOfDay(zone).toOffsetDateTime();
-        return query.kpis(practiceId, monthStart);
+        var today = OffsetDateTime.now().atZoneSameInstant(zone).toLocalDate();
+        OffsetDateTime monthStart = today.withDayOfMonth(1).atStartOfDay(zone).toOffsetDateTime();
+        OffsetDateTime yearStart = today.withDayOfYear(1).atStartOfDay(zone).toOffsetDateTime();
+        return query.kpis(practiceId, monthStart, yearStart, zone);
     }
 
     @Transactional(readOnly = true)

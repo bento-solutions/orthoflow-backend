@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.application.service;
 
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.procurement.application.dto.DeliveryNoteLineRequest;
@@ -106,7 +107,7 @@ public class DeliveryNoteService {
                 .orElseThrow(() -> new IllegalArgumentException("Delivery note not found: " + id));
 
         if (note.getStatus() == DNStatus.RECEIVED) {
-            throw new IllegalStateException("Delivery note has already been received.");
+            throw new ConflictException("Delivery note has already been received.");
         }
 
         note.setStatus(DNStatus.RECEIVED);

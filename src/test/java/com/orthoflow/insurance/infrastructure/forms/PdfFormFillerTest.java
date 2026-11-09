@@ -52,7 +52,7 @@ class PdfFormFillerTest {
     @Test
     void everyPlaceALayoutNamesLiesOnItsPage() throws IOException {
         for (FormLayout l : layouts.all()) {
-            try (PDDocument doc = PDDocument.load(layouts.template(l))) {
+            try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(layouts.template(l))) {
                 l.text().forEach((k, f) -> assertOnPage(doc, l, k, f.page(), f.x() + (f.w() == null ? 0 : f.w()), f.y()));
                 l.cells().forEach((k, f) -> f.x().forEach(x -> assertOnPage(doc, l, k, f.page(), x, f.y())));
                 l.checks().forEach((k, c) -> assertOnPage(doc, l, k, c.page(), c.x(), c.y()));
@@ -69,7 +69,7 @@ class PdfFormFillerTest {
             FormLayout layout = layouts.find(code).orElseThrow();
             byte[] pdf = filler.fill(layout, layouts.template(layout), sample(), false);
             preview(code + ".pdf", pdf);
-            try (PDDocument doc = PDDocument.load(pdf)) {
+            try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
                 assertThat(doc.getNumberOfPages()).isEqualTo(2);
                 String front = text(doc, 1);
                 assertThat(front).as(code).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("1 250,00");
@@ -86,7 +86,7 @@ class PdfFormFillerTest {
         FormLayout lamas = layouts.find("lamas-dentaire").orElseThrow();
         byte[] lamasPdf = filler.fill(lamas, layouts.template(lamas), sample(), false);
         preview("lamas-dentaire.pdf", lamasPdf);
-        try (PDDocument doc = PDDocument.load(lamasPdf)) {
+        try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(lamasPdf)) {
             assertThat(doc.getNumberOfPages()).isEqualTo(2);
             assertThat(text(doc, 1)).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("Enfant")
                     .contains("14/03/2014").contains("09/10/2026").contains("D 90").contains("1 000,00").contains("11 21");
@@ -96,7 +96,7 @@ class PdfFormFillerTest {
         FormLayout rma = layouts.find("rma-dentaire").orElseThrow();
         byte[] rmaPdf = filler.fill(rma, layouts.template(rma), sample(), false);
         preview("rma-dentaire.pdf", rmaPdf);
-        try (PDDocument doc = PDDocument.load(rmaPdf)) {
+        try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(rmaPdf)) {
             assertThat(doc.getNumberOfPages()).isEqualTo(2);
             assertThat(text(doc, 1)).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("Enfant").contains("1 250,00");
             assertThat(text(doc, 2)).contains("09/10/26").contains("11 21").contains("D 90").contains("250,00");
@@ -115,7 +115,7 @@ class PdfFormFillerTest {
         byte[] blank = layouts.template(layout);
         byte[] pdf = filler.fill(layout, blank, sample(), true);
         preview("cnss-dentaire-overlay.pdf", pdf);
-        try (PDDocument overlay = PDDocument.load(pdf); PDDocument form = PDDocument.load(blank)) {
+        try (PDDocument overlay = org.apache.pdfbox.Loader.loadPDF(pdf); PDDocument form = org.apache.pdfbox.Loader.loadPDF(blank)) {
             for (int i = 0; i < form.getNumberOfPages(); i++) {
                 assertThat(overlay.getPage(i).getRotation()).isEqualTo(form.getPage(i).getRotation());
                 assertThat(overlay.getPage(i).getMediaBox().getWidth()).isEqualTo(form.getPage(i).getMediaBox().getWidth());
@@ -131,7 +131,7 @@ class PdfFormFillerTest {
         Map<String, String> text = new LinkedHashMap<>(sample().text());
         text.put("insured.fullName", "Abdelkrim Mohammed-Amine Benabdeljalil El Idrissi Ben Abdellah Al Alaoui Ech-Chorfi");
         byte[] pdf = filler.fill(layout, layouts.template(layout), new FormValues(text, Set.of(), List.of()), true);
-        try (PDDocument doc = PDDocument.load(pdf)) {
+        try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
             assertThat(text(doc, 1)).contains("Abdelkrim").contains("…").doesNotContain("Ech-Chorfi");
         }
     }

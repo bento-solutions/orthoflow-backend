@@ -141,8 +141,20 @@ class PatientDirectoryQueryDbTest {
         UUID old = PostgresTestSupport.patient(jdbc, practice, "Vieux", "C", null, null, null);
         jdbc.update("UPDATE patients SET created_at = now() - interval '90 days' WHERE id = ?", old);
 
-        var kpis = query.kpis(practice, OffsetDateTime.now().minusDays(30));
+        jdbc.update("UPDATE patients SET status = 'ACTIVE' WHERE practice_id = ?", practice);
+        jdbc.update("UPDATE patients SET status = 'COMPLETED' WHERE id = ?", old);
+        UUID sara = jdbc.queryForObject("SELECT id FROM patients WHERE first_name = 'Sara' AND practice_id = ?", UUID.class, practice);
+        jdbc.update("INSERT INTO appointments (id, practice_id, patient_id, date_time, type, status) VALUES (?, ?, ?, now() + interval '3 days', 'x', 'SCHEDULED')",
+                UUID.randomUUID(), practice, sara);
 
+        var kpis = query.kpis(practice, OffsetDateTime.now().minusDays(30), OffsetDateTime.now().minusDays(400), java.time.ZoneId.of("Africa/Casablanca"));
+
+        assertThat(kpis.active()).isEqualTo(2);
+        assertThat(kpis.completed()).isEqualTo(1);
+        assertThat(kpis.onHold()).isZero();
+        assertThat(kpis.activeWithoutUpcoming()).as("Karim has nothing booked, Sara has").isEqualTo(1);
+        assertThat(kpis.admissionsByMonth()).hasSize(12);
+        assertThat(kpis.admissionsByMonth().stream().mapToLong(Long::longValue).sum()).isEqualTo(3);
         assertThat(kpis.total()).isEqualTo(3);
         assertThat(kpis.newThisMonth()).isEqualTo(2);
         assertThat(kpis.female()).isEqualTo(1);

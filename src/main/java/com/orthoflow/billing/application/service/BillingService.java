@@ -309,7 +309,9 @@ public class BillingService {
         org.springframework.data.domain.Page<Invoice> invoices = patientId != null
                 ? invoiceRepository.findByPatientId(patientId, pageable)
                 : invoiceRepository.findAll(pageable);
-        return invoices.map(this::mapToResponse);
+        Map<UUID, String> names = patientLookup.displayNames(currentPractice.require(),
+                invoices.getContent().stream().map(Invoice::getPatientId).toList());
+        return invoices.map(invoice -> mapToResponse(invoice, names.get(invoice.getPatientId())));
     }
 
     @Transactional(readOnly = true)
@@ -365,6 +367,11 @@ public class BillingService {
     }
 
     private InvoiceResponse mapToResponse(Invoice invoice) {
+        return mapToResponse(invoice, patientLookup.displayNames(invoice.getPracticeId(), List.of(invoice.getPatientId()))
+                .get(invoice.getPatientId()));
+    }
+
+    private InvoiceResponse mapToResponse(Invoice invoice, String patientName) {
         BigDecimal amountPaid = round(totalPaid(invoice));
         BigDecimal balanceDue = invoice.getTotal() != null ? invoice.getTotal().subtract(amountPaid) : null;
 
@@ -372,6 +379,7 @@ public class BillingService {
                 .id(invoice.getId())
                 .practiceId(invoice.getPracticeId())
                 .patientId(invoice.getPatientId())
+                .patientName(patientName)
                 .practitionerId(invoice.getPractitionerId())
                 .invoiceNumber(invoice.getInvoiceNumber())
                 .status(invoice.getStatus())

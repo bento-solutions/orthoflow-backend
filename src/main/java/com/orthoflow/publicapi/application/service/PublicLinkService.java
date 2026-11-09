@@ -34,14 +34,28 @@ public class PublicLinkService {
     }
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PublicLinkService.class);
 
     private final PublicLinkJpaRepository links;
     private final byte[] secret;
 
+    /**
+     * The clinic-wide links are derived from {@code PUBLIC_LINK_SECRET} (audit M5). Without one they
+     * fall back to the JWT secret, as before, which ties the two together: rotating the JWT secret
+     * after a leak would also change every booking link a clinic has printed or put on its site.
+     * Setting a dedicated secret on a running deployment replaces each clinic-wide link once, the
+     * next time staff open it ({@link #sharedToken}).
+     */
     public PublicLinkService(PublicLinkJpaRepository links,
-                             @Value("${orthoflow.public.link-secret:${app.jwt.secret}}") String secret) {
+                             @Value("${orthoflow.public.link-secret:}") String linkSecret,
+                             @Value("${app.jwt.secret}") String jwtSecret) {
         this.links = links;
-        this.secret = secret.getBytes(StandardCharsets.UTF_8);
+        if (linkSecret == null || linkSecret.isBlank()) {
+            log.warn("PUBLIC_LINK_SECRET is not set: clinic-wide public links are derived from the JWT secret. Set a dedicated secret.");
+            this.secret = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        } else {
+            this.secret = linkSecret.getBytes(StandardCharsets.UTF_8);
+        }
     }
 
     /** A one-off link for one subject (a survey for one appointment, an invite for one patient). */
@@ -68,7 +82,13 @@ public class PublicLinkService {
     public String sharedToken(UUID practiceId, PublicLinkPurpose purpose) {
         PublicLink current = links.findByPracticeIdAndPurposeAndSubjectTypeAndRevokedAtIsNull(practiceId, purpose, PublicLink.SHARED)
                 .stream().findFirst().orElseGet(() -> createShared(practiceId, purpose, 0, null));
-        return derive(practiceId, purpose, current.getRotation());
+        String token = derive(practiceId, purpose, current.getRotation());
+        if (!hash(token).equals(current.getTokenHash())) {
+            // Made under another secret: the link that works cannot be derived again, and the one that can does not work.
+            log.warn("The {} link of clinic {} was made under a previous link secret and is replaced", purpose, practiceId);
+            return rotateShared(practiceId, purpose, null);
+        }
+        return token;
     }
 
     /** Replaces the clinic-wide link: the old one stops working immediately. */

@@ -37,7 +37,8 @@ class ExportServiceTest {
     void setUp() {
         PdfService pdf = new PdfService(new PdfTemplateConfig().pdfTemplateEngine());
         exports = new ExportService(pdf, practiceId -> new Letterhead("Cabinet Tazi", "SARL Tazi", "001234567000089",
-                "1234567", "98765", null, "12 rue Moulay Youssef", "Casablanca", "+212 5 22 00 00 00", null, null));
+                "1234567", "98765", null, "12 rue Moulay Youssef", "Casablanca", "+212 5 22 00 00 00", null, null),
+                org.mockito.Mockito.mock(com.orthoflow.audit.application.service.AuditLog.class));
     }
 
     @Test
@@ -89,9 +90,23 @@ class ExportServiceTest {
         byte[] pdf = exports.render(table, ExportFormat.PDF, UUID.randomUUID(), "fr");
 
         assertThat(new String(pdf, 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
-        try (var document = PDDocument.load(pdf)) {
+        try (var document = org.apache.pdfbox.Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(document);
             assertThat(text).contains("Cabinet Tazi").contains("ICE 001234567000089").contains("Espèces").contains("Encaissements du jour");
+        }
+    }
+
+    @Test
+    void pdfIsTaggedForScreenReadersWithItsTitleAndLanguage() throws Exception {
+        byte[] pdf = exports.render(table, ExportFormat.PDF, UUID.randomUUID(), "fr");
+
+        try (var document = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+            var catalog = document.getDocumentCatalog();
+            assertThat(catalog.getStructureTreeRoot()).as("structure tree").isNotNull();
+            assertThat(catalog.getMarkInfo()).isNotNull();
+            assertThat(catalog.getMarkInfo().isMarked()).isTrue();
+            assertThat(catalog.getLanguage()).startsWith("fr");
+            assertThat(document.getDocumentInformation().getTitle()).isNotBlank();
         }
     }
 
@@ -103,7 +118,7 @@ class ExportServiceTest {
         byte[] pdf = exports.render(arabic, ExportFormat.PDF, UUID.randomUUID(), "ar");
 
         assertThat(pdf.length).isGreaterThan(1000);
-        try (var document = PDDocument.load(pdf)) {
+        try (var document = org.apache.pdfbox.Loader.loadPDF(pdf)) {
             assertThat(document.getNumberOfPages()).isEqualTo(1);
         }
     }

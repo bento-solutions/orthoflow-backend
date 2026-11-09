@@ -69,5 +69,15 @@ public class StockItemRepositoryAdapter implements StockItemRepository {
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }
-}
 
+    @Override
+    public ActiveTotals activeTotals() {
+        Object[] row = jpaRepository.activeTotals().get(0);
+        return new ActiveTotals((java.math.BigDecimal) row[0], row[1] == null ? 0 : ((Number) row[1]).longValue());
+    }
+
+    @Override
+    public List<StockItem> findAllByIds(java.util.Collection<UUID> ids) {
+        return ids.isEmpty() ? List.of() : jpaRepository.findAllById(ids);
+    }
+}

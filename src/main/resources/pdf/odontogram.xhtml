@@ -9,7 +9,7 @@
     <div class="intro" th:text="${c.intro}">How to read it</div>
     <table class="chart-frame"><tr>
       <td class="chart-side" th:text="${c.leftLabel}">Patient's right</td>
-      <td class="chart-image"><img th:src="${c.image}" alt=""/></td>
+      <td class="chart-image"><img th:src="${c.image}" th:alt="${c.imageAlt}"/></td>
       <td class="chart-side" th:text="${c.rightLabel}">Patient's left</td>
     </tr></table>
 

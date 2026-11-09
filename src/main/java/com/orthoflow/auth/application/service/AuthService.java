@@ -11,6 +11,7 @@ import com.orthoflow.auth.domain.repository.UserRepository;
 import com.orthoflow.auth.infrastructure.adapter.persistence.UserJpaRepository;
 import com.orthoflow.auth.infrastructure.security.JwtService;
 import com.orthoflow.common.exception.ConflictException;
+import com.orthoflow.common.exception.RateLimitedException;
 import com.orthoflow.common.exception.UnauthorizedException;
 import com.orthoflow.common.exception.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,13 @@ public class AuthService {
     private static final long RESET_TOKEN_TTL_MINUTES = 30;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /** Wrong passwords in a row before an account must wait (audit M2); the per-address limit is AuthRateLimitFilter. */
+    static final int MAX_FAILED_LOGINS = 10;
+    static final long LOCK_MINUTES = 15;
+
+    /** A hash of a password nobody knows, checked when no account matches so both answers cost one bcrypt. */
+    private volatile String decoyHash;
+
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordResetNotifier passwordResetNotifier;
@@ -54,21 +62,44 @@ public class AuthService {
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;
 
-    @Transactional
+    @Transactional(noRollbackFor = {UnauthorizedException.class, RateLimitedException.class})
     public LoginResponse login(LoginRequest request) {
         return login(request, null, null);
     }
 
-    /** As {@link #login(LoginRequest)}, recording where the sign-in came from so "My account" can list it. */
-    @Transactional
+    /**
+     * As {@link #login(LoginRequest)}, recording where the sign-in came from so "My account" can list it.
+     * A failure commits (the count of wrong passwords has to survive the refusal).
+     */
+    @Transactional(noRollbackFor = {UnauthorizedException.class, RateLimitedException.class})
     public LoginResponse login(LoginRequest request, String ip, String userAgent) {
-        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+        String typed = request.getEmail() == null ? "" : request.getEmail().trim();
+        String password = request.getPassword() == null ? "" : request.getPassword();
+        User user = userRepository.findByEmail(typed).orElse(null);
         if (user == null) {
-            audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").actorLabel(request.getEmail())
+            // As slow as a wrong password, so the time taken does not say whether the account exists.
+            passwordEncoder.matches(password, decoyHash());
+            audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").actorLabel(maskedLogin(typed))
                     .ip(ip).detail(Map.of("reason", "unknown_account")).build());
             throw new UnauthorizedException("Invalid email or password");
         }
-        if (!user.isActive() || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        OffsetDateTime now = OffsetDateTime.now();
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
+            passwordEncoder.matches(password, decoyHash());
+            audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").practiceId(user.getPracticeId())
+                    .actorId(user.getId()).actorLabel(user.getEmail()).ip(ip).detail(Map.of("reason", "locked")).build());
+            throw new RateLimitedException("Too many wrong passwords for this account. Try again in " + LOCK_MINUTES
+                    + " minutes, or reset your password.");
+        }
+        if (!user.isActive() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+            if (user.isActive()) {
+                int failed = user.getFailedLogins() + 1;
+                user.setFailedLogins(failed >= MAX_FAILED_LOGINS ? 0 : failed);
+                if (failed >= MAX_FAILED_LOGINS) {
+                    user.setLockedUntil(now.plusMinutes(LOCK_MINUTES));
+                }
+                userRepository.save(user);
+            }
             // The response is the same either way; the log says which, for whoever investigates.
             audit.record(AuditLog.Event.builder().category(AuditCategory.AUTH).action("LOGIN_FAILED").practiceId(user.getPracticeId())
                     .actorId(user.getId()).actorLabel(user.getEmail()).ip(ip)
@@ -76,7 +107,9 @@ public class AuthService {
             throw new UnauthorizedException("Invalid email or password");
         }
 
-        user.setLastLoginAt(OffsetDateTime.now());
+        user.setLastLoginAt(now);
+        user.setFailedLogins(0);
+        user.setLockedUntil(null);
         userRepository.save(user);
         var session = sessionService.open(user.getId(), ip, userAgent);
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name(), session.getId());
@@ -131,6 +164,31 @@ public class AuthService {
         audit.record(AuditLog.Event.builder().category(AuditCategory.ADMIN).action("USER_REGISTERED").practiceId(practiceId)
                 .targetType("user").targetId(saved.getId()).detail(Map.of("email", saved.getEmail(), "role", saved.getRole().name())).build());
         return toResponse(saved);
+    }
+
+    private String decoyHash() {
+        String hash = decoyHash;
+        if (hash == null) {
+            byte[] random = new byte[24];
+            SECURE_RANDOM.nextBytes(random);
+            hash = passwordEncoder.encode(Base64.getEncoder().encodeToString(random));
+            decoyHash = hash;
+        }
+        return hash;
+    }
+
+    /**
+     * What a failed sign-in with no matching account records about what was typed (audit S7): enough
+     * to see someone trying addresses, never a password typed into the e-mail field, kept for years.
+     */
+    static String maskedLogin(String typed) {
+        int at = typed.indexOf('@');
+        boolean looksLikeAnAddress = at > 0 && at == typed.lastIndexOf('@') && typed.length() <= 254
+                && typed.indexOf(' ') < 0 && typed.indexOf('.', at) > at + 1 && !typed.endsWith(".");
+        if (!looksLikeAnAddress) {
+            return "(not an e-mail address)";
+        }
+        return typed.charAt(0) + "***" + typed.substring(at).toLowerCase(java.util.Locale.ROOT);
     }
 
     @Transactional(readOnly = true)
@@ -230,6 +288,9 @@ public class AuthService {
         // (JwtAuthFilter checks token issuedAt against this).
         user.setSessionsValidAfter(OffsetDateTime.now());
         user.setMustChangePassword(false);
+        // Whoever proved they own the mailbox is let back in at once.
+        user.setFailedLogins(0);
+        user.setLockedUntil(null);
         userRepository.save(user);
         sessionService.revokeAll(user.getId());
 

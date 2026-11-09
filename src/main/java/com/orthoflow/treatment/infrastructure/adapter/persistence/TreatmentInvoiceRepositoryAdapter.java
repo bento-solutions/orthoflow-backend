@@ -43,4 +43,11 @@ public class TreatmentInvoiceRepositoryAdapter implements TreatmentInvoiceReposi
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }
+
+    @Override
+    public List<TreatmentTotals> finalizedTotalsByTreatment() {
+        return jpaRepository.finalizedTotalsByTreatment().stream()
+                .map(r -> new TreatmentTotals((UUID) r[0], (String) r[1], (java.math.BigDecimal) r[2], (java.math.BigDecimal) r[3], ((Number) r[4]).longValue()))
+                .toList();
+    }
 }

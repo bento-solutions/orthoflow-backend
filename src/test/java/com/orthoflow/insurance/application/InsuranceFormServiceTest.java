@@ -235,7 +235,7 @@ class InsuranceFormServiceTest {
                 null, List.of(new LineRequest(null, "", ODF_ACT, null, null, null, new BigDecimal("3000"))), null, null, false, null));
 
         verify(files).storeGenerated(any(), any(), any(), anyString(), anyString(), stored.capture(), any());
-        try (var doc = org.apache.pdfbox.pdmodel.PDDocument.load(stored.getValue())) {
+        try (var doc = org.apache.pdfbox.Loader.loadPDF(stored.getValue())) {
             String text = new org.apache.pdfbox.text.PDFTextStripper().getText(doc).replaceAll("\\s+", " ");
             assertThat(text).contains("Relevé des actes dentaires").contains("Demande d'entente préalable")
                     .contains("AXA Assurance Maroc").contains("Karim Bennani").contains("BENNANI Yasmine")

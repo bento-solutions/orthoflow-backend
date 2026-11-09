@@ -77,7 +77,7 @@ class InsuranceFormDbTest extends SpringDbTest {
         assertThat(forms.get(practice, issued.get(0).id()).missing()).containsExactly("ACT_CODES");
         assertThat(agreement.missing()).isEmpty();
 
-        try (PDDocument pdf = PDDocument.load(forms.file(practice, agreement.id(), false))) {
+        try (PDDocument pdf = org.apache.pdfbox.Loader.loadPDF(forms.file(practice, agreement.id(), false))) {
             String front = text(pdf, 1);
             assertThat(front).contains("BENNANI Karim").contains("BENNANI Yasmine").contains("3 000,00");
             assertThat(text(pdf, 2)).contains("D629").contains("D 90");

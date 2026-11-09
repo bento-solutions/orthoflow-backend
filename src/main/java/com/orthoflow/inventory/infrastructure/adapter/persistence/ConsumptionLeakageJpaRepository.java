@@ -122,7 +122,7 @@ public interface ConsumptionLeakageJpaRepository extends JpaRepository<StockCons
         WHERE m.practice_id = :practiceId
           AND m.movement_type IN ('OUT', 'WRITE_OFF')
           AND m.source_type <> 'PATIENT_TREATMENT'
-          AND CAST(m.created_at AS date) BETWEEN :fromDate AND :toDate
+          AND m.created_at >= CAST(:fromDate AS date) AND m.created_at < CAST(:toDate AS date) + 1
         GROUP BY 1, 2, 3
         ORDER BY 5 DESC NULLS LAST
         """, nativeQuery = true)

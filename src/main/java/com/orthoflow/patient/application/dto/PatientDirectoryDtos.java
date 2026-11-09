@@ -1,5 +1,6 @@
 package com.orthoflow.patient.application.dto;
 
+import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -22,7 +23,15 @@ public final class PatientDirectoryDtos {
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "PatientKpis")
-    public record Kpis(long total, long newThisMonth, long male, long female, long otherGender, Double averageAge) {
+    /**
+     * The clinic's patient figures, counted by the database over every patient. The dashboard used to
+     * count them in the browser over the first 200 it had loaded (audit P1).
+     *
+     * @param activeWithoutUpcoming active patients with no appointment ahead of them
+     * @param admissionsByMonth     patients created in each month of the current year, January first (12 values)
+     */
+    public record Kpis(long total, long newThisMonth, long male, long female, long otherGender, Double averageAge,
+                       long active, long completed, long onHold, long activeWithoutUpcoming, List<Long> admissionsByMonth) {
     }
 
     public record DuplicatePair(Person first, Person second, String reason, double score) {

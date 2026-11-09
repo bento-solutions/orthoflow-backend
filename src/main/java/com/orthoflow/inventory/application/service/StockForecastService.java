@@ -79,8 +79,11 @@ public class StockForecastService {
         List<OrderSuggestion> suggestions = new ArrayList<>();
         BigDecimal totalCost = BigDecimal.ZERO;
 
-        // @TenantId already scopes this to the current practice.
-        for (StockItem item : stockItemRepository.findAll()) {
+        // Only the items used in the period: an item never used has nothing to go on and nothing to suggest,
+        // so the clinic's whole catalogue is not loaded (audit P2). @TenantId scopes it to the practice.
+        List<StockItem> used = new ArrayList<>(stockItemRepository.findAllByIds(history.keySet()));
+        used.sort(java.util.Comparator.comparing(StockItem::getName, java.util.Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
+        for (StockItem item : used) {
             if (!item.isActive()) {
                 continue;
             }

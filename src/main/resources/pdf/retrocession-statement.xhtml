@@ -38,7 +38,7 @@
       <div class="legal" th:if="${letterhead.legalName != null}" th:text="${letterhead.legalName}"></div>
       <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
     </td>
-    <td class="right"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" alt=""/></td>
+    <td class="right"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 60px; max-width: 160px;" th:alt="${letterhead.name}"/></td>
   </tr></table>
 
   <h1><span th:text="${labels.title}">RELEVÉ</span> <span th:text="${'N° ' + statement.number}">N°</span><span class="void" th:if="${statement.voided}" th:text="${labels.voided}">VOID</span></h1>

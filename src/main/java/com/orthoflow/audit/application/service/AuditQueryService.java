@@ -22,9 +22,16 @@ public class AuditQueryService {
                       String detail) {
     }
 
+    /** {@code total} is exact up to {@link #COUNT_CEILING} and stops there: past it, narrow the filter. */
     @Schema(name = "AuditLogPage")
     public record PageOfRows(List<Row> rows, long total, int page, int size) {
     }
+
+    /**
+     * A year of patient-access rows is a large table: counting all of a clinic's rows on every page, and
+     * skipping through them with OFFSET, grew with use (audit P3). The count stops here and pages end here.
+     */
+    static final int COUNT_CEILING = 10_000;
 
     public record Filter(AuditCategory category, UUID patientId, UUID actorId, OffsetDateTime from, OffsetDateTime to) {
     }
@@ -58,7 +65,13 @@ public class AuditQueryService {
             where.append(" AND occurred_at < ?");
             args.add(filter.to());
         }
-        Long total = jdbc.queryForObject("SELECT count(*) FROM audit_log" + where, Long.class, args.toArray());
+        if ((long) pageNumber * pageSize >= COUNT_CEILING) {
+            throw new com.orthoflow.common.exception.ValidationException("Only the first " + COUNT_CEILING
+                    + " rows can be paged through. Narrow the search by date, person or patient.");
+        }
+        List<Object> countArgs = new ArrayList<>(args);
+        countArgs.add(COUNT_CEILING);
+        Long total = jdbc.queryForObject("SELECT count(*) FROM (SELECT 1 FROM audit_log" + where + " LIMIT ?) capped", Long.class, countArgs.toArray());
         List<Object> pageArgs = new ArrayList<>(args);
         pageArgs.add(pageSize);
         pageArgs.add((long) pageNumber * pageSize);

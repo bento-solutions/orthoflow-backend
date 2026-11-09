@@ -42,6 +42,8 @@ class AuditTrailTest extends SpringDbTest {
     private JwtService jwt;
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private com.orthoflow.audit.application.service.AuditLog auditLog;
 
     private JdbcTemplate jdbc;
     private UUID practice;
@@ -59,6 +61,7 @@ class AuditTrailTest extends SpringDbTest {
     }
 
     private List<Map<String, Object>> rows(String where, Object... args) {
+        auditLog.flush(); // patient-access rows are written by the background writer
         return jdbc.queryForList("SELECT * FROM audit_log WHERE " + where + " ORDER BY occurred_at", args);
     }
 
@@ -72,8 +75,36 @@ class AuditTrailTest extends SpringDbTest {
         Map<String, Object> failed = rows("practice_id = ? AND action = 'LOGIN_FAILED'", practice).get(0);
         assertThat(failed.get("ip")).isEqualTo("10.0.0.2");
         assertThat((String) failed.get("detail")).contains("wrong_password").doesNotContain("wrong\"");
-        // An address that is no account still leaves a trace, with no clinic.
-        assertThat(rows("practice_id IS NULL AND actor_label = ?", "nobody-" + admin + "@x.ma")).hasSize(1);
+        // An address that is no account still leaves a trace, with no clinic, masked: what is typed there is sometimes a password.
+        assertThat(rows("practice_id IS NULL AND actor_label = 'n***@x.ma' AND ip = '10.0.0.3'")).isNotEmpty();
+        assertThat(rows("actor_label = ?", "nobody-" + admin + "@x.ma")).isEmpty();
+    }
+
+    @Test
+    void aPasswordTypedIntoTheEmailFieldIsNotKept() {
+        assertThatThrownBy(() -> auth.login(login("Tr0ub4dor&3", "x"), "10.0.0.4", "JUnit")).isInstanceOf(UnauthorizedException.class);
+
+        assertThat(rows("actor_label LIKE '%Tr0ub4dor%'")).isEmpty();
+        assertThat(rows("actor_label = '(not an e-mail address)' AND ip = '10.0.0.4'")).isNotEmpty();
+    }
+
+    @Test
+    void theAddressIsMatchedWhateverItsCase() {
+        assertThat(auth.login(login(email.toUpperCase(), "correct horse battery"), "10.0.0.1", "JUnit").token()).isNotBlank();
+    }
+
+    @Test
+    void tenWrongPasswordsLockTheAccountForAWhileEvenAgainstTheRightOne() {
+        for (int i = 0; i < 10; i++) {
+            assertThatThrownBy(() -> auth.login(login(email, "wrong"), "10.0.0.2", "JUnit")).isInstanceOf(UnauthorizedException.class);
+        }
+
+        assertThatThrownBy(() -> auth.login(login(email, "correct horse battery"), "10.0.0.1", "JUnit"))
+                .isInstanceOf(com.orthoflow.common.exception.RateLimitedException.class).hasMessageContaining("15 minutes");
+
+        jdbc.update("UPDATE users SET locked_until = now() - interval '1 second' WHERE email = ?", email);
+        assertThat(auth.login(login(email, "correct horse battery"), "10.0.0.1", "JUnit").token()).isNotBlank();
+        assertThat(jdbc.queryForObject("SELECT failed_logins FROM users WHERE email = ?", Integer.class, email)).isZero();
     }
 
     @Test
@@ -129,6 +160,20 @@ class AuditTrailTest extends SpringDbTest {
         assertThat(reads).hasSize(1);
         assertThat(reads.get(0)).containsEntry("route", "/patients/{id}").containsEntry("method", "GET").containsEntry("status", 200)
                 .containsEntry("actor_id", admin).containsEntry("patient_id", patient);
+    }
+
+    @Test
+    void readingARecordByItsOwnIdIsRecordedAgainstItsPatient() throws Exception {
+        UUID patient = PostgresTestSupport.patient(jdbc, practice, "Sara", "Benziane", "2010-01-01", "0611223344", null);
+        UUID prescription = UUID.randomUUID();
+        jdbc.update("INSERT INTO prescriptions (id, practice_id, number, patient_id, lines, status) VALUES (?, ?, ?, ?, '[]'::jsonb, 'ISSUED')",
+                prescription, practice, "RX-" + prescription.toString().substring(0, 8), patient);
+        String bearer = "Bearer " + jwt.generateToken(admin, email, "ADMIN");
+
+        mockMvc.perform(get("/prescriptions/" + prescription + "/file").header("Authorization", bearer));
+
+        assertThat(rows("practice_id = ? AND category = 'PHI_READ' AND target_id = ?", practice, prescription))
+                .singleElement().satisfies(r -> assertThat(r).containsEntry("patient_id", patient).containsEntry("target_type", "prescriptions"));
     }
 
     @Test

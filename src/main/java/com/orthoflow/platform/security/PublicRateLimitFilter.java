@@ -1,5 +1,6 @@
 package com.orthoflow.platform.security;
 
+import com.orthoflow.platform.web.ClientAddress;
 import com.orthoflow.common.web.CorrelationIdFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -54,7 +55,7 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         boolean write = !"GET".equalsIgnoreCase(request.getMethod()) && !"OPTIONS".equalsIgnoreCase(request.getMethod());
-        String key = (write ? "w|" : "r|") + clientIp(request);
+        String key = (write ? "w|" : "r|") + ClientAddress.limitKey(request);
         Instant now = Instant.now();
         Counter counter = counters.compute(key, (k, existing) ->
                 existing == null || now.isAfter(existing.resetsAt) ? new Counter(now.plus(window)) : existing);
@@ -64,7 +65,7 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         }
         if (used > (write ? maxWrites : maxReads)) {
             long retryAfter = Math.max(1, Duration.between(now, counter.resetsAt).getSeconds());
-            log.warn("Public rate limit hit: {} {} requests from {}", used, write ? "write" : "read", clientIp(request));
+            log.warn("Public rate limit hit: {} {} requests from {}", used, write ? "write" : "read", ClientAddress.limitKey(request));
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader("Retry-After", Long.toString(retryAfter));
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
@@ -74,11 +75,6 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
             return;
         }
         chain.doFilter(request, response);
-    }
-
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return forwarded != null && !forwarded.isBlank() ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
     }
 
     private static final class Counter {

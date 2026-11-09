@@ -63,13 +63,19 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60"
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/orthoflow
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
+      # The application's login: the least-privilege orthoflow_app role once an
+      # operator has created one (V74, .env.example), the owner until then.
+      SPRING_DATASOURCE_USERNAME: ${DB_APP_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_APP_PASSWORD:-${DB_PASSWORD}}
+      # Migrations always run as the owner.
+      SPRING_FLYWAY_USER: postgres
+      SPRING_FLYWAY_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
       DB_USERNAME: postgres
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (see .env.example)}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_ENABLED: "true"
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set (see .env.example)}
+      PUBLIC_LINK_SECRET: ${PUBLIC_LINK_SECRET:-}
       # A token lasts JWT_EXPIRATION_MINUTES (default 240) and is silently
       # renewed while the person works, but never past this many minutes after
       # they signed in (default 720, one clinic day). Set it at or below the

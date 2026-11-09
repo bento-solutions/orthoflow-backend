@@ -35,7 +35,7 @@
       <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
       <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
     </td>
-    <td style="text-align: right;"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 48px; max-width: 120px;" alt=""/></td>
+    <td style="text-align: right;"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 48px; max-width: 120px;" th:alt="${letterhead.name}"/></td>
   </tr></table>
 
   <div class="place" th:text="${signedAt}">Casablanca, le</div>

@@ -122,7 +122,7 @@ class PrescriptionServiceTest {
         assertThat(issued.status()).isEqualTo(Prescription.Status.ISSUED);
         ArgumentCaptor<byte[]> pdf = ArgumentCaptor.forClass(byte[].class);
         verify(files).storeGenerated(any(), any(), any(), anyString(), anyString(), pdf.capture(), any());
-        try (PDDocument doc = PDDocument.load(pdf.getValue())) {
+        try (PDDocument doc = org.apache.pdfbox.Loader.loadPDF(pdf.getValue())) {
             String text = new PDFTextStripper().getText(doc).replaceAll("\\s+", " ");
             assertThat(text).contains("ORDONNANCE").contains("Dr Amrani").contains("INPE 123456789").contains("BENNANI Yasmine")
                     .contains("AUGMENTIN 1 G/125 MG").contains("Amoxicilline + acide clavulanique")

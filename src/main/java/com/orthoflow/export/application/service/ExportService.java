@@ -1,5 +1,8 @@
 package com.orthoflow.export.application.service;
 
+import com.orthoflow.audit.application.service.AuditCategory;
+import com.orthoflow.audit.application.service.AuditLog;
+import java.util.Map;
 import com.orthoflow.export.application.dto.ExportFormat;
 import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.dto.TableExport;
@@ -28,6 +31,7 @@ public class ExportService {
 
     private final PdfService pdfService;
     private final LetterheadProvider letterheadProvider;
+    private final AuditLog audit;
 
     public byte[] render(TableExport table, ExportFormat format, UUID practiceId, String lang) {
         return switch (format) {
@@ -37,9 +41,16 @@ public class ExportService {
         };
     }
 
+    /**
+     * Every report that leaves as a file is logged (audit S5): a debtors list, an income statement or
+     * a recall list is many patients at once, and the per-record log never saw it.
+     */
     public ResponseEntity<byte[]> respond(TableExport table, String format, String baseName, UUID practiceId, String lang) {
         ExportFormat fmt = ExportFormat.parse(format);
-        return download(render(table, fmt, practiceId, lang), fmt, baseName);
+        ResponseEntity<byte[]> response = download(render(table, fmt, practiceId, lang), fmt, baseName);
+        audit.record(AuditLog.Event.builder().category(AuditCategory.PHI_READ).action("EXPORT").practiceId(practiceId)
+                .targetType("export").detail(Map.of("report", baseName, "format", fmt.name(), "rows", table.rows().size())).build());
+        return response;
     }
 
     /** A document already rendered (an invoice, a fee note) sent as a download. */

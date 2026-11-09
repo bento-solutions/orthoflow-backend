@@ -67,13 +67,21 @@ public class AuditInterceptor implements HandlerInterceptor {
                 patientId = uuid(request.getParameter("patientId"));
             }
             UUID recordId = uuid(vars.get("id"));
+            String targetType = area.substring(1);
+            if (recordId == null && vars.containsKey("appointmentId")) {
+                // The front desk names the appointment it moves, not the patient.
+                recordId = uuid(vars.get("appointmentId"));
+                targetType = "appointments";
+            }
             if (patientId == null && "/patients".equals(area)) {
                 patientId = recordId;
             }
+            // A record named by its own id (a prescription, a consultation's log, a file) gets its patient from
+            // the record when the row is written (AuditLog.PATIENT_OF).
             // A read must name a record; a change is recorded even when it names none (a new patient).
             if (!read || patientId != null || recordId != null) {
                 audit.record(AuditLog.Event.builder().category(read ? AuditCategory.PHI_READ : AuditCategory.PHI_WRITE)
-                        .action(read ? "READ" : "WRITE").patientId(patientId).targetType(area.substring(1)).targetId(recordId)
+                        .action(read ? "READ" : "WRITE").patientId(patientId).targetType(targetType).targetId(recordId)
                         .method(method).route(pattern).status(status).build());
             }
             return;

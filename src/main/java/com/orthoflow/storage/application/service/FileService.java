@@ -7,8 +7,12 @@ import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.storage.domain.model.StoredFile;
 import com.orthoflow.storage.infrastructure.StoredFileJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -17,6 +21,7 @@ import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +29,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class FileService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileService.class);
 
     private final StoredFileJpaRepository files;
     private final StorageService storage;
@@ -55,6 +62,7 @@ public class FileService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        removeIfRolledBack(key);
         return files.save(StoredFile.builder()
                 .id(id)
                 .practiceId(practiceId)
@@ -80,6 +88,7 @@ public class FileService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        removeIfRolledBack(key);
         return files.save(StoredFile.builder().id(id).practiceId(practiceId).ownerType(ownerType).ownerId(ownerId)
                 .originalName(cleanName(name)).contentType(contentType).sizeBytes(bytes.length)
                 .sha256(sha256(bytes)).storageKey(key).uploadedBy(actorId).build());
@@ -112,16 +121,60 @@ public class FileService {
         }
     }
 
-    /** A soft delete: the row stays for the record, the bytes go. */
+    /** A soft delete: the row stays for the record, the bytes go once that is committed. */
     @Transactional
     public void delete(UUID practiceId, UUID id) {
         StoredFile file = require(practiceId, id);
         file.setDeletedAt(OffsetDateTime.now());
-        try {
-            storage.delete(file.getStorageKey());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        deleteBytesAfterCommit(List.of(file.getStorageKey()));
+    }
+
+    /**
+     * Deletes stored bytes once the transaction that removed (or soft-deleted) their rows has
+     * committed. Deleting them inside it lost a patient's X-rays whenever the transaction then
+     * rolled back: the rows came back, the files did not. Outside a transaction they go at once.
+     * A file that cannot be deleted is logged for an operator; its row is already gone.
+     */
+    public void deleteBytesAfterCommit(Collection<String> storageKeys) {
+        List<String> keys = List.copyOf(storageKeys);
+        if (keys.isEmpty()) {
+            return;
         }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteBytes(keys);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deleteBytes(keys);
+            }
+        });
+    }
+
+    private void deleteBytes(List<String> keys) {
+        for (String key : keys) {
+            try {
+                storage.delete(key);
+            } catch (IOException | RuntimeException e) {
+                log.error("Could not delete the stored file {}; its row is gone, so it needs removing by hand", key, e);
+            }
+        }
+    }
+
+    /** Bytes written for a row that then never commits are removed, so a failed save leaves no orphan file behind. */
+    private void removeIfRolledBack(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    deleteBytes(List.of(key));
+                }
+            }
+        });
     }
 
     /** The type of an upload decided from its first bytes; refuses anything that is not PNG, JPEG, WebP or PDF. */

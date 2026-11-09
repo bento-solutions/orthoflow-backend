@@ -131,13 +131,32 @@ public class TaxDocumentService {
         return rows.stream().map(d -> view(d, names.computeIfAbsent(d.getPatientId(), this::name))).toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public byte[] file(UUID practiceId, UUID id) {
         TaxDocument d = require(practiceId, id);
+        if (d.getFileId() == null && anonymised(d.getPatientId())) {
+            // Anonymisation removed the stored PDF because it printed the name; the record is printed again without one.
+            Invoice invoice = invoices.findById(d.getInvoiceId()).orElseThrow(() -> new NotFoundException("Invoice not found"));
+            render(d, invoice, "fr", d.getDuplicateOf() != null, null);
+        }
         if (d.getFileId() == null) {
             throw new NotFoundException("This document has no file");
         }
         return fileService.read(fileService.require(practiceId, d.getFileId()));
+    }
+
+    private boolean anonymised(UUID patientId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM patients WHERE id = ? AND anonymised_at IS NOT NULL)",
+                Boolean.class, patientId));
+    }
+
+    /** An anonymised patient is archived, so the lookup no longer finds them: the document then names nobody. */
+    private PatientIdentity identityFor(UUID patientId) {
+        return patientLookup.findIdentity(patientId).or(() -> anonymised(patientId)
+                        ? Optional.of(new PatientIdentity(patientId, jdbc.queryForObject("SELECT patient_code FROM patients WHERE id = ?", String.class, patientId),
+                                "Anonymisé", "Patient", null, null, null, null, null, null, null, null, null, null, null, "SELF", null, null))
+                        : Optional.empty())
+                .orElseThrow(() -> new NotFoundException("Patient not found"));
     }
 
     public TableExport register(List<View> rows, String lang) {
@@ -150,14 +169,15 @@ public class TaxDocumentService {
     }
 
     private View render(TaxDocument doc, Invoice invoice, String lang, boolean duplicate, UUID actorId) {
-        PatientIdentity patient = patientLookup.findIdentity(doc.getPatientId()).orElseThrow(() -> new NotFoundException("Patient not found"));
+        PatientIdentity patient = identityFor(doc.getPatientId());
         Letterhead letterhead = letterheadProvider.forPractice(doc.getPracticeId());
         BigDecimal paid = invoice.getPayments().stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("letterhead", letterhead);
         model.put("labels", TaxDocumentLabels.of(lang, doc.getKind()));
         model.put("doc", Map.of("number", doc.getNumber(), "duplicate", duplicate,
-                "issuedOn", DAY.format(OffsetDateTime.now().atZoneSameInstant(practiceZone.of(doc.getPracticeId())))));
+                "issuedOn", DAY.format((doc.getIssuedAt() != null ? doc.getIssuedAt() : OffsetDateTime.now())
+                        .atZoneSameInstant(practiceZone.of(doc.getPracticeId())))));
         model.put("patient", patient);
         Practitioner practitioner = doc.getPractitionerId() == null ? null : practitionerService.require(doc.getPracticeId(), doc.getPractitionerId());
         model.put("practitioner", practitioner == null ? null : Map.of("name", practitioner.getDisplayName(),

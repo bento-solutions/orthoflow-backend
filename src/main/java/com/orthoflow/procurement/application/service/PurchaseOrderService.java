@@ -1,5 +1,6 @@
 package com.orthoflow.procurement.application.service;
 
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.procurement.application.dto.PurchaseOrderLineRequest;
@@ -96,7 +97,7 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new NotFoundException("Purchase order not found: " + id));
 
         if (order.getStatus() != POStatus.DRAFT) {
-            throw new IllegalStateException(
+            throw new ConflictException(
                     "Only a DRAFT purchase order can be edited (current status: " + order.getStatus() + ")");
         }
 

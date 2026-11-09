@@ -115,19 +115,41 @@ public class PatientDirectoryQuery {
         return n == null ? 0 : n;
     }
 
-    public Kpis kpis(UUID practiceId, OffsetDateTime monthStart) {
+    public Kpis kpis(UUID practiceId, OffsetDateTime monthStart, OffsetDateTime yearStart, java.time.ZoneId zone) {
+        MapSqlParameterSource params = new MapSqlParameterSource("practice", practiceId).addValue("monthStart", monthStart)
+                .addValue("yearStart", yearStart).addValue("zone", zone.getId());
+        Long[] months = new Long[12];
+        java.util.Arrays.fill(months, 0L);
+        jdbc.query("""
+                SELECT CAST(EXTRACT(MONTH FROM created_at AT TIME ZONE :zone) AS int) AS month, count(*) AS n
+                FROM patients WHERE practice_id = :practice AND deleted_at IS NULL AND created_at >= :yearStart
+                GROUP BY 1
+                """, params, (org.springframework.jdbc.core.RowCallbackHandler) rs -> {
+            int month = rs.getInt("month");
+            if (month >= 1 && month <= 12) {
+                months[month - 1] = rs.getLong("n");
+            }
+        });
         return jdbc.queryForObject("""
                 SELECT count(*) AS total,
                        count(*) FILTER (WHERE created_at >= :monthStart) AS new_this_month,
                        count(*) FILTER (WHERE gender = 'M') AS male,
                        count(*) FILTER (WHERE gender = 'F') AS female,
                        count(*) FILTER (WHERE gender IS NULL OR gender NOT IN ('M', 'F')) AS other,
-                       avg(EXTRACT(YEAR FROM age(date_of_birth))) FILTER (WHERE date_of_birth IS NOT NULL) AS avg_age
-                FROM patients WHERE practice_id = :practice AND deleted_at IS NULL
-                """, new MapSqlParameterSource("practice", practiceId).addValue("monthStart", monthStart),
+                       avg(EXTRACT(YEAR FROM age(date_of_birth))) FILTER (WHERE date_of_birth IS NOT NULL) AS avg_age,
+                       count(*) FILTER (WHERE status = 'ACTIVE') AS active,
+                       count(*) FILTER (WHERE status = 'COMPLETED') AS completed,
+                       count(*) FILTER (WHERE status = 'ON_HOLD') AS on_hold,
+                       count(*) FILTER (WHERE status = 'ACTIVE' AND NOT EXISTS (
+                           SELECT 1 FROM appointments a WHERE a.patient_id = p.id AND a.date_time >= now()
+                             AND a.status NOT IN ('CANCELLED', 'NO_SHOW'))) AS active_without_upcoming
+                FROM patients p WHERE practice_id = :practice AND deleted_at IS NULL
+                """, params,
                 (rs, i) -> new Kpis(rs.getLong("total"), rs.getLong("new_this_month"), rs.getLong("male"),
                         rs.getLong("female"), rs.getLong("other"),
-                        rs.getObject("avg_age") == null ? null : Math.round(rs.getDouble("avg_age") * 10) / 10.0));
+                        rs.getObject("avg_age") == null ? null : Math.round(rs.getDouble("avg_age") * 10) / 10.0,
+                        rs.getLong("active"), rs.getLong("completed"), rs.getLong("on_hold"), rs.getLong("active_without_upcoming"),
+                        List.of(months)));
     }
 
     public List<DuplicatePair> duplicates(UUID practiceId, int limit) {

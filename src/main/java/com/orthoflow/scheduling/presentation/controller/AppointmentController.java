@@ -34,13 +34,14 @@ public class AppointmentController {
         return appointmentService.createAppointment(request);
     }
 
+    /** The longest window one request may ask for: a year view and its margins. */
+    static final java.time.Duration MAX_WINDOW = java.time.Duration.ofDays(400);
+
     /**
-     * Pass `from`/`to` (ISO-8601 offset date-times) to load only the window a
-     * screen actually needs — the day/month/year calendar views used to
-     * fetch every appointment the clinic has ever had and filter client-side
-     * (audit II.8/VI.4). Omitting them keeps the old full-history behaviour
-     * for any caller not yet updated. Any of practitionerId, chairId, status
-     * and typeId narrows the window further (the agenda's filters).
+     * The appointments in a window, `from`/`to` as ISO-8601 offset date-times; any of practitionerId,
+     * chairId, status and typeId narrows it (the agenda's filters). The window is always bounded
+     * (audit P2): omitting it gives the agenda's default (three months back, seven ahead) rather than
+     * the clinic's whole history, and a window over {@link #MAX_WINDOW} is refused.
      */
     @GetMapping
     public List<AppointmentResponse> getAllAppointments(
@@ -50,17 +51,19 @@ public class AppointmentController {
             @RequestParam(required = false) UUID chairId,
             @RequestParam(required = false) AppointmentStatus status,
             @RequestParam(required = false) UUID typeId) {
+        OffsetDateTime start = from != null ? from : to != null ? to.minusMonths(10) : OffsetDateTime.now().minusMonths(3);
+        OffsetDateTime end = to != null ? to : start.plusMonths(10);
+        if (!end.isAfter(start)) {
+            throw new com.orthoflow.common.exception.ValidationException("'to' must be after 'from'");
+        }
+        if (java.time.Duration.between(start, end).compareTo(MAX_WINDOW) > 0) {
+            throw new com.orthoflow.common.exception.ValidationException("Ask for at most " + MAX_WINDOW.toDays() + " days of appointments at a time");
+        }
         boolean filtered = practitionerId != null || chairId != null || status != null || typeId != null;
         if (filtered) {
-            return appointmentService.agenda(currentUser.requirePracticeId(),
-                    from != null ? from : OffsetDateTime.now().minusYears(10),
-                    to != null ? to : OffsetDateTime.now().plusYears(10),
-                    practitionerId, chairId, status, typeId);
+            return appointmentService.agenda(currentUser.requirePracticeId(), start, end, practitionerId, chairId, status, typeId);
         }
-        if (from != null && to != null) {
-            return appointmentService.getAppointmentsInRange(from, to);
-        }
-        return appointmentService.getAllAppointments();
+        return appointmentService.getAppointmentsInRange(start, end);
     }
 
     /** The printable list of a day: {@code ?format=pdf|xlsx|csv}, per practitioner or for everyone. */

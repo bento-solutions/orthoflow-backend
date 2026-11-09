@@ -41,7 +41,7 @@ class PublicLinkServiceTest {
             saved.add(l);
             return l;
         });
-        service = new PublicLinkService(repo, "a-server-secret-for-link-derivation");
+        service = new PublicLinkService(repo, "a-server-secret-for-link-derivation", "the-jwt-secret");
     }
 
     @Test
@@ -89,14 +89,16 @@ class PublicLinkServiceTest {
 
     @Test
     void theSharedTokenIsStableUntilRotatedAndRotationRetiresTheOldOne() {
-        PublicLink first = PublicLink.builder().id(UUID.randomUUID()).practiceId(practice).purpose(PublicLinkPurpose.BOOKING)
-                .subjectType(PublicLink.SHARED).rotation(0).tokenHash("-").build();
+        when(repo.findByPracticeIdAndPurposeAndSubjectTypeAndRevokedAtIsNull(practice, PublicLinkPurpose.BOOKING, PublicLink.SHARED))
+                .thenReturn(List.of());
+        String a = service.sharedToken(practice, PublicLinkPurpose.BOOKING);
+        PublicLink first = saved.get(0);
         when(repo.findByPracticeIdAndPurposeAndSubjectTypeAndRevokedAtIsNull(practice, PublicLinkPurpose.BOOKING, PublicLink.SHARED))
                 .thenReturn(List.of(first));
 
-        String a = service.sharedToken(practice, PublicLinkPurpose.BOOKING);
         String b = service.sharedToken(practice, PublicLinkPurpose.BOOKING);
         assertThat(a).isEqualTo(b);
+        assertThat(first.getRevokedAt()).isNull();
 
         String rotated = service.rotateShared(practice, PublicLinkPurpose.BOOKING, UUID.randomUUID());
 
@@ -105,6 +107,23 @@ class PublicLinkServiceTest {
         ArgumentCaptor<PublicLink> created = ArgumentCaptor.forClass(PublicLink.class);
         verify(repo, org.mockito.Mockito.atLeastOnce()).save(created.capture());
         assertThat(created.getValue().getRotation()).isEqualTo(1);
+    }
+
+    @Test
+    void aSharedLinkMadeUnderAnotherSecretIsReplacedRatherThanShownBroken() {
+        when(repo.findByPracticeIdAndPurposeAndSubjectTypeAndRevokedAtIsNull(practice, PublicLinkPurpose.BOOKING, PublicLink.SHARED))
+                .thenReturn(List.of());
+        PublicLinkService underTheJwtSecret = new PublicLinkService(repo, "", "the-jwt-secret");
+        String before = underTheJwtSecret.sharedToken(practice, PublicLinkPurpose.BOOKING);
+        PublicLink first = saved.get(0);
+        when(repo.findByPracticeIdAndPurposeAndSubjectTypeAndRevokedAtIsNull(practice, PublicLinkPurpose.BOOKING, PublicLink.SHARED))
+                .thenReturn(List.of(first));
+
+        String after = service.sharedToken(practice, PublicLinkPurpose.BOOKING);
+
+        assertThat(after).isNotEqualTo(before);
+        assertThat(first.getRevokedAt()).isNotNull();
+        assertThat(saved.get(saved.size() - 1).getTokenHash()).isNotEqualTo(first.getTokenHash());
     }
 
     @Test

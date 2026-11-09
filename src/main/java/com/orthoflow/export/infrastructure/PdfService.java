@@ -82,6 +82,10 @@ public class PdfService {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PdfRendererBuilder builder = new PdfRendererBuilder();
             builder.useFastMode();
+            // Tagged PDF/UA (audit A2): prescriptions, care forms, the passport and the chart are handed to
+            // patients, and an untagged PDF is a picture of text to a screen reader. It needs every font
+            // embedded (DejaVu, below), a <title> and a lang on each template, and alt text on images.
+            builder.usePdfUaAccessbility(true);
             builder.withHtmlContent(xhtml, null);
             font(builder, "DejaVuSans.ttf", 400, BaseRendererBuilder.FontStyle.NORMAL);
             font(builder, "DejaVuSans-Bold.ttf", 700, BaseRendererBuilder.FontStyle.NORMAL);
@@ -101,13 +105,20 @@ public class PdfService {
         }
     }
 
+    /**
+     * Also registered as the generic families: tagged PDF/UA embeds every font and will not fall back to
+     * the built-in ones, and text that names no family (a page-number margin box does not inherit the
+     * body's) would otherwise have none.
+     */
     private static void font(PdfRendererBuilder builder, String file, int weight, BaseRendererBuilder.FontStyle style) {
-        builder.useFont(() -> {
-            InputStream stream = PdfService.class.getClassLoader().getResourceAsStream(FONT_DIR + file);
-            if (stream == null) {
-                throw new IllegalStateException("Font " + file + " is missing from the classpath");
-            }
-            return stream;
-        }, "DejaVu Sans", weight, style, true);
+        for (String family : List.of("DejaVu Sans", "serif", "sans-serif", "monospace")) {
+            builder.useFont(() -> {
+                InputStream stream = PdfService.class.getClassLoader().getResourceAsStream(FONT_DIR + file);
+                if (stream == null) {
+                    throw new IllegalStateException("Font " + file + " is missing from the classpath");
+                }
+                return stream;
+            }, family, weight, style, true);
+        }
     }
 }

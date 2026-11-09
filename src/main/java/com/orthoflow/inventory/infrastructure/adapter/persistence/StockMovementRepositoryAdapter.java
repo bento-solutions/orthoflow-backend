@@ -73,5 +73,16 @@ public class StockMovementRepositoryAdapter implements StockMovementRepository {
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }
-}
 
+    @Override
+    public java.math.BigDecimal costOfMovementsBetween(MovementType movementType, OffsetDateTime start, OffsetDateTime end) {
+        return jpaRepository.costOfMovementsBetween(movementType, start, end);
+    }
+
+    @Override
+    public List<ItemTotal> topItemsBetween(MovementType movementType, OffsetDateTime start, OffsetDateTime end, int limit) {
+        return jpaRepository.topItemsBetween(movementType, start, end, org.springframework.data.domain.PageRequest.of(0, limit)).stream()
+                .map(r -> new ItemTotal((UUID) r[0], (String) r[1], (java.math.BigDecimal) r[2], (java.math.BigDecimal) r[3]))
+                .toList();
+    }
+}

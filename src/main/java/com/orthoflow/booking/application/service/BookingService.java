@@ -72,8 +72,13 @@ public class BookingService {
     public static final int MAX_PENDING_PER_CONTACT = 2;
     /** Requests one phone number or e-mail address may make in a day, whatever became of them. */
     public static final int MAX_REQUESTS_PER_CONTACT_PER_DAY = 4;
-    /** Requests waiting for staff in one clinic, so held slots cannot be used to make online booking look full. */
-    public static final int MAX_PENDING_PER_CLINIC = 150;
+    /**
+     * Requests from contacts the clinic cannot vouch for, waiting for staff in one clinic, so held slots
+     * cannot be used to make online booking look full. Known patients and numbers that wrote to the
+     * clinic are not counted and never refused by it: a script inventing numbers fills this, not the
+     * diary of the clinic's own patients.
+     */
+    public static final int MAX_UNPROVEN_PENDING_PER_CLINIC = 150;
 
     private final JdbcTemplate jdbc;
     private final PublicLinkService publicLinks;
@@ -168,7 +173,12 @@ public class BookingService {
         if (!blank(r.phone()) && PhoneNumbers.toInternationalDigits(r.phone(), messagingProperties.getWhatsapp().getDefaultCountryCode()) == null) {
             throw new ValidationException("That phone number does not look right. Include the area or country code.");
         }
-        enforceLimits(practiceId, r);
+        // Only a contact the clinic can vouch for is answered without a human reading the request first.
+        Optional<UUID> knownPatient = blank(r.phone()) ? Optional.empty() : knownPatient(practiceId, r.phone());
+        boolean proven = knownPatient.isPresent() || landingPageContacts.wroteFromThisNumber(practiceId, r.phone());
+        // One submission per clinic at a time from here to the insert, so two cannot both pass the count.
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtext(?::text))", Object.class, "booking:" + practiceId);
+        enforceLimits(practiceId, r, proven);
         ZoneId zone = practiceZone.of(practiceId);
         OffsetDateTime now = OffsetDateTime.now();
         if (r.startsAt().isBefore(now.plusHours(s.leadTimeHours())) || r.startsAt().isAfter(now.plusDays(s.maxDaysAhead()))) {
@@ -181,18 +191,15 @@ public class BookingService {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO booking_requests (id, practice_id, appointment_type_id, practitioner_id, starts_at, duration_minutes, first_name, last_name,
-                                              phone, email, date_of_birth, note, language, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                              phone, email, date_of_birth, note, language, source, proven)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, id, practiceId, type.getId(), r.practitionerId(), r.startsAt(), type.getDefaultDurationMinutes(), r.firstName().trim(),
                 r.lastName().trim(), blankToNull(r.phone()), blankToNull(r.email()), r.dateOfBirth(), blankToNull(r.note()),
-                r.language() == null ? "fr" : r.language(), r.fromLandingPage() ? "LANDING_PAGE" : "BOOKING_PAGE");
+                r.language() == null ? "fr" : r.language(), r.fromLandingPage() ? "LANDING_PAGE" : "BOOKING_PAGE", proven);
         if (r.fromLandingPage()) {
             // Their WhatsApp replies are this clinic's to read, even on a number shared with the CRM.
             landingPageContacts.record(practiceId, r.phone(), LandingPageContacts.Source.BOOKING);
         }
-        // Only a contact the clinic can vouch for is answered without a human reading the request first.
-        Optional<UUID> knownPatient = blank(r.phone()) ? Optional.empty() : knownPatient(practiceId, r.phone());
-        boolean proven = knownPatient.isPresent() || landingPageContacts.wroteFromThisNumber(practiceId, r.phone());
         if (s.autoConfirm() && proven) {
             try {
                 // The confirmation names the day and time, so it is the only message this person gets.
@@ -397,7 +404,7 @@ public class BookingService {
     }
 
     /** What one contact, and one clinic, may have outstanding; the page answers "later" rather than filling the inbox. */
-    private void enforceLimits(UUID practiceId, Submit r) {
+    private void enforceLimits(UUID practiceId, Submit r, boolean proven) {
         String key = LandingPageContacts.key(r.phone());
         String email = blankToNull(r.email()) == null ? null : r.email().trim().toLowerCase(Locale.ROOT);
         if (key != null || email != null) {
@@ -413,8 +420,12 @@ public class BookingService {
                 throw new ConflictException("Too many requests today. Please call the clinic.");
             }
         }
-        Integer clinicPending = jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE practice_id = ? AND status = 'PENDING'", Integer.class, practiceId);
-        if (clinicPending != null && clinicPending >= MAX_PENDING_PER_CLINIC) {
+        if (proven) {
+            return;
+        }
+        Integer clinicPending = jdbc.queryForObject("SELECT count(*) FROM booking_requests WHERE practice_id = ? AND status = 'PENDING' AND NOT proven",
+                Integer.class, practiceId);
+        if (clinicPending != null && clinicPending >= MAX_UNPROVEN_PENDING_PER_CLINIC) {
             throw new ConflictException("Online booking is not taking new requests right now. Please call the clinic.");
         }
     }

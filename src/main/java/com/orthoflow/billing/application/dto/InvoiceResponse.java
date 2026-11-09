@@ -15,6 +15,8 @@ public class InvoiceResponse {
     private UUID id;
     private UUID practiceId;
     private UUID patientId;
+    /** Whose invoice it is, as the list and the printed invoice show it (the frontend no longer joins it against a partial patient list). */
+    private String patientName;
     private UUID practitionerId;
     private String invoiceNumber;
     private InvoiceStatus status;

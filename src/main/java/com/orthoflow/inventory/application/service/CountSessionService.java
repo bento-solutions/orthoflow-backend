@@ -1,5 +1,6 @@
 package com.orthoflow.inventory.application.service;
 
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
@@ -117,7 +118,7 @@ public class CountSessionService {
                 .orElseThrow(() -> new NotFoundException("Count session not found: " + id));
 
         if (session.getStatus() != CountSessionStatus.OPEN && session.getStatus() != CountSessionStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Only an OPEN or IN_PROGRESS count session can be validated.");
+            throw new ConflictException("Only an OPEN or IN_PROGRESS count session can be validated.");
         }
 
         boolean anyCounted = session.getLines().stream().anyMatch(l -> l.getPhysicalQuantity() != null);
@@ -154,10 +155,10 @@ public class CountSessionService {
                 .orElseThrow(() -> new NotFoundException("Count session not found: " + id));
 
         if (session.getStatus() == CountSessionStatus.VALIDATED) {
-            throw new IllegalStateException("A VALIDATED count session cannot be cancelled — its adjustments have already posted.");
+            throw new ConflictException("A VALIDATED count session cannot be cancelled — its adjustments have already posted.");
         }
         if (session.getStatus() == CountSessionStatus.CANCELLED) {
-            throw new IllegalStateException("Count session is already cancelled.");
+            throw new ConflictException("Count session is already cancelled.");
         }
 
         session.setStatus(CountSessionStatus.CANCELLED);

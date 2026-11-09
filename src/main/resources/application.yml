@@ -11,7 +11,21 @@ spring:
     url: jdbc:postgresql://localhost:5432/orthoflow
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
+    hikari:
+      # Sized on purpose rather than left at Hikari's 10 (audit P3): open-in-view
+      # holds a connection for a whole request, PDF rendering included, and a
+      # few slow reports should not leave the agenda waiting. A request that
+      # cannot get one within 10 s fails rather than queueing indefinitely; a
+      # connection held over a minute is logged with the code that holds it.
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: 10000
+      leak-detection-threshold: 60000
   jpa:
+    # Left on, and said so: controllers still turn entities into responses after
+    # the service's transaction (PurchaseOrderResponse.from walks lazy lines),
+    # so turning it off needs that mapping moved into the services first.
+    open-in-view: true
     hibernate:
       ddl-auto: validate
     show-sql: false
@@ -21,6 +35,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Migrations run as the schema's owner; the application itself may connect
+    # as the least-privilege orthoflow_app role (V74). Both default to the
+    # datasource's own login, so nothing changes until DB_APP_USER is set.
+    user: ${FLYWAY_USER:${spring.datasource.username}}
+    password: ${FLYWAY_PASSWORD:${spring.datasource.password}}
   servlet:
     multipart:
       # Voice-capture clips only (POST /voice/transcribe). A push-to-talk
@@ -354,6 +373,10 @@ orthoflow:
 
   # ── Public pages (F7): online booking, self-registration, surveys ────
   public:
+    # Derives the clinic-wide booking, registration and survey links. Falls back
+    # to the JWT secret when empty (PublicLinkService); set it so that one can be
+    # rotated without the other.
+    link-secret: ${PUBLIC_LINK_SECRET:}
     # Per-IP ceilings in a window; writes are held far lower than reads.
     rate-limit:
       reads: ${PUBLIC_RATE_LIMIT_READS:120}
@@ -364,26 +387,41 @@ server:
   port: 8080
   servlet:
     context-path: /api/v1
+  # Behind Traefik the peer is Traefik. Tomcat's RemoteIpValve takes the client
+  # address from X-Forwarded-For, only when the peer is an internal proxy
+  # (server.tomcat.remoteip.internal-proxies: the private ranges by default),
+  # so getRemoteAddr() is the client everywhere: audit log, sign-in sessions,
+  # rate limits (ClientAddress). Traefik discards X-Forwarded-For sent by clients.
+  forward-headers-strategy: native
   tomcat:
-    # No request size limit existed at all (audit V.14) — POST /invoices
-    # with 100,000 lines was accepted and processed with no bound. 2MB
-    # comfortably covers any legitimate invoice/PO/treatment-invoice
-    # payload this app sends while making a pathological body a fast 413,
-    # not a slow OOM risk.
+    # Form-encoded posts only. JSON and text bodies are capped by
+    # RequestBodyLimitFilter (64 KB public forms, 256 KB webhooks, 8 MB
+    # consultations, 2 MB everything else); multipart by spring.servlet.multipart.
     max-http-form-post-size: 2MB
     max-swallow-size: 2MB
     connection-timeout: 20s
+
+springdoc:
+  api-docs:
+    # The frontend's types are generated from this document (openapi-typescript).
+    # springdoc 2.8 writes OpenAPI 3.1 by default; 3.0 is what they were made from.
+    version: openapi_3_0
+  # Keys in alphabetical order. Some properties (Spring's page fields) came out
+  # in a different order from one start to the next, so the generated types
+  # changed with no API change and CI's drift check could not be strict.
+  writer-with-order-by-keys: true
 
 management:
   endpoints:
     web:
       exposure:
-        # Not internet-reachable: Traefik only proxies /api/v1/** (see
-        # docker-compose.production.yml labels), so /actuator/** is only
-        # reachable by containers on the same Docker network — a future
-        # Prometheus scraper included. See SecurityConfig for the matching
-        # permitAll rule.
-        include: health,info,metrics,prometheus
+        # Actuator lives under the /api/v1 context path, which Traefik proxies,
+        # so whatever is exposed here is on the internet (metrics and
+        # prometheus were: every route, its latency, the JVM). Health and info
+        # only; a deployment with a scraper adds metrics,prometheus through
+        # MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE, and SecurityConfig keeps
+        # everything but health and info for ADMIN.
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info}
   endpoint:
     health:
       show-details: when-authorized

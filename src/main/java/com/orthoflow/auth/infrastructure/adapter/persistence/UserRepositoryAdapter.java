@@ -25,9 +25,21 @@ public class UserRepositoryAdapter implements UserRepository {
         return jpaRepository.findById(id);
     }
 
+    /**
+     * Addresses are matched whatever their case: "Dr.Alami@…" typed on a phone is the same person.
+     * Should two accounts differ only by case (possible before this), only an exact match is taken.
+     */
     @Override
     public Optional<User> findByEmail(String email) {
-        return jpaRepository.findByEmail(email);
+        if (email == null) {
+            return Optional.empty();
+        }
+        String typed = email.trim();
+        List<User> matches = jpaRepository.findAllByEmailIgnoringCase(typed);
+        if (matches.size() == 1) {
+            return Optional.of(matches.get(0));
+        }
+        return matches.stream().filter(u -> u.getEmail().equals(typed)).findFirst();
     }
 
     @Override

@@ -100,7 +100,7 @@ public class VendorInvoiceService {
                 .orElseThrow(() -> new NotFoundException("Vendor invoice not found: " + id));
 
         if (invoice.getStatus() != VendorInvoiceStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT vendor invoices can be validated.");
+            throw new ConflictException("Only DRAFT vendor invoices can be validated.");
         }
 
         invoice.setStatus(VendorInvoiceStatus.VALIDATED);
@@ -121,7 +121,7 @@ public class VendorInvoiceService {
                 .orElseThrow(() -> new NotFoundException("Vendor invoice not found: " + id));
 
         if (invoice.getStatus() == VendorInvoiceStatus.CANCELLED) {
-            throw new IllegalStateException("Vendor invoice is already cancelled.");
+            throw new ConflictException("Vendor invoice is already cancelled.");
         }
 
         invoice.setStatus(VendorInvoiceStatus.CANCELLED);
@@ -136,7 +136,7 @@ public class VendorInvoiceService {
                 .orElseThrow(() -> new NotFoundException("Vendor invoice not found: " + id));
 
         if (invoice.getStatus() != VendorInvoiceStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT vendor invoices can be deleted.");
+            throw new ConflictException("Only DRAFT vendor invoices can be deleted.");
         }
 
         vendorInvoiceRepository.deleteById(id);

@@ -1,5 +1,6 @@
 package com.orthoflow.platform.security;
 
+import com.orthoflow.platform.web.ClientAddress;
 import com.orthoflow.common.web.CorrelationIdFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -74,7 +75,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String key = logical + '|' + clientIp(request);
+        String key = logical + '|' + ClientAddress.limitKey(request);
         Instant now = Instant.now();
         Counter counter = counters.compute(key, (k, existing) -> {
             if (existing == null || existing.expired(now)) {
@@ -91,7 +92,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         if (used > maxAttempts) {
             long retryAfter = Math.max(1, Duration.between(now, counter.resetsAt).getSeconds());
             log.warn("Auth rate limit hit: {} attempts on {} from {} (limit {}/{}s)",
-                    used, logical, clientIp(request), maxAttempts, window.getSeconds());
+                    used, logical, ClientAddress.limitKey(request), maxAttempts, window.getSeconds());
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader("Retry-After", Long.toString(retryAfter));
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
@@ -105,14 +106,6 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
-    }
-
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private static String escape(String s) {

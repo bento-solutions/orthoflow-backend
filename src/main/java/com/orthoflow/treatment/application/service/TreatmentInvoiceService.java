@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.application.service;
 
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.numbering.DocumentNumbers;
 import com.orthoflow.billing.application.service.BillingService;
 import com.orthoflow.patient.application.port.PatientLookup;
@@ -228,7 +229,7 @@ public class TreatmentInvoiceService {
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + id)));
 
         if (invoice.getStatus() != TreatmentInvoiceStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT invoices can be finalized.");
+            throw new ConflictException("Only DRAFT invoices can be finalized.");
         }
 
         // Validate stock levels and decimal support before finalizing
@@ -314,7 +315,7 @@ public class TreatmentInvoiceService {
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + id)));
 
         if (invoice.getStatus() == TreatmentInvoiceStatus.CANCELLED) {
-            throw new IllegalStateException("Invoice is already cancelled.");
+            throw new ConflictException("Invoice is already cancelled.");
         }
 
         // Restore stock if movements were previously generated
@@ -355,7 +356,7 @@ public class TreatmentInvoiceService {
         TreatmentInvoice invoice = treatmentInvoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + id));
         if (invoice.getStatus() == TreatmentInvoiceStatus.FINALIZED) {
-            throw new IllegalStateException("Finalized invoices cannot be deleted.");
+            throw new ConflictException("Finalized invoices cannot be deleted.");
         }
         treatmentInvoiceRepository.deleteById(id);
     }

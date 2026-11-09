@@ -7,6 +7,8 @@ import com.orthoflow.patient.application.port.PatientErasureListener;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,8 +26,14 @@ import java.util.UUID;
  * WhatsApp message from their number before they were a patient, the landing-page contact. Those
  * are found by name together with the phone or e-mail, never by the phone alone (a number is
  * often a family's).
+ *
+ * <p>Stored files go too, the ones filed under the patient and the ones filed under a record of theirs
+ * (a prescription's PDF, a lab slip), as {@link PatientFiles} decides; their bytes are deleted only
+ * after the transaction commits. It runs before the other listeners, so the records that say whose a
+ * file is are still there when it looks.
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class PatientDataPurger implements PatientErasureListener {
 
@@ -35,22 +43,27 @@ public class PatientDataPurger implements PatientErasureListener {
     private final PatientDataRegistry registry;
     private final CurrentUserProvider currentUser;
     private final UnlinkedCopies copies;
+    private final PatientFiles files;
 
     @Override
     public void onPatientErased(UUID patientId) {
-        purge(patientId);
+        purge(patientId, false);
         // Records merged into this patient hold only an identity by now; they cannot outlive the person they became.
         jdbc.update("DELETE FROM patients WHERE merged_into_id = ?", patientId);
     }
 
     @Override
     public void onPatientAnonymised(UUID patientId) {
-        purge(patientId);
+        purge(patientId, true);
         scrubFinancialRecords(patientId);
         wipeIdentity(patientId);
     }
 
-    private void purge(UUID patientId) {
+    /**
+     * @param anonymising the retained financial records stay, but their stored PDFs print the name, so they go too
+     *                    (a fee note downloaded afterwards is rendered again, without anyone in it)
+     */
+    private void purge(UUID patientId, boolean anonymising) {
         List<String> unclassified = registry.unclassified();
         if (!unclassified.isEmpty()) {
             // A table that points at a patient has no erasure decision: finishing would only look complete.
@@ -58,6 +71,8 @@ public class PatientDataPurger implements PatientErasureListener {
                     + " (add them to PatientDataRegistry)");
         }
         UUID practiceId = jdbc.queryForObject("SELECT practice_id FROM patients WHERE id = ?", UUID.class, patientId);
+        // Found now: once a prescription row is gone, nothing says its PDF was this patient's.
+        PatientFiles.Found storedFiles = files.find(patientId, anonymising);
 
         // What was recorded about the person in the activity feed names them in its diffs.
         jdbc.update("""
@@ -72,7 +87,14 @@ public class PatientDataPurger implements PatientErasureListener {
         }
         // The sterilization trail must keep what was sterilised and when, not for whom.
         jdbc.update("UPDATE sterilization_events SET patient_id = NULL, note = NULL WHERE patient_id = ?", patientId);
-        log.info("Patient data purged for patient {}", patientId);
+
+        // What still points at the files is cleared before they go; the rows that owned them are gone already.
+        jdbc.update("UPDATE patients SET photo_file_id = NULL WHERE id = ? OR merged_into_id = ?", patientId, patientId);
+        if (anonymising) {
+            jdbc.update("UPDATE tax_documents SET file_id = NULL WHERE patient_id = ?", patientId);
+        }
+        files.delete(storedFiles);
+        log.info("Patient data purged for patient {} ({} stored file(s))", patientId, storedFiles.ids().size());
     }
 
     /** Requests, forms, messages and contacts from this person that no foreign key ties to the patient. */

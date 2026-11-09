@@ -1,5 +1,6 @@
 package com.orthoflow.treatment.application.service;
 
+import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientSummary;
 import com.orthoflow.common.exception.NotFoundException;
@@ -109,7 +110,7 @@ public class SalesOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Sales order not found: " + id)));
 
         if (order.getStatus() != SOStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT sales orders can be confirmed.");
+            throw new ConflictException("Only DRAFT sales orders can be confirmed.");
         }
 
         order.setStatus(SOStatus.CONFIRMED);
@@ -138,7 +139,7 @@ public class SalesOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Sales order not found: " + id)));
 
         if (order.getStatus() == SOStatus.CANCELLED) {
-            throw new IllegalStateException("Sales order is already cancelled.");
+            throw new ConflictException("Sales order is already cancelled.");
         }
 
         // Restore stock if it was previously confirmed
@@ -165,7 +166,7 @@ public class SalesOrderService {
         SalesOrder order = salesOrderRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sales order not found: " + id));
         if (order.getStatus() == SOStatus.CONFIRMED) {
-            throw new IllegalStateException("Confirmed sales orders cannot be deleted.");
+            throw new ConflictException("Confirmed sales orders cannot be deleted.");
         }
         salesOrderRepository.deleteById(id);
     }

@@ -15,9 +15,17 @@ import static org.mockito.ArgumentMatchers.any;
 class PublicRateLimitFilterTest {
 
     private MockHttpServletResponse call(PublicRateLimitFilter filter, String method, String path, String ip, FilterChain chain) throws Exception {
+        return call(filter, method, path, ip, chain, null);
+    }
+
+    private MockHttpServletResponse call(PublicRateLimitFilter filter, String method, String path, String ip, FilterChain chain,
+                                         String forgedForwardedFor) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, "/api/v1" + path);
         request.setServletPath(path);
         request.setRemoteAddr(ip);
+        if (forgedForwardedFor != null) {
+            request.addHeader("X-Forwarded-For", forgedForwardedFor);
+        }
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, chain);
         return response;
@@ -51,18 +59,22 @@ class PublicRateLimitFilterTest {
     }
 
     @Test
-    void theForwardedClientAddressIsWhatIsCounted() throws Exception {
+    void eachClientAddressIsCountedOnItsOwnAndAForgedForwardedHeaderChangesNothing() throws Exception {
         PublicRateLimitFilter filter = new PublicRateLimitFilter(5, 1, 60);
         FilterChain chain = mock(FilterChain.class);
-        for (String client : new String[]{"203.0.113.9", "203.0.113.10"}) {
-            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/public/survey/x");
-            request.setServletPath("/public/survey/x");
-            request.setRemoteAddr("172.18.0.2");
-            request.addHeader("X-Forwarded-For", client + ", 172.18.0.2");
-            MockHttpServletResponse response = new MockHttpServletResponse();
-            filter.doFilter(request, response, chain);
-            assertThat(response.getStatus()).isEqualTo(200);
-        }
+        // The address the valve resolved (server.forward-headers-strategy) is what counts, not a header the client wrote.
+        assertThat(call(filter, "POST", "/public/survey/x", "203.0.113.9", chain, "198.51.100.1").getStatus()).isEqualTo(200);
+        assertThat(call(filter, "POST", "/public/survey/x", "203.0.113.9", chain, "198.51.100.2").getStatus()).isEqualTo(429);
+        assertThat(call(filter, "POST", "/public/survey/x", "203.0.113.10", chain, null).getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void ipv6AddressesAreCountedPerSlash64() throws Exception {
+        PublicRateLimitFilter filter = new PublicRateLimitFilter(5, 1, 60);
+        FilterChain chain = mock(FilterChain.class);
+        assertThat(call(filter, "POST", "/public/survey/x", "2001:db8:1:2::1", chain).getStatus()).isEqualTo(200);
+        assertThat(call(filter, "POST", "/public/survey/x", "2001:db8:1:2:ffff::9", chain).getStatus()).isEqualTo(429);
+        assertThat(call(filter, "POST", "/public/survey/x", "2001:db8:1:3::1", chain).getStatus()).isEqualTo(200);
     }
 
     @Test

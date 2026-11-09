@@ -1,5 +1,6 @@
 package com.orthoflow.common.exception;
 
+import com.orthoflow.platform.web.RequestBodyLimitFilter;
 import com.orthoflow.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -48,7 +49,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
     }
 
-    @ExceptionHandler({ConflictException.class, IllegalStateException.class})
+    // IllegalStateException is not here any more: it is also what a failed
+    // serialisation, a missing font or a tenancy fault throws, and its raw
+    // message went back to the browser as a 409. A business rule that refuses
+    // the current state throws ConflictException; anything else is a 500.
+    @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(RuntimeException ex, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
@@ -105,7 +110,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        if (org.springframework.core.NestedExceptionUtils.getMostSpecificCause(ex) instanceof RequestBodyLimitFilter.BodyTooLargeException tooLarge) {
+            return problem(HttpStatus.PAYLOAD_TOO_LARGE, tooLarge.getMessage(), request);
+        }
         return problem(HttpStatus.BAD_REQUEST, "The request body is missing or is not valid JSON.", request);
+    }
+
+    /** A body read directly (the webhook reads it as text) that went past its limit. */
+    @ExceptionHandler(RequestBodyLimitFilter.BodyTooLargeException.class)
+    public ProblemDetail handleBodyTooLarge(RequestBodyLimitFilter.BodyTooLargeException ex, HttpServletRequest request) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

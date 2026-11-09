@@ -1,5 +1,6 @@
 package com.orthoflow.messaging.application.service;
 
+import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.messaging.domain.model.MessageChannel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -37,6 +38,31 @@ public class ConsentService {
                     result.put(MessageChannel.valueOf(rs.getString(1)), rs.getBoolean(2));
                 }, patientId);
         return result;
+    }
+
+    /**
+     * Staff read and change consent through these: the patient must be one of the clinic's. The table
+     * has no clinic of its own and is reached by native SQL, which the tenant filter does not cover,
+     * so any signed-in user could read or switch another clinic's patient's consent by id (audit M3).
+     */
+    @Transactional(readOnly = true)
+    public Map<MessageChannel, Boolean> forPatientOf(UUID practiceId, UUID patientId) {
+        requirePatientOf(practiceId, patientId);
+        return forPatient(patientId);
+    }
+
+    @Transactional
+    public void recordFor(UUID practiceId, UUID patientId, MessageChannel channel, boolean optedIn, String source) {
+        requirePatientOf(practiceId, patientId);
+        record(patientId, channel, optedIn, source);
+    }
+
+    private void requirePatientOf(UUID practiceId, UUID patientId) {
+        Boolean ours = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM patients WHERE id = ? AND practice_id = ? AND deleted_at IS NULL)",
+                Boolean.class, patientId, practiceId);
+        if (!Boolean.TRUE.equals(ours)) {
+            throw new NotFoundException("Patient not found");
+        }
     }
 
     @Transactional

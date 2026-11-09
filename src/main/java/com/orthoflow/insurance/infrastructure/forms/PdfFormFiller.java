@@ -40,7 +40,7 @@ public class PdfFormFiller {
     private static final Pattern ARABIC = Pattern.compile("[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF]");
 
     public byte[] fill(FormLayout layout, byte[] template, FormValues values, boolean overlayOnly) {
-        try (PDDocument source = PDDocument.load(template)) {
+        try (PDDocument source = org.apache.pdfbox.Loader.loadPDF(template)) {
             if (!overlayOnly) {
                 return draw(layout, values, source);
             }
