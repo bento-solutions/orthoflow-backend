@@ -88,6 +88,28 @@ class ConsultationLogDbTest extends SpringDbTest {
     }
 
     @Test
+    void eachLineKeepsItsVerdictAndALateVerdictFillsItInOnce() {
+        ConsultationResponse c = started();
+        OffsetDateTime t = c.startedAt().plusSeconds(5);
+        TranscriptRequest.Line acted = line(0, t, "Dent 16, carie", "EXAMINATION");
+        acted.setVerdict("acted");
+        acted.setLatencyMs(420);
+        TranscriptRequest.Line heard = line(1, t.plusSeconds(4), "Oui docteur", "EXAMINATION");
+        logs.record(c.id(), List.of(acted, heard));
+
+        TranscriptRequest.Line late = line(1, t.plusSeconds(4), "Oui docteur", "EXAMINATION");
+        late.setVerdict("heard");
+        logs.record(c.id(), List.of(late));
+        TranscriptRequest.Line rewrite = line(0, t, "Dent 16, carie", "EXAMINATION");
+        rewrite.setVerdict("unsure");
+        logs.record(c.id(), List.of(rewrite));
+
+        List<ConsultationLogResponse.Line> lines = logs.log(c.id()).lines();
+        assertThat(lines).extracting(ConsultationLogResponse.Line::verdict).containsExactly("acted", "heard");
+        assertThat(lines.get(0).latencyMs()).isEqualTo(420);
+    }
+
+    @Test
     void discardingAConsultationLeavesNoLineBehind() {
         ConsultationResponse c = started();
         logs.record(c.id(), List.of(line(0, null, "à ne pas garder", null)));

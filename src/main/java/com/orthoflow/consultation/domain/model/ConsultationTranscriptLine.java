@@ -52,6 +52,18 @@ public class ConsultationTranscriptLine {
     @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
     private String text;
 
+    /**
+     * What became of the sentence (acted, proposed, heard, unsure, question,
+     * control, other-language), as the browser decided it. Set once: the first
+     * request to carry it wins, a later one cannot rewrite it.
+     */
+    @Column(length = 24)
+    private String verdict;
+
+    /** ms from the end of speech to the verdict, when the browser knew the clip's timing. */
+    @Column(name = "latency_ms")
+    private Integer latencyMs;
+
     public enum Phase { INTAKE, EXAMINATION }
 
     @PrePersist

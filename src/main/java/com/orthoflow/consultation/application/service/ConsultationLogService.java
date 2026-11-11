@@ -72,7 +72,9 @@ public class ConsultationLogService {
         Set<Integer> known = new HashSet<>(lines.seqsOf(consultationId));
         OffsetDateTime now = OffsetDateTime.now();
         List<ConsultationTranscriptLine> fresh = new ArrayList<>();
+        java.util.Map<Integer, TranscriptRequest.Line> lateVerdicts = new java.util.HashMap<>();
         for (TranscriptRequest.Line line : incoming) {
+            if (line.getVerdict() != null && known.contains(line.getSeq())) lateVerdicts.put(line.getSeq(), line);
             if (line.getText() == null || line.getText().isBlank() || !known.add(line.getSeq())) continue;
             fresh.add(ConsultationTranscriptLine.builder()
                     .consultationId(consultationId)
@@ -82,7 +84,21 @@ public class ConsultationLogService {
                     .phase(phaseOf(line.getPhase(), consultation))
                     .typed(line.isTyped())
                     .text(line.getText().trim())
+                    .verdict(line.getVerdict())
+                    .latencyMs(line.getLatencyMs())
                     .build());
+        }
+        // A verdict that arrived after its line was stored fills it in, once.
+        if (!lateVerdicts.isEmpty()) {
+            List<ConsultationTranscriptLine> filled = new ArrayList<>();
+            for (ConsultationTranscriptLine stored : lines.findByConsultation(consultationId)) {
+                TranscriptRequest.Line late = lateVerdicts.get(stored.getSeq());
+                if (late == null || stored.getVerdict() != null) continue;
+                stored.setVerdict(late.getVerdict());
+                stored.setLatencyMs(late.getLatencyMs());
+                filled.add(stored);
+            }
+            if (!filled.isEmpty()) lines.saveAll(filled);
         }
         if (fresh.isEmpty()) return;
         try {
@@ -157,8 +173,8 @@ public class ConsultationLogService {
 
     private List<ConsultationLogResponse.Line> linesOf(Consultation c) {
         List<ConsultationLogResponse.Line> timed = lines.findByConsultation(c.getId()).stream()
-                .map(l -> new ConsultationLogResponse.Line(l.getSeq(), l.getSpokenAt(), l.getPhase().name(),
-                        l.isTyped(), l.getText()))
+                .map(l -> new ConsultationLogResponse.Line(l.getSeq(), l.getSpokenAt(), l.getPhase().name(), l.isTyped(), l.getText(),
+                        l.getVerdict(), l.getLatencyMs()))
                 .toList();
         return timed.isEmpty() ? untimed(c.getTranscript()) : timed;
     }

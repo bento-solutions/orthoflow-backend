@@ -40,5 +40,9 @@ public record ConsultationLogResponse(
         JsonNode reviewed,
         String report) {
 
-    public record Line(int seq, OffsetDateTime at, String phase, boolean typed, String text) {}
+    public record Line(int seq, OffsetDateTime at, String phase, boolean typed, String text, String verdict, Integer latencyMs) {
+        public Line(int seq, OffsetDateTime at, String phase, boolean typed, String text) {
+            this(seq, at, phase, typed, text, null, null);
+        }
+    }
 }

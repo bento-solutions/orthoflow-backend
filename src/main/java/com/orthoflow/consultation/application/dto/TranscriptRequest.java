@@ -67,5 +67,12 @@ public class TranscriptRequest {
         /** INTAKE or EXAMINATION; the server falls back to the consultation's own phase. */
         @Size(max = 12)
         private String phase;
+
+        /** What became of it, once the browser knows. */
+        @jakarta.validation.constraints.Pattern(regexp = "acted|proposed|heard|unsure|question|control|other-language")
+        private String verdict;
+
+        @Min(0)
+        private Integer latencyMs;
     }
 }
