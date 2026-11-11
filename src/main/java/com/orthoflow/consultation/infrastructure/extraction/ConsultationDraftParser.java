@@ -420,7 +420,8 @@ public final class ConsultationDraftParser {
         return allowed.contains(value) ? value : fallback;
     }
 
-    private static String teeth(String raw) {
+    /** Package-private for ReviewKeyVectorsTest: the browser keys a dictated plan line with the same rule. */
+    static String teeth(String raw) {
         String cleaned = raw.replaceAll("[\\s;/]+", ",").replaceAll("^,|,$", "");
         return FDI_LIST.matcher(cleaned).matches() ? cleaned : null;
     }
