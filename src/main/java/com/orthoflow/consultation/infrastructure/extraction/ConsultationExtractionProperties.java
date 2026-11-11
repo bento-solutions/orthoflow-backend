@@ -115,5 +115,27 @@ public class ConsultationExtractionProperties {
 
         /** Treatments offered to the model for matching, so its answer can carry a catalog code. */
         private int maxCatalogEntries = 120;
+
+        private final Tail tail = new Tail();
+    }
+
+    /**
+     * The fast reading of the conversation's last sentences, so what is said shows
+     * within seconds. Off until a route has been chosen by measurement
+     * (docs/CONSULTATION.md §5); off, the full reading runs as before, with an upper
+     * bound on how long it waits.
+     */
+    @Getter
+    @Setter
+    public static class Tail {
+        private boolean enabled = false;
+        /** How much of the end of the conversation is sent, cut at a line break. */
+        private int chars = 1800;
+        /** Empty: the full reading's provider and chain. */
+        private String provider = "";
+        private String model = "";
+        private List<String> fallbacks = new ArrayList<>();
+        private int timeoutMs = 8000;
+        private int maxOutputTokens = 700;
     }
 }

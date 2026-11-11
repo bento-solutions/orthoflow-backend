@@ -47,7 +47,19 @@ public class ConsultationExtractor {
      *              and {@code draft} is the rule-based reading
      * @param truncated the transcript was longer than the model is sent
      */
-    public record Extraction(ConsultationDraft draft, String error, boolean truncated) {}
+    public record Extraction(ConsultationDraft draft, String error, boolean truncated,
+                             List<ConsultationDraftParser.ChartMention> chartMentions,
+                             List<ConsultationDraftParser.Correction> corrections, String mode) {
+        public Extraction(ConsultationDraft draft, String error, boolean truncated) {
+            this(draft, error, truncated, List.of(), List.of(), "full");
+        }
+    }
+
+    /** Nothing new: what a tail reading answers when no route could read it — never the rules' reading. */
+    static ConsultationDraft emptyDraft(String source) {
+        return new ConsultationDraft(ConsultationDraft.PatientFields.empty(), null, List.of(), List.of(), List.of(),
+                List.of(), null, source);
+    }
 
     /** No model is configured: the rules' reading is all there will be. */
     public static final String DISABLED = "extraction-disabled";
@@ -127,10 +139,88 @@ public class ConsultationExtractor {
             // The model's answer stands alone. Adding what the rules found to it
             // put a spouse's allergy and an injected phrase on a patient the
             // model had read correctly (see RuleBasedExtractor).
-            return new Extraction(parsed.draft(), null, truncated);
+            return new Extraction(parsed.draft(), null, truncated, parsed.chartMentions(), List.of(), "full");
         }
         log.warn("Consultation extraction: every route failed; using the rule-based reading");
         return new Extraction(rules, FAILED, truncated);
+    }
+
+    /** The tail reading's chain: its own provider and fallbacks when set, else the full reading's. */
+    public List<Route> tailRoutes() {
+        ConsultationExtractionProperties.Tail tail = properties.getExtraction().getTail();
+        if (tail.getProvider() == null || tail.getProvider().isBlank()) return routes();
+        List<Route> routes = new ArrayList<>();
+        routes.add(new Route(tail.getProvider(), tail.getModel()));
+        for (String spec : tail.getFallbacks() == null ? List.<String>of() : tail.getFallbacks()) {
+            Route route = Route.parse(spec);
+            if (route != null && !routes.contains(route)) routes.add(route);
+        }
+        return routes.stream().filter(route -> !key(route).isBlank() && !baseUrl(route).isBlank()).toList();
+    }
+
+    public boolean isTailEnabled() {
+        return isModelEnabled() && properties.getExtraction().getTail().isEnabled() && !tailRoutes().isEmpty();
+    }
+
+    /** The last {@code chars} of the conversation, starting at a line so no sentence is cut in half. */
+    static String tailOf(String transcript, int chars) {
+        if (transcript == null) return "";
+        if (transcript.length() <= chars) return transcript;
+        int from = transcript.length() - chars;
+        int line = transcript.indexOf('\n', from);
+        return line >= 0 && line < transcript.length() - 1 ? transcript.substring(line + 1) : transcript.substring(from);
+    }
+
+    /**
+     * Reads only the end of the conversation, against what the browser says it
+     * already has ({@code known}: labels only, never who the patient is), and
+     * answers with what is new or corrected. When no route answers, the answer is
+     * an empty draft marked failed — never the rules' reading, which merged as a
+     * partial reading would add to the model's.
+     */
+    public Extraction extractTail(String transcript, List<String> known, List<CatalogEntry> catalog, LocalDate today) {
+        if (!isTailEnabled()) return new Extraction(emptyDraft("tail"), DISABLED, false, List.of(), List.of(), "tail");
+        ConsultationExtractionProperties.Extraction cfg = properties.getExtraction();
+        ConsultationExtractionProperties.Tail tailCfg = cfg.getTail();
+        String tail = tailOf(transcript, tailCfg.getChars());
+        if (tail.isBlank()) return new Extraction(emptyDraft("tail"), null, false, List.of(), List.of(), "tail");
+        List<String> labels = known == null ? List.of() : known.stream().limit(50)
+                .map(label -> label.length() > 160 ? label.substring(0, 160) : label).toList();
+        String system = ConsultationPromptBuilder.systemTail(cfg.getLanguage());
+        String user = ConsultationPromptBuilder.userTail(today, labels, tail);
+        for (Route route : tailRoutes()) {
+            ChatCompletionClient.Result result = chat.complete(new ChatCompletionClient.Request(
+                    baseUrl(route), key(route), route.model(), system, user,
+                    tailCfg.getMaxOutputTokens(), true, tailCfg.getTimeoutMs()));
+            if (!result.succeeded()) {
+                log.warn("Consultation tail reading on {}:{} failed ({}) — trying the next route",
+                        route.vendor(), route.model(), result.error());
+                continue;
+            }
+            ConsultationDraftParser.Result parsed = ConsultationDraftParser.parseTail(
+                    result.text(), tail, catalog, today, route.vendor() + ":" + route.model(), labels);
+            if (parsed == null) continue;
+            return new Extraction(withCatalog(parsed.draft(), catalog), null, false,
+                    parsed.chartMentions(), parsed.corrections(), "tail");
+        }
+        log.warn("Consultation tail reading: every route failed");
+        return new Extraction(emptyDraft("tail"), FAILED, false, List.of(), List.of(), "tail");
+    }
+
+    /** Plan lines the tail reading found, given their act from the catalogue when they have none. */
+    private static ConsultationDraft withCatalog(ConsultationDraft draft, List<CatalogEntry> catalog) {
+        if (draft.treatmentPlan() == null || draft.treatmentPlan().isEmpty()) return draft;
+        List<ConsultationDraft.PlanItem> plan = draft.treatmentPlan().stream().map(item -> {
+            if (item.treatmentId() != null) return item;
+            CatalogEntry match = CatalogMatcher.match(item.label(), catalog);
+            if (match == null) return item;
+            boolean spoken = "SPOKEN".equals(item.priceSource());
+            return new ConsultationDraft.PlanItem(item.key(), item.label(), match.id(), match.code(), item.teeth(),
+                    spoken ? item.price() : match.basePrice(),
+                    spoken ? "SPOKEN" : match.basePrice() != null ? "CATALOG" : null, item.notes(), item.quote());
+        }).toList();
+        return new ConsultationDraft(draft.patient(), draft.chiefComplaint(), draft.activeTreatments(), draft.allergies(),
+                draft.medicalHistory(), plan, draft.nextAppointment(), draft.source());
     }
 
     private String key(Route route) {

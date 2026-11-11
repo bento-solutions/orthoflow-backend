@@ -35,6 +35,18 @@ public class TranscriptRequest {
     @Size(max = 5_000)
     private List<Line> lines = new ArrayList<>();
 
+    /** {@code full} (the default) reads everything; {@code tail} reads only the end, against {@code known}. */
+    @jakarta.validation.constraints.Pattern(regexp = "full|tail")
+    private String mode = "full";
+
+    /**
+     * For a tail reading: the labels of what this consultation has already read —
+     * allergies, history, current treatments, plan lines. Never who the patient is
+     * (docs/DATA-PROTECTION.md §4).
+     */
+    @Size(max = 50)
+    private List<@Size(max = 160) String> known = new ArrayList<>();
+
     @Getter
     @Setter
     public static class Line {

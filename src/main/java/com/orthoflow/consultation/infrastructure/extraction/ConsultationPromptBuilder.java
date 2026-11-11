@@ -26,6 +26,41 @@ public final class ConsultationPromptBuilder {
     public record CatalogEntry(UUID id, String code, String name, BigDecimal basePrice) {}
 
     public static String system(String language, List<CatalogEntry> catalog) {
+        StringBuilder sb = new StringBuilder(rules(language, false));
+        if (catalog != null && !catalog.isEmpty()) {
+            sb.append("\nCATALOGUE DES ACTES (code | nom | prix de base en MAD)\n");
+            for (CatalogEntry entry : catalog) {
+                sb.append(entry.code()).append(" | ").append(entry.name()).append(" | ")
+                        .append(entry.basePrice() == null ? "?" : entry.basePrice().stripTrailingZeros().toPlainString())
+                        .append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * A tail reading: only the last part of the conversation, read every few
+     * seconds so what is said shows within moments. The same rules, no catalogue
+     * (a plan line is matched on the server, CatalogMatcher), and the model is told
+     * what is already relevé so it gives only what is new or corrected.
+     */
+    public static String systemTail(String language) {
+        return rules(language, true);
+    }
+
+    public static String userTail(LocalDate today, List<String> known, String tail) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Date du jour : ").append(today).append(" (")
+                .append(today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.FRENCH)).append(").\n");
+        sb.append("<etat_deja_releve>\n");
+        if (known == null || known.isEmpty()) sb.append("(rien)\n");
+        else for (String label : known) sb.append("- ").append(label).append('\n');
+        sb.append("</etat_deja_releve>\n");
+        sb.append("<transcription>\n").append(tail).append("\n</transcription>");
+        return sb.toString();
+    }
+
+    private static String rules(String language, boolean tail) {
         StringBuilder sb = new StringBuilder();
         sb.append("""
                 Tu es l'assistant de saisie d'un cabinet dentaire. On te donne la transcription automatique \
@@ -70,6 +105,10 @@ public final class ConsultationPromptBuilder {
                 20. Réponds TOUJOURS avec toutes les clés du FORMAT, même sans rien à y mettre (liste vide [] ou null). \
                 Relis toute la transcription jusqu'à la fin avant de répondre : le plan de soins et le rendez-vous \
                 viennent souvent en dernier.
+                21. Si un nom est épelé ou précisé (« avec un C », « A, C, H, R, A, F »), écris-le avec cette orthographe.
+                22. chartMentions : un constat sur une dent précise dit pendant l'examen (« dent 16 carie occlusale », \
+                « la 45 est couronnée ») va ici, jamais dans medicalHistory. teeth : numéros FDI séparés par des \
+                virgules, finding : le constat en quelques mots, quote : l'extrait qui cite la dent.
 
                 FORMAT (JSON uniquement, ces clés exactement)
                 {
@@ -89,17 +128,23 @@ public final class ConsultationPromptBuilder {
                   "allergies": [{"substance": "", "reaction": "", "severity": null, "quote": ""}],
                   "medicalHistory": [{"category": "CONDITION", "label": "", "detail": "", "quote": ""}],
                   "treatmentPlan": [{"label": "", "treatmentCode": null, "teeth": null, "price": null, "notes": "", "quote": ""}],
-                  "nextAppointment": {"date": null, "time": null, "inDays": null, "reason": "", "quote": ""} ou null
+                  "nextAppointment": {"date": null, "time": null, "inDays": null, "reason": "", "quote": ""} ou null,
+                  "chartMentions": [{"teeth": "16", "finding": "carie occlusale", "quote": ""}]
                 }
                 """.formatted(language == null || language.isBlank() ? "français" : language));
+        if (tail) {
+            sb.append("""
 
-        if (catalog != null && !catalog.isEmpty()) {
-            sb.append("\nCATALOGUE DES ACTES (code | nom | prix de base en MAD)\n");
-            for (CatalogEntry entry : catalog) {
-                sb.append(entry.code()).append(" | ").append(entry.name()).append(" | ")
-                        .append(entry.basePrice() == null ? "?" : entry.basePrice().stripTrailingZeros().toPlainString())
-                        .append('\n');
-            }
+                    LECTURE DE LA FIN DE LA CONVERSATION
+                    On ne te donne que la fin de la conversation, et dans <etat_deja_releve> ce qui en a déjà été \
+                    relevé. ÉTAT DÉJÀ RELEVÉ : ne le répète pas ; donne seulement ce qui est NOUVEAU ou CORRIGÉ \
+                    dans l'extrait. Les clés du FORMAT restent toutes présentes (vides si rien de nouveau).
+                    corrections : quand l'extrait corrige un élément déjà relevé (« pas diabète de type 2, diabète \
+                    de type 1 »), ajoute {"list": "medicalHistory", "was": "<le libellé tel qu'il figure dans \
+                    etat_deja_releve>", "now": {"category": "CONDITION", "label": "Diabète de type 1"} ou null s'il \
+                    est retiré, "quote": ""}. list parmi allergies, medicalHistory, activeTreatments, treatmentPlan.
+                    Ajoute la clé "corrections": [] au FORMAT.
+                    """);
         }
         return sb.toString();
     }

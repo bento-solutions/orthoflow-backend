@@ -323,6 +323,18 @@ orthoflow:
       timeout-ms: ${CONSULTATION_EXTRACTION_TIMEOUT_MS:25000}
       max-output-tokens: ${CONSULTATION_EXTRACTION_MAX_OUTPUT_TOKENS:2200}
       max-transcript-chars: ${CONSULTATION_EXTRACTION_MAX_TRANSCRIPT_CHARS:60000}
+      # The fast reading of the conversation's last sentences (WP6 of the cockpit
+      # plan). Off until docs/CONSULTATION.md §5's benchmark has picked a route;
+      # empty provider = the full reading's chain. Sends less per call (the tail
+      # and the labels already read, never who the patient is) but more often.
+      tail:
+        enabled: ${CONSULTATION_EXTRACTION_TAIL_ENABLED:false}
+        chars: ${CONSULTATION_EXTRACTION_TAIL_CHARS:1800}
+        provider: ${CONSULTATION_EXTRACTION_TAIL_PROVIDER:}
+        model: ${CONSULTATION_EXTRACTION_TAIL_MODEL:}
+        fallbacks: ${CONSULTATION_EXTRACTION_TAIL_FALLBACKS:}
+        timeout-ms: ${CONSULTATION_EXTRACTION_TAIL_TIMEOUT_MS:8000}
+        max-output-tokens: ${CONSULTATION_EXTRACTION_TAIL_MAX_OUTPUT_TOKENS:700}
 
   # ── Files (Denteam parity F5) ───────────────────────────────────────
   # Patient photos, the clinic logo, expense receipts, lab-order attachments.

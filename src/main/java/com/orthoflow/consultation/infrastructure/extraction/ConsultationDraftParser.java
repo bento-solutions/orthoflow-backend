@@ -42,8 +42,29 @@ import java.util.regex.Pattern;
 @Slf4j
 public final class ConsultationDraftParser {
 
-    /** The draft, and how many of the model's claims were thrown out getting to it. */
-    public record Result(ConsultationDraft draft, int dropped) {}
+    /**
+     * The draft, how many of the model's claims were thrown out getting to it,
+     * and the two things a reading can say beside the draft: findings on a tooth
+     * it heard (never history), and corrections of what was already read.
+     */
+    public record Result(ConsultationDraft draft, int dropped, List<ChartMention> chartMentions,
+                         List<Correction> corrections) {
+        public Result(ConsultationDraft draft, int dropped) {
+            this(draft, dropped, List.of(), List.of());
+        }
+    }
+
+    /** "Vous avez dans 16 caries occlusales", heard by the reader: a tooth, a finding, the words. */
+    public record ChartMention(String teeth, String finding, String quote) {}
+
+    /**
+     * "Pas diabète de type 2, diabète de type 1": an item already read ({@code was},
+     * one of the labels the browser sent as known) replaced by {@code now}, or
+     * withdrawn when {@code now} is null.
+     */
+    public record Correction(String list, String was, String nowLabel, String nowCategory, String quote) {}
+
+    private static final Set<String> CORRECTABLE = Set.of("allergies", "medicalHistory", "activeTreatments", "treatmentPlan");
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -70,10 +91,15 @@ public final class ConsultationDraftParser {
     private final LocalDate today;
     private int dropped;
 
-    private ConsultationDraftParser(String transcript, List<CatalogEntry> catalog, LocalDate today) {
+    /** Labels the browser already holds, for checking a correction's {@code was}; empty for a full reading. */
+    private final Set<String> known;
+
+    private ConsultationDraftParser(String transcript, List<CatalogEntry> catalog, LocalDate today, List<String> known) {
         this.normalizedTranscript = TranscriptText.normalize(transcript);
         this.catalog = catalog == null ? List.of() : catalog;
         this.today = today;
+        this.known = new java.util.HashSet<>();
+        if (known != null) for (String label : known) this.known.add(TranscriptText.normalize(label));
     }
 
     /**
@@ -96,7 +122,18 @@ public final class ConsultationDraftParser {
                 return null;
             }
         }
-        return new ConsultationDraftParser(transcript, catalog, today).read(root, source);
+        return new ConsultationDraftParser(transcript, catalog, today, List.of()).read(root, source);
+    }
+
+    /**
+     * A tail reading: the same checks, quotes held to the extract that was sent,
+     * and a correction's {@code was} held to what the browser said it already had.
+     */
+    public static Result parseTail(String modelText, String tail, List<CatalogEntry> catalog, LocalDate today,
+                                   String source, List<String> known) {
+        JsonNode root = readObject(modelText);
+        if (root == null) return null;
+        return new ConsultationDraftParser(tail, catalog, today, known).read(root, source);
     }
 
     /** Every top-level key the prompt asks for. */
@@ -139,10 +176,59 @@ public final class ConsultationDraftParser {
                 plan(root.path("treatmentPlan")),
                 nextAppointment(root.path("nextAppointment")),
                 source);
+        List<ChartMention> mentions = chartMentions(root.path("chartMentions"));
+        List<Correction> corrections = corrections(root.path("corrections"));
         if (dropped > 0) {
             log.info("Consultation extraction: dropped {} claim(s) that failed validation", dropped);
         }
-        return new Result(draft, dropped);
+        return new Result(draft, dropped, mentions, corrections);
+    }
+
+    // ── Beside the draft ────────────────────────────────────────────────
+
+    private static final Pattern TOOTH_IN_TEXT = Pattern.compile("(?<![0-9])([1-8][1-8])(?![0-9])");
+
+    /** A finding on a tooth: the quote is in the transcript and names every tooth claimed. */
+    private List<ChartMention> chartMentions(JsonNode array) {
+        List<ChartMention> out = new ArrayList<>();
+        for (JsonNode item : items(array)) {
+            String finding = label(item.path("finding"));
+            String quote = supportedQuote(item);
+            String teeth = teeth(item.path("teeth").asText(""));
+            if (finding == null || quote == null) { dropped++; continue; }
+            if (teeth != null) {
+                Set<String> said = new java.util.HashSet<>();
+                java.util.regex.Matcher m = TOOTH_IN_TEXT.matcher(quote);
+                while (m.find()) said.add(m.group(1));
+                if (!said.containsAll(List.of(teeth.split(",")))) { dropped++; continue; }
+            }
+            out.add(new ChartMention(teeth, finding, quote));
+        }
+        return out;
+    }
+
+    /** A correction of something already read: its {@code was} must be one of the known labels. */
+    private List<Correction> corrections(JsonNode array) {
+        List<Correction> out = new ArrayList<>();
+        for (JsonNode item : items(array)) {
+            String list = item.path("list").asText("");
+            String was = label(item.path("was"));
+            String quote = supportedQuote(item);
+            if (!CORRECTABLE.contains(list) || was == null || quote == null || !known.contains(TranscriptText.normalize(was))) {
+                dropped++;
+                continue;
+            }
+            JsonNode now = item.path("now");
+            String nowLabel = null;
+            String nowCategory = null;
+            if (now.isObject()) {
+                nowLabel = label(now.has("substance") ? now.path("substance") : now.path("label"));
+                nowCategory = now.has("category") ? enumOr(now.path("category"), HISTORY_CATEGORIES, "OTHER") : null;
+                if (nowLabel == null || !TranscriptText.backs(quote, nowLabel)) { dropped++; continue; }
+            }
+            out.add(new Correction(list, was, nowLabel, nowCategory, quote));
+        }
+        return out;
     }
 
     // ── Patient fields ──────────────────────────────────────────────────

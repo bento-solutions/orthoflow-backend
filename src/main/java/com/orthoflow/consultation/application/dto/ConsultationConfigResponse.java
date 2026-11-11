@@ -10,6 +10,7 @@ package com.orthoflow.consultation.application.dto;
  *                        saved, for the doctor to check later; decides what the doctor tells the patient
  * @param cockpit         the one-screen consultation cockpit while recording; false brings back
  *                        the two panels of before (the rollback, no rebuild needed)
+ * @param tailReading     the browser may ask for fast readings of the conversation's end
  */
 public record ConsultationConfigResponse(boolean enabled, boolean modelExtraction, boolean retainTranscript,
-                                         boolean cockpit) {}
+                                         boolean cockpit, boolean tailReading) {}

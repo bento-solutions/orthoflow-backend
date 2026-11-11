@@ -29,11 +29,11 @@ public class VoiceRateLimitProperties {
     private Limit interpret = new Limit(30, 600, 3);
     private Limit summarize = new Limit(6, 60, 1);
     /**
-     * Reading a consultation as it goes: the browser asks every ten seconds or
-     * so while the conversation grows, one at a time. 12 a minute is double
-     * that; 400 an hour covers a long consultation with room to spare.
+     * Reading a consultation as it goes. With the tail reading the browser may
+     * ask every few seconds while people talk, plus a full reading now and then:
+     * 30 a minute, 900 an hour, a tail and a full one at the same moment.
      */
-    private Limit extract = new Limit(12, 400, 1);
+    private Limit extract = new Limit(30, 900, 2);
 
     @Getter
     @Setter

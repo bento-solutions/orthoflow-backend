@@ -92,7 +92,7 @@ public class ConsultationController {
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ExtractionResponse extract(@PathVariable UUID id, @Valid @RequestBody TranscriptRequest request) {
         logService.record(id, request.getLines());
-        return consultationService.extract(id, request.getTranscript());
+        return consultationService.extract(id, request.getTranscript(), request.getMode(), request.getKnown());
     }
 
     /**

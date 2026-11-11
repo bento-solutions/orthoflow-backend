@@ -75,7 +75,8 @@ public class ConsultationService {
 
     public ConsultationConfigResponse config() {
         return new ConsultationConfigResponse(properties.isEnabled(), properties.isEnabled() && extractor.isModelEnabled(),
-                properties.isRetainTranscript(), properties.isCockpitEnabled());
+                properties.isRetainTranscript(), properties.isCockpitEnabled(),
+                properties.isEnabled() && extractor.isTailEnabled());
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────
@@ -120,14 +121,37 @@ public class ConsultationService {
      * save that protects the conversation from a crash.
      */
     public ExtractionResponse extract(UUID id, String transcript) {
+        return extract(id, transcript, "full", List.of());
+    }
+
+    /**
+     * A full reading replaces the stored draft (what a resumed consultation comes
+     * back with). A tail reading never does: it is a part, merged by the browser;
+     * only the transcript is kept from it.
+     */
+    public ExtractionResponse extract(UUID id, String transcript, String mode, List<String> known) {
         requireEnabled();
         Consultation consultation = require(id);
         if (!consultation.getStatus().isOpen()) {
             throw new ValidationException("This consultation is closed.");
         }
+        if ("tail".equals(mode)) {
+            ConsultationExtractor.Extraction result = extractor.extractTail(transcript, known, catalog(), today());
+            rememberTranscript(id, transcript);
+            return new ExtractionResponse(result.draft(), result.error(), false,
+                    result.chartMentions(), result.corrections(), "tail");
+        }
         ConsultationExtractor.Extraction result = extractor.extract(transcript, catalog(), today());
         ConsultationDraft draft = remember(id, transcript, result);
-        return new ExtractionResponse(draft, result.error(), result.truncated());
+        return new ExtractionResponse(draft, result.error(), result.truncated(), result.chartMentions(), List.of(), "full");
+    }
+
+    private void rememberTranscript(UUID id, String transcript) {
+        Consultation fresh = require(id);
+        if (!fresh.getStatus().isOpen()) return;
+        fresh.setTranscript(longer(fresh.getTranscript(), transcript));
+        fresh.touch();
+        consultations.save(fresh);
     }
 
     /** The doctor has called the consultation: the chart commands start to work. */

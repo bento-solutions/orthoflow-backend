@@ -169,6 +169,20 @@ class ConsultationServiceTest {
     }
 
     @Test
+    void aTailReadingKeepsTheTranscriptButNeverReplacesTheStoredFullReading() {
+        Consultation c = open(ConsultationStatus.EXAMINATION);
+        c.setDraft("{\"source\":\"groq:full\"}");
+        when(extractor.extractTail(eq("bonjour ananas"), eq(List.of("pénicilline")), any(), any())).thenReturn(
+                new ConsultationExtractor.Extraction(ConsultationDraft.empty("groq:tail"), null, false, List.of(), List.of(), "tail"));
+
+        ExtractionResponse response = service.extract(c.getId(), "bonjour ananas", "tail", List.of("pénicilline"));
+
+        assertThat(response.mode()).isEqualTo("tail");
+        assertThat(repo.rows.get(c.getId()).getTranscript()).isEqualTo("bonjour ananas");
+        assertThat(repo.rows.get(c.getId()).getDraft()).isEqualTo("{\"source\":\"groq:full\"}");
+    }
+
+    @Test
     void aFailedReadingKeepsTheLastModelReadingInsteadOfTheRulesStandIn() {
         Consultation c = open(ConsultationStatus.EXAMINATION);
         ConsultationDraft model = new ConsultationDraft(ConsultationDraft.PatientFields.empty(),
