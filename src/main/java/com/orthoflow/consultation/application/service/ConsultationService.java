@@ -27,6 +27,7 @@ import com.orthoflow.voice.application.dto.VoiceSessionResponse;
 import com.orthoflow.voice.application.service.VoiceAuditService;
 import com.orthoflow.voice.application.service.VoiceSessionService;
 import com.orthoflow.voice.domain.model.CommandOutcome;
+import com.orthoflow.voice.domain.model.RiskTier;
 import com.orthoflow.voice.domain.model.VoiceSessionStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -368,10 +369,18 @@ public class ConsultationService {
         return text;
     }
 
+    /**
+     * Rows a save executed against the patient's record. Only a CONFIRM-tier row is
+     * a clinical write: a SAFE command (showing a view, reading a tooth aloud,
+     * zooming the chart) is recorded as EXECUTED the moment it runs, and counting
+     * it made a consultation in which the doctor only looked at things impossible
+     * to discard.
+     */
     private long writtenChartFindings(Consultation consultation) {
         if (consultation.getVoiceSessionId() == null) return 0;
         return voiceAudit.forSession(consultation.getVoiceSessionId()).stream()
                 .filter(entry -> CommandOutcome.EXECUTED.name().equals(entry.outcome()))
+                .filter(entry -> RiskTier.CONFIRM.name().equals(entry.riskTier()))
                 .count();
     }
 

@@ -106,9 +106,13 @@ orthoflow:
     # to the next vendor or to the browser's own recognition. On everywhere but
     # the dev profile. DeepSeek is in no default chain: add it to a chain only
     # once a DPA covers it and its region is allowed (it processes in China).
-    require-data-protection: ${VOICE_REQUIRE_DATA_PROTECTION:true}
-    allowed-regions: ${VOICE_ALLOWED_REGIONS:}
+    #
+    # Both live under providers: that is the prefix VoiceProviderProperties binds.
+    # Until Nov 2026 they sat one level up, where nothing read them, so the
+    # default (required) applied everywhere and VOICE_ALLOWED_REGIONS was ignored.
     providers:
+      require-data-protection: ${VOICE_REQUIRE_DATA_PROTECTION:true}
+      allowed-regions: ${VOICE_ALLOWED_REGIONS:}
       gemini:
         api-key: ${VOICE_GEMINI_API_KEY:}
         data-protected: ${VOICE_GEMINI_DATA_PROTECTED:false}

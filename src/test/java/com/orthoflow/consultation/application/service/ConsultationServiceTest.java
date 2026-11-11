@@ -335,7 +335,7 @@ class ConsultationServiceTest {
         Consultation c = open(ConsultationStatus.REVIEW);
         c.setTranscript("tout");
         when(voiceAudit.forSession(VOICE_SESSION)).thenReturn(List.of(
-                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).outcome("EXECUTED").build(),
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("CONFIRM").outcome("EXECUTED").build(),
                 VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).outcome("FAILED").build()));
 
         assertThatThrownBy(() -> service.abandon(c.getId()))
@@ -344,6 +344,32 @@ class ConsultationServiceTest {
         assertThat(repo.rows.get(c.getId()).getStatus()).isEqualTo(ConsultationStatus.REVIEW);
         assertThat(repo.rows.get(c.getId()).getTranscript()).isEqualTo("tout");
         verify(voiceSessions, never()).end(any(), any(), any());
+    }
+
+    @Test
+    void aConsultationInWhichOnlyViewAndReadCommandsRanCanBeDiscarded() {
+        Consultation c = open(ConsultationStatus.REVIEW);
+        c.setTranscript("montre les allergies");
+        // "montre les allergies", "zoom sur la 16": SAFE commands run at once and are
+        // recorded as EXECUTED, but none of them wrote anything to the record.
+        when(voiceAudit.forSession(VOICE_SESSION)).thenReturn(List.of(
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("SAFE").outcome("EXECUTED").build(),
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("CONFIRM").outcome("CLARIFICATION").build()));
+
+        service.abandon(c.getId());
+
+        assertThat(repo.rows.get(c.getId()).getStatus()).isEqualTo(ConsultationStatus.ABANDONED);
+    }
+
+    @Test
+    void anIdleConsultationWithOnlySafeCommandsIsDiscarded() {
+        Consultation c = open(ConsultationStatus.EXAMINATION);
+        when(voiceAudit.forSession(VOICE_SESSION)).thenReturn(List.of(
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("SAFE").outcome("EXECUTED").build()));
+
+        assertThat(service.discardIdle(c.getId())).isTrue();
+
+        assertThat(repo.rows.get(c.getId()).getStatus()).isEqualTo(ConsultationStatus.ABANDONED);
     }
 
     @Test
@@ -414,7 +440,7 @@ class ConsultationServiceTest {
         c.setDraft("{}");
         c.setReviewState("{}");
         when(voiceAudit.forSession(VOICE_SESSION)).thenReturn(List.of(
-                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).outcome("EXECUTED").build()));
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("CONFIRM").outcome("EXECUTED").build()));
 
         assertThat(service.discardIdle(c.getId())).isFalse();
 
