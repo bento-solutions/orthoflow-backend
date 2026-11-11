@@ -75,7 +75,7 @@ public class ConsultationService {
 
     public ConsultationConfigResponse config() {
         return new ConsultationConfigResponse(properties.isEnabled(), properties.isEnabled() && extractor.isModelEnabled(),
-                properties.isRetainTranscript());
+                properties.isRetainTranscript(), properties.isCockpitEnabled());
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────

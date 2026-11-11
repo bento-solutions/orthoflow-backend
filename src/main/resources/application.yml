@@ -305,6 +305,9 @@ orthoflow:
     # the point of the feature. Off, the log is held only while the consultation
     # is open (crash recovery) and erased when it is saved or discarded.
     retain-transcript: ${CONSULTATION_RETAIN_TRANSCRIPT:true}
+    # The one-screen cockpit while a consultation records. false is the rollback:
+    # the two panels of before, no rebuild needed.
+    cockpit-enabled: ${CONSULTATION_COCKPIT_ENABLED:true}
     # An open consultation untouched for this long is discarded, transcript and
     # all (checked hourly). Runs even with the feature off.
     idle-discard-hours: ${CONSULTATION_IDLE_DISCARD_HOURS:24}

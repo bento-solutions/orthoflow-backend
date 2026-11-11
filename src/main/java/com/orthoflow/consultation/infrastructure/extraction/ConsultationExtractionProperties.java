@@ -60,6 +60,13 @@ public class ConsultationExtractionProperties {
     private boolean retainTranscript = true;
 
     /**
+     * The consultation cockpit: while recording, one screen with the chart or a
+     * section on the stage, the last action and the conversation always in view.
+     * On by default; off brings back the two panels of before, without a rebuild.
+     */
+    private boolean cockpitEnabled = true;
+
+    /**
      * An open consultation nothing has happened on for this long is discarded,
      * transcript and all, by {@code IdleConsultationCleanup}. Long enough to
      * survive a lunch break or a doctor finishing the review the next morning.

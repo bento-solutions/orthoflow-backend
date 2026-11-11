@@ -104,6 +104,13 @@ class ConsultationServiceTest {
     }
 
     @Test
+    void theCockpitIsOnByDefaultAndCanBeTurnedOffAsTheRollback() {
+        assertThat(service.config().cockpit()).isTrue();
+        properties.setCockpitEnabled(false);
+        assertThat(service.config().cockpit()).isFalse();
+    }
+
+    @Test
     void recordingDoesNotStartUntilTheDoctorAttestsThePatientWasTold() {
         assertThatThrownBy(() -> service.start(start(false), ACTOR))
                 .isInstanceOf(ValidationException.class)

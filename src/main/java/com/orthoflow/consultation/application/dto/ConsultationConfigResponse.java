@@ -8,5 +8,8 @@ package com.orthoflow.consultation.application.dto;
  *                        rule-based reading (phone, CIN, age, insurer, allergies)
  * @param retainTranscript the timestamped conversation is kept in the patient's file once
  *                        saved, for the doctor to check later; decides what the doctor tells the patient
+ * @param cockpit         the one-screen consultation cockpit while recording; false brings back
+ *                        the two panels of before (the rollback, no rebuild needed)
  */
-public record ConsultationConfigResponse(boolean enabled, boolean modelExtraction, boolean retainTranscript) {}
+public record ConsultationConfigResponse(boolean enabled, boolean modelExtraction, boolean retainTranscript,
+                                         boolean cockpit) {}
