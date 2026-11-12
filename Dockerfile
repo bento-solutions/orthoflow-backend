@@ -7,7 +7,7 @@ COPY src ./src
 RUN mvn package -DskipTests
 
 # Run stage
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 # Run as a non-root user (audit M7). The jar is copied read-only and owned by
