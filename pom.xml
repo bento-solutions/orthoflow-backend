@@ -119,7 +119,7 @@
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>core</artifactId>
-			<version>3.5.3</version>
+			<version>3.5.4</version>
 		</dependency>
 		<!-- Outbound email (messaging outbox, F6). Inert until spring.mail.host is set. -->
 		<dependency>
