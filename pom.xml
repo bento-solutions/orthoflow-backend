@@ -73,7 +73,7 @@
 		<dependency>
 			<groupId>com.anthropic</groupId>
 			<artifactId>anthropic-java</artifactId>
-			<version>2.34.0</version>
+			<version>3.6.0</version>
 			<exclusions>
 				<!-- An older, non-Jakarta copy of the same classes springdoc reads
 				     (io.swagger.v3.oas.annotations); it shadowed springdoc's and
