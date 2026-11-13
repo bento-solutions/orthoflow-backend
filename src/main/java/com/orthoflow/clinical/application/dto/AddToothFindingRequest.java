@@ -22,8 +22,8 @@ public class AddToothFindingRequest {
     @Size(max = 48)
     private String findingCode;
 
-    /** One surface, or up to five joined by hyphens ("mesial-occlusal-distal-buccal"); the column holds 48. */
-    @Size(max = 48)
+    /** One surface, or up to five joined by hyphens ("mesial-occlusal-distal-buccal"); the column holds 64. */
+    @Size(max = 64)
     private String surface;
 
     /** MILD | MODERATE | SEVERE, or null. */
@@ -31,6 +31,10 @@ public class AddToothFindingRequest {
     private String severity;
 
     private String note;
+
+    /** CONFIRMED (the default) or SUSPECTED: a state the dentist has not yet confirmed. */
+    @Size(max = 12)
+    private String certainty;
 
     /** When it was done or found; null when unknown. Not in the future. */
     private LocalDate performedOn;

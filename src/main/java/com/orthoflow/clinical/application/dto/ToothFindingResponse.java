@@ -15,6 +15,7 @@ public record ToothFindingResponse(
         String surface,
         String severity,
         String note,
+        String certainty,
         LocalDate performedOn,
         String origin,
         String providerName,

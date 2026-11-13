@@ -53,7 +53,7 @@ public record TreatmentPassport(
     @Schema(name = "PassportFinding")
     public record PassportFinding(String fdi, String findingCode, String kind, List<String> surfaces,
                                   String severity, String note, LocalDate performedOn, String origin,
-                                  String provider) {}
+                                  String provider, String certainty) {}
 
     /**
      * One piece of work: a finding that records treatment, or a treatment of the

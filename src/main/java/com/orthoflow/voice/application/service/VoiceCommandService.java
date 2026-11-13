@@ -225,6 +225,7 @@ public class VoiceCommandService {
                 req.setSurface(strOrNull(e, "surface"));
                 req.setSeverity(strOrNull(e, "severity"));
                 req.setNote(strOrNull(e, "note"));
+                req.setCertainty(strOrNull(e, "certainty"));
                 req.setSource("voice");
                 req.setSessionId(sessionId);
                 String fdi = str(e, "fdi");
@@ -294,6 +295,7 @@ public class VoiceCommandService {
                     req.setFindingCode(str(finding, "code"));
                     req.setSurface(strOrNull(finding, "surface"));
                     req.setSeverity(strOrNull(finding, "severity"));
+                    req.setCertainty(strOrNull(finding, "certainty"));
                     // A note on the utterance applies to every finding it
                     // produced unless the finding carried its own.
                     req.setNote(finding.get("note") != null ? strOrNull(finding, "note") : strOrNull(e, "note"));

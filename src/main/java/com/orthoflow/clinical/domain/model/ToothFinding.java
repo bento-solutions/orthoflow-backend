@@ -53,9 +53,11 @@ public class ToothFinding {
      * Optional tooth surface: occlusal, mesial, distal, buccal, lingual,
      * incisal or cervical — or up to five of them joined by hyphens
      * ("mesial-occlusal-distal"). A compound cavity is said that way and must
-     * not be reduced to one of its faces.
+     * not be reduced to one of its faces. A root of a back tooth can be named
+     * too (mesialroot, distalroot, buccalroot, lingualroot): a lesion, a fracture
+     * or a resorption is in one of them.
      */
-    @Column(length = 48)
+    @Column(length = 64)
     private String surface;
 
     @Enumerated(EnumType.STRING)
@@ -87,6 +89,15 @@ public class ToothFinding {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private FindingStatus status = FindingStatus.ACTIVE;
+
+    /**
+     * Confirmed by the dentist, or only suspected. A suspicion is kept as one until it is confirmed:
+     * it is shown and printed as a suspicion and does not drive the chart's painted status.
+     */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 12)
+    private FindingCertainty certainty = FindingCertainty.CONFIRMED;
 
     /** '2d', '3d', 'voice', 'manual'… — same vocabulary as ToothStateEvent. */
     @Builder.Default

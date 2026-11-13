@@ -28,7 +28,7 @@ import java.util.TreeMap;
 final class TreatmentChartBuilder {
 
     private static final List<String> GROUP_ORDER = List.of("DONE", "CONDITION", "PLANNED", "WATCH", "ABSENT");
-    private static final Set<String> ABSENT_CODES = Set.of("extracted", "missing", "avulsion");
+    private static final Set<String> ABSENT_CODES = Set.of("extracted", "missing", "avulsion", "agenesis");
 
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -119,6 +119,10 @@ final class TreatmentChartBuilder {
     private static Key keyOf(ToothFindingResponse f) {
         if ("RESOLVED".equals(f.status())) return new Key("DONE", f.findingCode(), null, "TREATED");
         if (!"ACTIVE".equals(f.status())) return null;
+        // Suspected, not confirmed: listed to be watched, never among the conditions or the work in place.
+        if ("SUSPECTED".equals(f.certainty()) && !"TREATMENT_REQUIRED".equals(f.kind())) {
+            return new Key("WATCH", f.findingCode(), null, "SUSPECTED");
+        }
         if (ABSENT_CODES.contains(f.findingCode())) return new Key("ABSENT", f.findingCode(), null, "ACTIVE");
         return switch (f.kind()) {
             case "EXISTING" -> new Key("DONE", f.findingCode(), null, "IN_PLACE");
@@ -138,15 +142,21 @@ final class TreatmentChartBuilder {
         return switch (code) {
             case "existing_crown", "existing_bridge", "existing_veneer", "existing_implant", "crown_required",
                  "crown_replacement_required", "bridge_required", "veneer_required", "implant_required",
-                 "crown_defective" -> "hatch";
-            case "existing_root_canal", "existing_post", "root_canal_required" -> "endo";
+                 "crown_defective",
+                 "existing_overlay", "bridge_abutment", "bridge_pontic", "implant_crown", "temporary_crown", "post_and_crown", "defective_restoration" -> "hatch";
+            case "existing_root_canal", "existing_post", "root_canal_required",
+                 "endo_treatment_started", "incomplete_root_filling" -> "endo";
             case "existing_filling", "existing_composite", "existing_amalgam", "existing_inlay", "existing_sealant",
-                 "filling_required", "restoration_required", "sealant_required" -> "solid";
+                 "filling_required", "restoration_required", "sealant_required",
+                 "existing_glass_ionomer", "existing_temporary_filling", "existing_onlay" -> "solid";
             case "existing_deciduous" -> "dotted";
-            case "caries", "recurrent_caries", "deep_caries", "cavity" -> "stipple";
-            case "fracture", "retained_root", "extensive_destruction" -> "jag";
-            case "impacted" -> "bars";
-            case "extraction_required" -> "cross";
+            case "caries", "recurrent_caries", "deep_caries", "cavity",
+                 "white_spot_lesion", "demineralisation", "enamel_hypoplasia", "fluorosis", "post_trauma_pulpal_discoloration", "pulp_exposure", "lost_restoration", "marginal_defect", "internal_resorption", "external_resorption", "root_resorption", "gingivitis", "gingival_bleeding", "bleeding_on_probing", "gingival_enlargement", "gingival_hyperplasia", "clinical_attachment_loss", "periodontitis", "gingival_abscess", "periodontal_abscess", "gingival_ulceration", "gingival_lesion", "furcation_involvement", "suppuration", "peri_implant_mucositis", "peri_implantitis" -> "stipple";
+            case "fracture", "retained_root", "extensive_destruction",
+                 "cracked_tooth", "cusp_fracture", "enamel_dentin_fracture", "complicated_crown_fracture", "crown_root_fracture", "crown_fracture", "root_fracture", "fractured_restoration", "perforation", "separated_instrument", "enamel_fracture" -> "jag";
+            case "impacted",
+                 "unerupted", "attrition", "abrasion", "erosion", "non_carious_cervical_lesion", "abfraction", "restoration_overhang", "canal_obstruction" -> "bars";
+            case "extraction_required", "agenesis" -> "cross";
             default -> "DONE".equals(group) ? "ring" : "dot";
         };
     }

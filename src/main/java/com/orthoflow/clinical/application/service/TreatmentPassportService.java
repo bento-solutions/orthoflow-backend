@@ -83,6 +83,7 @@ public class TreatmentPassportService {
 
         for (ToothFindingResponse f : history) {
             boolean active = "ACTIVE".equals(f.status());
+            boolean suspected = "SUSPECTED".equals(f.certainty());
             List<String> surfaces = surfaces(f.surface());
             if (active && "TREATMENT_REQUIRED".equals(f.kind())) {
                 planned.add(new PassportWork(null, "FINDING", List.of(f.fdi()), f.findingCode(), null, null,
@@ -91,10 +92,11 @@ public class TreatmentPassportService {
             }
             if (active) {
                 teeth.add(new PassportFinding(f.fdi(), f.findingCode(), f.kind(), surfaces, f.severity(), f.note(),
-                        f.performedOn(), f.origin(), f.providerName()));
+                        f.performedOn(), f.origin(), f.providerName(), f.certainty()));
             }
             // The log is work: what stands in the mouth, and what was found and since treated.
-            if (active && "EXISTING".equals(f.kind())) {
+            // A suspected restoration is not work anyone can vouch for yet: it is on the tooth's line, not in the log.
+            if (active && "EXISTING".equals(f.kind()) && !suspected) {
                 log.add(new PassportWork(f.performedOn(), "FINDING", List.of(f.fdi()), f.findingCode(), null, null,
                         surfaces, f.origin(), f.providerName(), "IN_PLACE", f.note()));
             } else if ("RESOLVED".equals(f.status())) {
@@ -315,6 +317,7 @@ public class TreatmentPassportService {
             name = "TREATED".equals(entry.outcome()) ? l.treated(entry.code()) : l.finding(entry.code());
         }
         if ("IN_PROGRESS".equals(entry.outcome())) name += " — " + l.text("inProgress");
+        if ("SUSPECTED".equals(entry.outcome())) name += " — " + l.text("suspected");
         return name;
     }
 
@@ -342,6 +345,8 @@ public class TreatmentPassportService {
         String origin = origin(f.origin(), f.provider(), f.performedOn(), l);
         if (!origin.isEmpty()) line.append(" — ").append(origin);
         if (f.note() != null && !f.note().isBlank()) line.append(" — ").append(f.note());
+        // A suspicion is printed as one: on a document handed to another practitioner it must not read as a finding.
+        if ("SUSPECTED".equals(f.certainty())) line.append(" — ").append(l.text("suspected"));
         return line.toString();
     }
 

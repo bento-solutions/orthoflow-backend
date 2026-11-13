@@ -179,6 +179,7 @@ public class ClinicalRecordService {
         finding.setKind(definition.kind());
         finding.setSurface(surface);
         finding.setSeverity(parseSeverity(request.getSeverity()));
+        finding.setCertainty(parseCertainty(request.getCertainty()));
         if (blankToNull(request.getNote()) != null) {
             finding.setNote(request.getNote());
         }
@@ -276,7 +277,9 @@ public class ClinicalRecordService {
      * click-driven one.
      */
     private void recomputePrimaryStatus(DentalChart chart, String fdi, UUID actorId, String source, String note) {
+        // A suspicion is not yet a fact about the tooth: it does not paint the tooth until it is confirmed.
         List<String> activeCodes = toothFindingRepository.findActiveByChartAndFdi(chart.getId(), fdi).stream()
+                .filter(f -> f.getCertainty() != FindingCertainty.SUSPECTED)
                 .map(ToothFinding::getFindingCode)
                 .toList();
         String status = FindingCatalog.primaryStatus(activeCodes);
@@ -598,6 +601,12 @@ public class ClinicalRecordService {
      * is refused here instead of failing on the column or reading oddly on a
      * chart.
      */
+    /** CONFIRMED unless the request says SUSPECTED; anything else is a mistake worth refusing. */
+    private FindingCertainty parseCertainty(String certainty) {
+        String normalised = blankToNull(certainty);
+        return normalised == null ? FindingCertainty.CONFIRMED : parseEnum(FindingCertainty.class, normalised.toUpperCase(java.util.Locale.ROOT), "certainty");
+    }
+
     private String normaliseSurface(String surface) {
         String value = blankToNull(surface);
         if (value == null) return null;
@@ -647,6 +656,7 @@ public class ClinicalRecordService {
                 .surface(f.getSurface())
                 .severity(f.getSeverity() != null ? f.getSeverity().name() : null)
                 .note(f.getNote())
+                .certainty(f.getCertainty().name())
                 .performedOn(f.getPerformedOn())
                 .origin(f.getOrigin().name())
                 .providerName(f.getProviderName())

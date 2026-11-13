@@ -69,6 +69,13 @@ class TreatmentPassportServiceTest {
                 .updatedAt(OffsetDateTime.parse("2026-10-10T09:00:00Z")).build();
     }
 
+    /** The same finding, said with a doubt: the dentist suspects it and has not confirmed it. */
+    private static ToothFindingResponse suspected(ToothFindingResponse f) {
+        return new ToothFindingResponse(f.id(), f.fdi(), f.findingCode(), f.kind(), f.surface(), f.severity(), f.note(),
+                "SUSPECTED", f.performedOn(), f.origin(), f.providerName(), f.status(), f.source(), f.sessionId(),
+                f.createdAt(), f.updatedAt());
+    }
+
     @BeforeEach
     void setUp() {
         clinical = mock(ClinicalRecordService.class);
@@ -263,6 +270,60 @@ class TreatmentPassportServiceTest {
 
         assertThat(chart.dentition()).isEqualTo("child");
         assertThat(textOf(service.chartPdf(PRACTICE, PATIENT, "fr"))).contains("Carie");
+    }
+
+    @Test
+    void aSuspicionIsOnTheToothAsOneAndNeverAmongTheWorkInPlaceOrTheConditions() {
+        when(treatments.findByPatientId(PATIENT)).thenReturn(List.of());
+        when(clinical.listFindingHistory(PATIENT)).thenReturn(List.of(
+                suspected(finding("16", "caries", "CONDITION", "distal", "ACTIVE", null, "THIS_CLINIC", null)),
+                suspected(finding("26", "existing_crown", "EXISTING", null, "ACTIVE", null, "THIS_CLINIC", null)),
+                finding("36", "existing_amalgam", "EXISTING", "occlusal", "ACTIVE", LocalDate.of(2019, 4, 2), "EXTERNAL", "Dr Benani")));
+
+        TreatmentPassport p = service.build(PRACTICE, PATIENT);
+
+        // On the tooth's line, each with how sure the dentist is: the next dentist reads a doubt as a doubt.
+        assertThat(p.teeth()).extracting(t -> t.fdi() + ":" + t.findingCode() + ":" + t.certainty())
+                .containsExactly("16:caries:SUSPECTED", "26:existing_crown:SUSPECTED", "36:existing_amalgam:null");
+        // A crown nobody has confirmed is not work anyone can vouch for: it is not in the log.
+        assertThat(p.log()).extracting(w -> w.outcome() + ":" + w.code()).containsExactly("IN_PLACE:existing_amalgam");
+        // The legend lists the suspicions to be watched, apart from conditions and work in place.
+        assertThat(p.chart().legend()).extracting(e -> e.key() + ":" + e.group() + ":" + e.code() + ":" + e.outcome())
+                .containsExactly("A:DONE:existing_amalgam:IN_PLACE", "B:WATCH:caries:SUSPECTED", "C:WATCH:existing_crown:SUSPECTED");
+        assertThat(p.chart().teeth()).filteredOn(t -> t.fdi().equals("16") || t.fdi().equals("26"))
+                .extracting(t -> t.fdi() + ":" + String.join("", t.keys()) + ":" + t.done() + ":" + t.owed())
+                .containsExactly("16:B:false:false", "26:C:false:false");
+    }
+
+    @Test
+    void aSuspectedRequirementIsStillWorkOwedBecauseItWasAskedFor() {
+        when(clinical.listFindingHistory(PATIENT)).thenReturn(List.of(
+                suspected(finding("36", "filling_required", "TREATMENT_REQUIRED", "mesial", "ACTIVE", null, "THIS_CLINIC", null))));
+
+        TreatmentPassport p = service.build(PRACTICE, PATIENT);
+
+        assertThat(p.planned()).extracting(w -> w.outcome() + ":" + w.code()).contains("REQUIRED:filling_required");
+        assertThat(p.chart().legend()).extracting(e -> e.group() + ":" + e.code()).contains("PLANNED:filling_required");
+    }
+
+    @Test
+    void theDocumentsPrintASuspicionAsASuspicionInEveryLanguage() throws Exception {
+        when(clinical.listFindingHistory(PATIENT)).thenReturn(List.of(
+                suspected(finding("16", "caries", "CONDITION", "distal", "ACTIVE", null, "THIS_CLINIC", null))));
+
+        String fr = textOf(service.pdf(PRACTICE, PATIENT, "fr"));
+        assertThat(fr).contains("Carie").contains("suspecté");
+        assertThat(textOf(service.chartPdf(PRACTICE, PATIENT, "fr"))).contains("suspecté");
+
+        assertThat(textOf(service.pdf(PRACTICE, PATIENT, "en"))).contains("suspected");
+        assertThat(textOf(service.pdf(PRACTICE, PATIENT, "ar"))).isNotBlank();
+    }
+
+    @Test
+    void aFindingWithNoCertaintyIsPrintedAsAFact() throws Exception {
+        String fr = textOf(service.pdf(PRACTICE, PATIENT, "fr"));
+
+        assertThat(fr).doesNotContain("suspecté");
     }
 
     @Test
