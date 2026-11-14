@@ -73,6 +73,8 @@ public final class ConsultationDraftParser {
     private static final Set<String> TREATMENT_TYPES = Set.of("MEDICATION", "DENTAL", "OTHER");
     private static final Set<String> SEVERITIES = Set.of("MILD", "MODERATE", "SEVERE");
     private static final Set<String> INSURERS = Set.of("CNOPS", "CNSS", "CNAM", "RAMED", "PRIVATE");
+    /** The receipt's methods a consultation can propose; INSURANCE is the insurer paying, not the patient. */
+    private static final Set<String> PAYMENT_METHODS = Set.of("CASH", "CARD", "CHEQUE", "BANK_TRANSFER");
 
     private static final Pattern PHONE = Pattern.compile("^\\+?\\d{8,15}$");
     private static final Pattern CIN = Pattern.compile("^[A-Z]{1,2}\\d{4,8}$");
@@ -175,7 +177,8 @@ public final class ConsultationDraftParser {
                 history(root.path("medicalHistory")),
                 plan(root.path("treatmentPlan")),
                 nextAppointment(root.path("nextAppointment")),
-                source);
+                source,
+                payments(root.path("payments")));
         List<ChartMention> mentions = chartMentions(root.path("chartMentions"));
         List<Correction> corrections = corrections(root.path("corrections"));
         if (dropped > 0) {
@@ -421,7 +424,33 @@ public final class ConsultationDraftParser {
             String key = "plan:" + TranscriptText.normalize(label) + ":" + (teeth == null ? "" : teeth);
             byKey.putIfAbsent(key, new PlanItem(key, label,
                     match == null ? null : match.id(), match == null ? null : match.code(),
-                    teeth, price, priceSource, detail(item.path("notes")), quote));
+                    teeth, price, priceSource, detail(item.path("notes")), quote,
+                    item.path("performed").asBoolean(false)));
+        }
+        return List.copyOf(byKey.values());
+    }
+
+    /**
+     * Money handed over during the consultation. Held to more than the other claims, because a
+     * validated one becomes a receipt in the patient's account: the quote must be in the
+     * transcript <em>and say the amount in figures</em> — a price quoted for a later act
+     * ("le détartrage, c'est 300") is not a payment, and the model is told so, but only a quote
+     * that carries the number can be checked at all. An amount said only in words is dropped:
+     * the doctor records it by hand.
+     */
+    private List<ConsultationDraft.Payment> payments(JsonNode array) {
+        Map<String, ConsultationDraft.Payment> byKey = new LinkedHashMap<>();
+        for (JsonNode item : items(array)) {
+            BigDecimal amount = price(item.path("amount"));
+            String quote = supportedQuote(item);
+            if (amount == null || amount.signum() <= 0 || quote == null
+                    || !TranscriptText.saysAmount(TranscriptText.normalize(quote), amount)) {
+                dropped++;
+                continue;
+            }
+            String method = item.path("method").isNull() ? null : enumOr(item.path("method"), PAYMENT_METHODS, null);
+            String key = "payment:" + amount.stripTrailingZeros().toPlainString() + ":" + (method == null ? "" : method);
+            byKey.putIfAbsent(key, new ConsultationDraft.Payment(key, amount, method, quote));
         }
         return List.copyOf(byKey.values());
     }

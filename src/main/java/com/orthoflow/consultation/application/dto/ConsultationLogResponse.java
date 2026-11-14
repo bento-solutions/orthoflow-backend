@@ -28,6 +28,8 @@ public record ConsultationLogResponse(
         UUID patientId,
         UUID actorId,
         String status,
+        /** {@code LIVE} or {@code DEFERRED}. */
+        String mode,
         String locale,
         OffsetDateTime patientInformedAt,
         OffsetDateTime startedAt,
@@ -38,7 +40,9 @@ public record ConsultationLogResponse(
         List<Line> lines,
         List<VoiceCommandAuditResponse> commands,
         JsonNode reviewed,
-        String report) {
+        String report,
+        /** The recording of the conversation, when one is kept; a line's {@code at} minus its start is where it is. */
+        ConsultationAudioResponse audio) {
 
     public record Line(int seq, OffsetDateTime at, String phase, boolean typed, String text, String verdict, Integer latencyMs) {
         public Line(int seq, OffsetDateTime at, String phase, boolean typed, String text) {

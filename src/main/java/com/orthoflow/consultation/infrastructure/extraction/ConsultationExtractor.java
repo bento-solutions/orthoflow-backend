@@ -217,10 +217,11 @@ public class ConsultationExtractor {
             boolean spoken = "SPOKEN".equals(item.priceSource());
             return new ConsultationDraft.PlanItem(item.key(), item.label(), match.id(), match.code(), item.teeth(),
                     spoken ? item.price() : match.basePrice(),
-                    spoken ? "SPOKEN" : match.basePrice() != null ? "CATALOG" : null, item.notes(), item.quote());
+                    spoken ? "SPOKEN" : match.basePrice() != null ? "CATALOG" : null, item.notes(), item.quote(),
+                    item.performed());
         }).toList();
         return new ConsultationDraft(draft.patient(), draft.chiefComplaint(), draft.activeTreatments(), draft.allergies(),
-                draft.medicalHistory(), plan, draft.nextAppointment(), draft.source());
+                draft.medicalHistory(), plan, draft.nextAppointment(), draft.source(), draft.payments());
     }
 
     private String key(Route route) {

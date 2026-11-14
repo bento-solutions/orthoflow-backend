@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,11 +17,18 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orthoflow.billing.application.dto.CreateInvoiceRequest;
+import com.orthoflow.billing.application.dto.InvoiceResponse;
+import com.orthoflow.billing.application.dto.ReceiptDtos;
+import com.orthoflow.billing.application.service.BillingService;
+import com.orthoflow.billing.application.service.ReceiptService;
+import com.orthoflow.billing.domain.model.PaymentMethod;
 import com.orthoflow.clinical.application.dto.AddAllergyRequest;
 import com.orthoflow.clinical.application.dto.AddMedicalHistoryRequest;
 import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.clinical.domain.model.NoteCategory;
 import com.orthoflow.common.exception.ValidationException;
+import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.consultation.application.dto.CommitConsultationRequest;
 import com.orthoflow.consultation.application.dto.CommitConsultationRequest.*;
 import com.orthoflow.consultation.application.service.ConsultationFixtures.InMemoryConsultations;
@@ -33,13 +41,17 @@ import com.orthoflow.scheduling.application.dto.AppointmentRequest;
 import com.orthoflow.scheduling.application.dto.AppointmentResponse;
 import com.orthoflow.scheduling.application.service.AppointmentService;
 import com.orthoflow.scheduling.domain.model.AppointmentStatus;
+import com.orthoflow.treatment.domain.model.Treatment;
+import com.orthoflow.treatment.domain.repository.TreatmentRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.access.AccessDeniedException;
 
 class ConsultationRecordWriterTest {
 
@@ -52,6 +64,11 @@ class ConsultationRecordWriterTest {
     private Consultation consultation;
     private ConsultationExtractionProperties properties;
     private ConsultationLogService logs;
+    private BillingService billing;
+    private ReceiptService receipts;
+    private TreatmentRepository treatments;
+    private CurrentUserProvider currentUser;
+    private ConsultationService consultationService;
 
     @BeforeEach
     void setUp() {
@@ -67,7 +84,13 @@ class ConsultationRecordWriterTest {
             String text = ((Consultation) call.getArgument(0)).getTranscript();
             return text == null || text.isBlank() ? text : "[10:02:11] " + text;
         });
-        writer = new ConsultationRecordWriter(repo, patients, clinical, appointments, json, properties, logs);
+        billing = mock(BillingService.class);
+        receipts = mock(ReceiptService.class);
+        treatments = mock(TreatmentRepository.class);
+        currentUser = mock(CurrentUserProvider.class);
+        consultationService = mock(ConsultationService.class);
+        writer = new ConsultationRecordWriter(repo, patients, clinical, appointments, json, properties, logs,
+                consultationService, billing, receipts, treatments, currentUser);
         when(appointments.createAppointment(any()))
                 .thenReturn(AppointmentResponse.builder().id(UUID.randomUUID()).build());
         consultation = repo.save(consultation(ConsultationStatus.REVIEW));
@@ -184,7 +207,7 @@ class ConsultationRecordWriterTest {
         properties.setRetainTranscript(false);
         consultation.setDraft("{\"source\":\"groq:x\"}");
 
-        Consultation saved = writer.write(consultation.getId(), full(), ACTOR);
+        Consultation saved = writer.write(consultation.getId(), full(), ACTOR).consultation();
 
         ArgumentCaptor<NoteCategory> category = ArgumentCaptor.forClass(NoteCategory.class);
         verify(clinical, times(3)).saveSessionNote(eq(PATIENT), eq(VOICE_SESSION), category.capture(), any(), eq(ACTOR), eq("consultation"));
@@ -225,7 +248,7 @@ class ConsultationRecordWriterTest {
         AppointmentResponse booked = AppointmentResponse.builder().id(appointmentId).build();
         when(appointments.createAppointment(any())).thenReturn(booked);
 
-        Consultation saved = writer.write(consultation.getId(), full(), ACTOR);
+        Consultation saved = writer.write(consultation.getId(), full(), ACTOR).consultation();
 
         ArgumentCaptor<AppointmentRequest> sent = ArgumentCaptor.forClass(AppointmentRequest.class);
         verify(appointments).createAppointment(sent.capture());
@@ -238,7 +261,7 @@ class ConsultationRecordWriterTest {
 
     @Test
     void marksTheConsultationSavedAndKeepsWhatWasSignedOffWithoutTheChartPlumbing() throws Exception {
-        Consultation saved = writer.write(consultation.getId(), full(), ACTOR);
+        Consultation saved = writer.write(consultation.getId(), full(), ACTOR).consultation();
 
         assertThat(saved.getStatus()).isEqualTo(ConsultationStatus.COMPLETED);
         assertThat(saved.getCompletedAt()).isNotNull();
@@ -281,5 +304,119 @@ class ConsultationRecordWriterTest {
         assertThatThrownBy(() -> writer.write(consultation.getId(), full(), ACTOR))
                 .isInstanceOf(ValidationException.class);
         verify(clinical, never()).addAllergy(any(), any(), any());
+    }
+    // ── The patient's account ───────────────────────────────────────────
+
+    private static CommitConsultationRequest withActsDone() {
+        CommitConsultationRequest r = new CommitConsultationRequest();
+        PlanLine done = new PlanLine();
+        done.setLabel("Détartrage");
+        done.setTreatmentId(DETARTRAGE);
+        done.setPrice(new BigDecimal("300"));
+        done.setPerformed(true);
+        PlanLine doneUnpriced = new PlanLine();
+        doneUnpriced.setLabel("Conseils d'hygiène");
+        doneUnpriced.setPerformed(true);
+        PlanLine later = new PlanLine();
+        later.setLabel("Couronne");
+        later.setTeeth("16");
+        later.setPrice(new BigDecimal("3500"));
+        PlanLine doneByHand = new PlanLine();
+        doneByHand.setLabel("Composite");
+        doneByHand.setTeeth("26");
+        doneByHand.setPrice(new BigDecimal("400"));
+        doneByHand.setQuantity(2);
+        doneByHand.setPerformed(true);
+        r.setTreatmentPlan(List.of(done, doneUnpriced, later, doneByHand));
+        return r;
+    }
+
+    private static final UUID DETARTRAGE = UUID.randomUUID();
+
+    @Test
+    void theActsDoneTodayWithAPriceBecomeOneDraftInvoiceWhenTheDoctorAsks() {
+        Treatment scaling = new Treatment();
+        scaling.setActCode("D0301");
+        when(treatments.findById(DETARTRAGE)).thenReturn(Optional.of(scaling));
+        UUID invoiceId = UUID.randomUUID();
+        when(billing.createInvoice(any(), eq(ACTOR)))
+                .thenReturn(InvoiceResponse.builder().id(invoiceId).invoiceNumber("F-2026-0042").build());
+        CommitConsultationRequest request = withActsDone();
+        request.setCreateInvoice(true);
+
+        ConsultationRecordWriter.Written written = writer.write(consultation.getId(), request, ACTOR);
+
+        ArgumentCaptor<CreateInvoiceRequest> invoice = ArgumentCaptor.forClass(CreateInvoiceRequest.class);
+        verify(billing).createInvoice(invoice.capture(), eq(ACTOR));
+        verify(currentUser).requireAuthority("BILLING_WRITE");
+        assertThat(invoice.getValue().getPatientId()).isEqualTo(PATIENT);
+        assertThat(invoice.getValue().getCurrency()).isEqualTo("MAD");
+        // The unpriced act and the one for later are not billed.
+        assertThat(invoice.getValue().getLines()).extracting(l -> l.getLabel(), l -> l.getActCode(), l -> l.getQuantity().intValue())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Détartrage", "D0301", 1),
+                        org.assertj.core.groups.Tuple.tuple("Composite (dent 26)", ConsultationRecordWriter.GENERIC_ACT_CODE, 2));
+        assertThat(written.invoiceId()).isEqualTo(invoiceId);
+        assertThat(written.invoiceNumber()).isEqualTo("F-2026-0042");
+        assertThat(written.consultation().getInvoiceId()).isEqualTo(invoiceId);
+    }
+
+    @Test
+    void noInvoiceIsMadeUnlessTheDoctorAsksOrWhenNothingDoneHasAPrice() {
+        writer.write(consultation.getId(), withActsDone(), ACTOR);
+        verify(billing, never()).createInvoice(any(), any());
+
+        consultation.setStatus(ConsultationStatus.REVIEW);
+        CommitConsultationRequest onlyLater = full();
+        onlyLater.setCreateInvoice(true);
+        writer.write(consultation.getId(), onlyLater, ACTOR);
+        verify(billing, never()).createInvoice(any(), any());
+    }
+
+    @Test
+    void eachValidatedPaymentIsAReceiptSpreadOverTheOpenInvoices() {
+        CommitConsultationRequest request = new CommitConsultationRequest();
+        PaymentItem cash = new PaymentItem();
+        cash.setAmount(new BigDecimal("300"));
+        cash.setMethod("CASH");
+        request.setPayments(List.of(cash));
+
+        ConsultationRecordWriter.Written written = writer.write(consultation.getId(), request, ACTOR);
+
+        ArgumentCaptor<ReceiptDtos.RecordReceipt> receipt = ArgumentCaptor.forClass(ReceiptDtos.RecordReceipt.class);
+        verify(receipts).record(eq(consultation.getPracticeId()), eq(ACTOR), eq(PATIENT), receipt.capture());
+        assertThat(receipt.getValue().amount()).isEqualByComparingTo("300");
+        assertThat(receipt.getValue().method()).isEqualTo(PaymentMethod.CASH);
+        assertThat(receipt.getValue().autoAllocate()).isTrue();
+        assertThat(written.receipts()).isEqualTo(1);
+    }
+
+    @Test
+    void withoutTheRightToBillNothingFinancialIsWrittenAndTheSaveFails() {
+        doThrow(new AccessDeniedException("no")).when(currentUser).requireAuthority("BILLING_WRITE");
+        CommitConsultationRequest request = new CommitConsultationRequest();
+        PaymentItem cash = new PaymentItem();
+        cash.setAmount(new BigDecimal("300"));
+        cash.setMethod("CASH");
+        request.setPayments(List.of(cash));
+
+        assertThatThrownBy(() -> writer.write(consultation.getId(), request, ACTOR)).isInstanceOf(AccessDeniedException.class);
+        verify(receipts, never()).record(any(), any(), any(), any());
+    }
+
+    @Test
+    void withoutRetentionTheRecordingGoesWithTheTranscript() {
+        properties.setRetainTranscript(false);
+
+        writer.write(consultation.getId(), full(), ACTOR);
+
+        verify(consultationService).eraseAudio(consultation);
+    }
+
+    @Test
+    void withRetentionTheRecordingIsKept() {
+        writer.write(consultation.getId(), full(), ACTOR);
+
+        verify(consultationService, never()).eraseAudio(any());
     }
 }

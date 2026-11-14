@@ -1,6 +1,7 @@
 package com.orthoflow.consultation.application.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,4 +26,11 @@ public class StartConsultationRequest {
      * record when the doctor said they had.
      */
     private boolean patientInformed;
+
+    /**
+     * {@code DEFERRED} (commands and proposals only once the consultation ends) or {@code LIVE}
+     * (the chart commands act while the doctor speaks). Absent: the deployment's default.
+     */
+    @Pattern(regexp = "(?i)live|deferred", message = "mode must be LIVE or DEFERRED")
+    private String mode;
 }

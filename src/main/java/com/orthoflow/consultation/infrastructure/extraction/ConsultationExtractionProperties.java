@@ -73,6 +73,30 @@ public class ConsultationExtractionProperties {
      */
     private int idleDiscardHours = 24;
 
+    /**
+     * How a consultation started without saying acts on what is said: {@code deferred} (the
+     * default — nothing acts while recording; the whole conversation is turned into commands and
+     * proposals when it ends, for the doctor to validate) or {@code live} (the chart commands act
+     * and are read back while the doctor speaks). The doctor can pick the other at the start.
+     */
+    private String defaultMode = "deferred";
+
+    /**
+     * Whether the audio of the conversation is recorded and kept with its timestamped transcript
+     * (the dossier's Documents tab). Only where the transcript itself is kept
+     * ({@link #retainTranscript}): a recording of a conversation the clinic does not keep would be
+     * the conversation kept.
+     */
+    private boolean keepAudio = true;
+
+    /** The largest recording accepted, in megabytes: about ten hours of speech at the browser's bit rate. */
+    private int maxAudioMegabytes = 100;
+
+    /** Audio is kept only where the transcript is. */
+    public boolean audioKept() {
+        return keepAudio && retainTranscript;
+    }
+
     private final Extraction extraction = new Extraction();
 
     @Getter

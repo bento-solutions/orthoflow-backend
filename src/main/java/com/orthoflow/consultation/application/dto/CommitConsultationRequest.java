@@ -2,6 +2,8 @@ package com.orthoflow.consultation.application.dto;
 
 import com.orthoflow.voice.application.dto.CommitVoiceSessionRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -56,6 +58,19 @@ public class CommitConsultationRequest {
 
     @Valid
     private AppointmentSlot nextAppointment;
+
+    // ── Financial (the patient's account) ──────────────────────────────
+
+    /**
+     * Make a draft invoice of the plan lines marked {@code performed} that have a price. The front
+     * desk issues it; nothing is billed by the consultation itself. Needs BILLING_WRITE.
+     */
+    private Boolean createInvoice = false;
+
+    /** Money the patient handed over, as the doctor validated it: one receipt each. Needs BILLING_WRITE. */
+    @Valid
+    @Size(max = 10)
+    private List<PaymentItem> payments = List.of();
 
     /** The consultation report as the doctor edited it. */
     @Size(max = 30_000)
@@ -155,6 +170,20 @@ public class CommitConsultationRequest {
          * prior-agreement request.
          */
         private Boolean performed = false;
+    }
+
+    @Getter
+    @Setter
+    public static class PaymentItem {
+        @NotNull
+        @DecimalMin("0.01")
+        @DecimalMax("1000000")
+        private BigDecimal amount;
+        @NotBlank
+        @Pattern(regexp = "CASH|CARD|CHEQUE|BANK_TRANSFER", message = "method must be CASH, CARD, CHEQUE or BANK_TRANSFER")
+        private String method;
+        @Size(max = 128)
+        private String reference;
     }
 
     @Getter

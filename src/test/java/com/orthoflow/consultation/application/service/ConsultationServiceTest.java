@@ -1,5 +1,6 @@
 package com.orthoflow.consultation.application.service;
 
+import com.orthoflow.storage.application.service.FileService;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.ACTOR;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.PATIENT;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.VOICE_SESSION;
@@ -22,6 +23,7 @@ import com.orthoflow.consultation.application.dto.ExtractionResponse;
 import com.orthoflow.consultation.application.dto.StartConsultationRequest;
 import com.orthoflow.consultation.application.service.ConsultationFixtures.InMemoryConsultations;
 import com.orthoflow.consultation.domain.model.Consultation;
+import com.orthoflow.consultation.domain.model.ConsultationMode;
 import com.orthoflow.consultation.domain.model.ConsultationDraft;
 import com.orthoflow.consultation.domain.model.ConsultationStatus;
 import com.orthoflow.consultation.infrastructure.extraction.ConsultationExtractionProperties;
@@ -52,6 +54,7 @@ class ConsultationServiceTest {
     private ConsultationExtractor extractor;
     private ConsultationExtractionProperties properties;
     private ConsultationLogService logs;
+    private FileService files;
     private ConsultationService service;
 
     @BeforeEach
@@ -65,8 +68,9 @@ class ConsultationServiceTest {
         properties = new ConsultationExtractionProperties();
         properties.setEnabled(true);
         logs = mock(ConsultationLogService.class);
+        files = mock(FileService.class);
         service = new ConsultationService(repo, voiceSessions, voiceAudit, patients, treatments, extractor, properties,
-                new ObjectMapper(), logs);
+                new ObjectMapper(), logs, files);
 
         when(patients.exists(PATIENT)).thenReturn(true);
         when(voiceSessions.start(any(), eq(ACTOR))).thenReturn(session("ACTIVE"));
@@ -87,6 +91,70 @@ class ConsultationServiceTest {
 
     private Consultation open(ConsultationStatus status) {
         return repo.save(consultation(status));
+    }
+
+    // ── When commands act (the deferred mode) ───────────────────────────
+
+    @Test
+    void aConsultationStartedWithoutSayingIsDeferredByDefaultAndTheConfigSaysSo() {
+        ConsultationResponse started = service.start(start(true), ACTOR);
+
+        assertThat(started.mode()).isEqualTo("DEFERRED");
+        assertThat(repo.findById(started.id()).orElseThrow().getMode()).isEqualTo(ConsultationMode.DEFERRED);
+        assertThat(service.config().defaultMode()).isEqualTo("deferred");
+    }
+
+    @Test
+    void theDoctorCanStillChooseTheLiveCommandsAndTheClinicCanMakeThemTheDefault() {
+        StartConsultationRequest live = start(true);
+        live.setMode("live");
+        assertThat(service.start(live, ACTOR).mode()).isEqualTo("LIVE");
+
+        repo.findOpenByPatient(PATIENT).ifPresent(c -> c.setStatus(ConsultationStatus.COMPLETED));
+        properties.setDefaultMode("live");
+        assertThat(service.start(start(true), ACTOR).mode()).isEqualTo("LIVE");
+        assertThat(service.config().defaultMode()).isEqualTo("live");
+    }
+
+    @Test
+    void anUnknownDefaultIsReadAsTheDocumentedOne() {
+        properties.setDefaultMode("sometimes");
+        assertThat(service.config().defaultMode()).isEqualTo("deferred");
+    }
+
+    @Test
+    void audioIsKeptOnlyWhereTheTranscriptIs() {
+        assertThat(service.config().keepAudio()).isTrue();
+        properties.setRetainTranscript(false);
+        assertThat(service.config().keepAudio()).isFalse();
+        properties.setRetainTranscript(true);
+        properties.setKeepAudio(false);
+        assertThat(service.config().keepAudio()).isFalse();
+    }
+
+    @Test
+    void theConversationIsKeptWithoutBeingReadWhileADeferredConsultationRecords() {
+        Consultation c = open(ConsultationStatus.INTAKE);
+
+        service.keepTranscript(c.getId(), "Bonjour docteur.");
+
+        assertThat(repo.findById(c.getId()).orElseThrow().getTranscript()).isEqualTo("Bonjour docteur.");
+        verify(extractor, never()).extract(any(), any(), any());
+    }
+
+    @Test
+    void discardingAConsultationTakesItsRecording() {
+        Consultation c = open(ConsultationStatus.REVIEW);
+        UUID audio = UUID.randomUUID();
+        c.setAudioFileId(audio);
+        c.setAudioDurationMs(60_000L);
+
+        service.abandon(c.getId());
+
+        verify(files).delete(c.getPracticeId(), audio);
+        Consultation after = repo.findById(c.getId()).orElseThrow();
+        assertThat(after.getAudioFileId()).isNull();
+        assertThat(after.getAudioDurationMs()).isNull();
     }
 
     // ── Switch and consent ──────────────────────────────────────────────

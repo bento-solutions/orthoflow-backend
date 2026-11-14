@@ -93,7 +93,8 @@ public class ConsultationCommitService {
                     .build();
         }
 
-        Consultation saved = writer.write(consultationId, request, actorId);
+        ConsultationRecordWriter.Written written = writer.write(consultationId, request, actorId);
+        Consultation saved = written.consultation();
         List<InsuranceFormDtos.Issued> forms = List.of();
         String formError = null;
         try {
@@ -115,6 +116,9 @@ public class ConsultationCommitService {
                 .appointmentId(saved.getAppointmentId())
                 .insuranceForms(forms)
                 .insuranceFormError(formError)
+                .invoiceId(written.invoiceId())
+                .invoiceNumber(written.invoiceNumber())
+                .receipts(written.receipts())
                 .build();
     }
 

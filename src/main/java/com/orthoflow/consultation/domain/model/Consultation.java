@@ -60,6 +60,27 @@ public class Consultation {
     @Column(length = 12)
     private String locale;
 
+    /** Whether commands acted while the doctor spoke, or only once the consultation ended. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 12)
+    private ConsultationMode mode = ConsultationMode.LIVE;
+
+    /** The recording of the conversation (a stored file owned by this consultation), if one is kept. */
+    @Column(name = "audio_file_id")
+    private UUID audioFileId;
+
+    /** When the browser started recording: line times minus this are positions in the audio. */
+    @Column(name = "audio_started_at")
+    private OffsetDateTime audioStartedAt;
+
+    @Column(name = "audio_duration_ms")
+    private Long audioDurationMs;
+
+    /** The draft invoice the save made for the acts done during the consultation. */
+    @Column(name = "invoice_id")
+    private UUID invoiceId;
+
     /** When the doctor attested the patient was told the conversation is transcribed and kept. */
     @Column(name = "patient_informed_at", nullable = false)
     private OffsetDateTime patientInformedAt;

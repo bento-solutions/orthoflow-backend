@@ -9,17 +9,26 @@ import com.orthoflow.consultation.application.dto.ConsultationResponse;
 import com.orthoflow.consultation.application.dto.ExtractionResponse;
 import com.orthoflow.consultation.application.dto.StartConsultationRequest;
 import com.orthoflow.consultation.application.dto.TranscriptRequest;
+import com.orthoflow.consultation.application.service.ConsultationAudioService;
 import com.orthoflow.consultation.application.service.ConsultationCommitService;
 import com.orthoflow.consultation.application.service.ConsultationLogService;
 import com.orthoflow.consultation.application.service.ConsultationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +49,7 @@ public class ConsultationController {
     private final ConsultationService consultationService;
     private final ConsultationCommitService commitService;
     private final ConsultationLogService logService;
+    private final ConsultationAudioService audioService;
     private final CurrentUserProvider currentUserProvider;
 
     /** Whether to offer the feature, and whether a model reads the conversation. */
@@ -93,6 +103,53 @@ public class ConsultationController {
     public ExtractionResponse extract(@PathVariable UUID id, @Valid @RequestBody TranscriptRequest request) {
         logService.record(id, request.getLines());
         return consultationService.extract(id, request.getTranscript(), request.getMode(), request.getKnown());
+    }
+
+    /**
+     * Keeps the conversation so far without reading it: what a consultation in the deferred mode
+     * sends while it records (nothing is read until it ends), so a crash loses nothing.
+     */
+    @PostMapping("/{id}/lines")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void keepLines(@PathVariable UUID id, @Valid @RequestBody TranscriptRequest request) {
+        logService.record(id, request.getLines());
+        consultationService.keepTranscript(id, request.getTranscript());
+    }
+
+    /**
+     * The recording of the conversation, sent once when the consultation ends (again replaces it).
+     * {@code startedAt} is when the browser started recording, so each line can be found in it.
+     */
+    @PostMapping(value = "/{id}/audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ConsultationResponse uploadAudio(@PathVariable UUID id, @RequestPart("file") MultipartFile file,
+                                            @RequestParam(required = false)
+                                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startedAt,
+                                            @RequestParam(required = false) Long durationMs) {
+        return audioService.store(id, file, startedAt, durationMs, currentUserProvider.requireUserId());
+    }
+
+    /** The recording, to listen to beside the timestamped transcript. Never cached by a shared proxy. */
+    @GetMapping("/{id}/audio")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<InputStreamResource> audio(@PathVariable UUID id) {
+        ConsultationAudioService.Playable playable = audioService.open(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(playable.file().getOriginalName(), StandardCharsets.UTF_8).build().toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .contentType(MediaType.parseMediaType(playable.file().getContentType()))
+                .contentLength(playable.file().getSizeBytes())
+                .body(new InputStreamResource(playable.content()));
+    }
+
+    /** Removes the recording; the transcript and everything validated stay. */
+    @DeleteMapping("/{id}/audio")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ConsultationResponse deleteAudio(@PathVariable UUID id) {
+        return audioService.delete(id);
     }
 
     /**

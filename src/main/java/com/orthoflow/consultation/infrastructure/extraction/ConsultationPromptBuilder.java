@@ -97,7 +97,9 @@ public final class ConsultationPromptBuilder {
                 16. treatmentPlan : les actes que LE DENTISTE propose ou prescrit pour la suite, un élément par \
                 acte. Un simple constat n'est pas un acte. teeth : numéros de dents FDI séparés par des virgules \
                 si le dentiste en cite. price : prix en dirhams annoncé pour cet acte, sinon null. \
-                treatmentCode : le code du catalogue ci-dessous qui correspond, sinon null.
+                treatmentCode : le code du catalogue ci-dessous qui correspond, sinon null. performed : true \
+                seulement si l'acte est fait PENDANT cette consultation (« je vous fais le détartrage maintenant », \
+                « voilà, c'est fait ») ; false s'il est proposé pour plus tard.
                 17. nextAppointment : si le dentiste fixe ou propose un prochain rendez-vous. inDays si c'est \
                 relatif (« dans 15 jours »), date (AAAA-MM-JJ) et time (HH:mm) s'ils sont dits.
                 18. chiefComplaint : le motif de la consultation, une phrase courte avec les mots du patient.
@@ -109,6 +111,10 @@ public final class ConsultationPromptBuilder {
                 22. chartMentions : un constat sur une dent précise dit pendant l'examen (« dent 16 carie occlusale », \
                 « la 45 est couronnée ») va ici, jamais dans medicalHistory. teeth : numéros FDI séparés par des \
                 virgules, finding : le constat en quelques mots, quote : l'extrait qui cite la dent.
+                23. payments : l'argent que le patient REMET pendant cette consultation (« je vous règle 500 dirhams \
+                en espèces », « voilà les 300 »). amount : le montant en dirhams, method parmi CASH (espèces), CARD \
+                (carte), CHEQUE, BANK_TRANSFER (virement), sinon null. Un prix annoncé pour un acte n'est pas un \
+                paiement. La quote doit contenir le montant.
 
                 FORMAT (JSON uniquement, ces clés exactement)
                 {
@@ -127,9 +133,10 @@ public final class ConsultationPromptBuilder {
                   "activeTreatments": [{"label": "", "detail": "", "type": "MEDICATION", "quote": ""}],
                   "allergies": [{"substance": "", "reaction": "", "severity": null, "quote": ""}],
                   "medicalHistory": [{"category": "CONDITION", "label": "", "detail": "", "quote": ""}],
-                  "treatmentPlan": [{"label": "", "treatmentCode": null, "teeth": null, "price": null, "notes": "", "quote": ""}],
+                  "treatmentPlan": [{"label": "", "treatmentCode": null, "teeth": null, "price": null, "notes": "", "performed": false, "quote": ""}],
                   "nextAppointment": {"date": null, "time": null, "inDays": null, "reason": "", "quote": ""} ou null,
-                  "chartMentions": [{"teeth": "16", "finding": "carie occlusale", "quote": ""}]
+                  "chartMentions": [{"teeth": "16", "finding": "carie occlusale", "quote": ""}],
+                  "payments": [{"amount": 500, "method": "CASH", "quote": ""}]
                 }
                 """.formatted(language == null || language.isBlank() ? "français" : language));
         if (tail) {

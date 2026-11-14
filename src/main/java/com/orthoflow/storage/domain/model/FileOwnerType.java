@@ -19,7 +19,13 @@ public enum FileOwnerType {
     INSURANCE_FORM(Permission.BILLING_READ, Permission.BILLING_WRITE, 15),
     PRESCRIPTION(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 5),
     /** Orthodontic photos and radiographs, owned by the patient (imaging module). */
-    CLINICAL_PHOTO(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 15);
+    CLINICAL_PHOTO(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 15),
+    /**
+     * The audio of a recorded consultation, owned by the consultation. Stored only through the
+     * consultation's own route (it sniffs audio, which the generic upload refuses), and capped
+     * there by {@code orthoflow.consultation.max-audio-megabytes}; this cap is the outer bound.
+     */
+    CONSULTATION_AUDIO(Permission.CLINICAL_READ, Permission.CLINICAL_WRITE, 200);
 
     private final Permission readPermission;
     private final Permission writePermission;

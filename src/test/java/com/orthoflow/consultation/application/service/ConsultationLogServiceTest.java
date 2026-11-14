@@ -1,5 +1,6 @@
 package com.orthoflow.consultation.application.service;
 
+import com.orthoflow.storage.application.service.FileService;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.VOICE_SESSION;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.consultation;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,7 +49,8 @@ class ConsultationLogServiceTest {
         properties = new ConsultationExtractionProperties();
         properties.setEnabled(true);
         properties.setTimezone("Africa/Casablanca");
-        service = new ConsultationLogService(repo, lines, voiceAudit, properties, new ObjectMapper().findAndRegisterModules());
+        service = new ConsultationLogService(repo, lines, voiceAudit, properties, new ObjectMapper().findAndRegisterModules(),
+                mock(FileService.class));
         consultation = repo.save(consultation(ConsultationStatus.INTAKE));
     }
 

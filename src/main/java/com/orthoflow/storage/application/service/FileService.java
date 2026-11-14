@@ -94,6 +94,24 @@ public class FileService {
                 .sha256(sha256(bytes)).storageKey(key).uploadedBy(actorId).build());
     }
 
+    /**
+     * Stores a recording. Its type is decided from the bytes, like an upload's, but only audio is
+     * accepted — and only here: the generic upload never takes audio, so a file served as audio is
+     * always one a consultation recorded.
+     */
+    @Transactional
+    public StoredFile storeAudio(UUID practiceId, FileOwnerType ownerType, UUID ownerId, String name,
+                                 byte[] bytes, long maxBytes, UUID actorId) {
+        if (bytes == null || bytes.length == 0) {
+            throw new ValidationException("The recording is empty");
+        }
+        long cap = Math.min(maxBytes, ownerType.maxBytes());
+        if (bytes.length > cap) {
+            throw new ValidationException("The recording is larger than " + cap / (1024 * 1024) + " MB");
+        }
+        return storeGenerated(practiceId, ownerType, ownerId, name, sniffAudio(bytes), bytes, actorId);
+    }
+
     @Transactional(readOnly = true)
     public StoredFile require(UUID practiceId, UUID id) {
         return files.findByIdAndPracticeIdAndDeletedAtIsNull(id, practiceId)
@@ -185,6 +203,21 @@ public class FileService {
                 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
         if (b.length >= 5 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F' && b[4] == '-') return "application/pdf";
         throw new ValidationException("Only PNG, JPEG, WebP and PDF files can be uploaded");
+    }
+
+    /**
+     * The type of a recording from its first bytes: WebM (Chrome, Firefox, Edge), Ogg, MP4 (Safari)
+     * or WAV. Anything else is refused.
+     */
+    public static String sniffAudio(byte[] b) {
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x1A && (b[1] & 0xFF) == 0x45 && (b[2] & 0xFF) == 0xDF && (b[3] & 0xFF) == 0xA3) {
+            return "audio/webm";
+        }
+        if (b.length >= 4 && b[0] == 'O' && b[1] == 'g' && b[2] == 'g' && b[3] == 'S') return "audio/ogg";
+        if (b.length >= 8 && b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return "audio/mp4";
+        if (b.length >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                && b[8] == 'W' && b[9] == 'A' && b[10] == 'V' && b[11] == 'E') return "audio/wav";
+        throw new ValidationException("Only WebM, Ogg, MP4 and WAV recordings can be kept");
     }
 
     private static String cleanName(String raw) {

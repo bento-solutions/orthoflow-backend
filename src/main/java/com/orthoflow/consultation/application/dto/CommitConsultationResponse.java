@@ -28,4 +28,9 @@ public record CommitConsultationResponse(
         /** The insurer care forms the save filled and sent to the front desk. */
         List<com.orthoflow.insurance.application.dto.InsuranceFormDtos.Issued> insuranceForms,
         /** Set when the consultation saved but its insurance forms could not be made; the front desk can make them by hand. */
-        String insuranceFormError) {}
+        String insuranceFormError,
+        /** The draft invoice made for the acts done today, when the doctor asked for one. */
+        UUID invoiceId,
+        String invoiceNumber,
+        /** How many payments were recorded as receipts. */
+        int receipts) {}

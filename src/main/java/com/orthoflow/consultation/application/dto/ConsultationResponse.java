@@ -22,6 +22,8 @@ public record ConsultationResponse(
         UUID actorId,
         UUID voiceSessionId,
         String status,
+        /** {@code LIVE} or {@code DEFERRED}: whether commands acted while recording or once it ended. */
+        String mode,
         String locale,
         OffsetDateTime patientInformedAt,
         String transcript,
@@ -33,6 +35,10 @@ public record ConsultationResponse(
         JsonNode reviewed,
         String report,
         UUID appointmentId,
+        /** The draft invoice the save made for the acts done during the consultation. */
+        UUID invoiceId,
+        /** The recording kept with the conversation, or null. */
+        ConsultationAudioResponse audio,
         OffsetDateTime startedAt,
         OffsetDateTime examinationStartedAt,
         OffsetDateTime endedAt,

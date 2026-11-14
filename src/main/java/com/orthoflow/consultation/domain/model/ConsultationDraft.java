@@ -30,7 +30,25 @@ public record ConsultationDraft(
         List<PlanItem> treatmentPlan,
         NextAppointment nextAppointment,
         /** Who produced it: {@code rules}, or {@code vendor:model} when a model did. */
-        String source) {
+        String source,
+        /**
+         * Money the patient handed over during the consultation ("je vous règle 500 dirhams en
+         * espèces"): proposed as a receipt for the doctor to validate, never recorded by itself.
+         * Never null once read; an older stored draft without it reads as empty.
+         */
+        List<Payment> payments) {
+
+    public ConsultationDraft {
+        payments = payments == null ? List.of() : payments;
+    }
+
+    /** A reading with no payment: what every draft was before the financial section existed. */
+    public ConsultationDraft(PatientFields patient, Quoted<String> chiefComplaint, List<ActiveTreatment> activeTreatments,
+                             List<Allergy> allergies, List<HistoryEntry> medicalHistory, List<PlanItem> treatmentPlan,
+                             NextAppointment nextAppointment, String source) {
+        this(patient, chiefComplaint, activeTreatments, allergies, medicalHistory, treatmentPlan, nextAppointment,
+                source, List.of());
+    }
 
     /** A value and the words it was taken from. */
     public record Quoted<T>(T value, String quote) {
@@ -80,7 +98,26 @@ public record ConsultationDraft(
                            BigDecimal price,
                            /** {@code SPOKEN} (the doctor said it) or {@code CATALOG} (the base price). */
                            String priceSource,
-                           String notes, String quote) {}
+                           String notes, String quote,
+                           /**
+                            * Done in this session ("je vous fais le détartrage maintenant") rather than
+                            * proposed for later. A done, priced act is what the save can invoice.
+                            */
+                           boolean performed) {
+
+        /** An act proposed for later — the plan line as it was read before "performed" existed. */
+        public PlanItem(String key, String label, UUID treatmentId, String treatmentCode, String teeth,
+                        BigDecimal price, String priceSource, String notes, String quote) {
+            this(key, label, treatmentId, treatmentCode, teeth, price, priceSource, notes, quote, false);
+        }
+    }
+
+    /**
+     * A payment said in the conversation. {@code amount} is in dirhams and is said in the
+     * conversation (in figures); {@code method} is one of {@code CASH}, {@code CARD},
+     * {@code CHEQUE}, {@code BANK_TRANSFER}, or null when it was not said.
+     */
+    public record Payment(String key, BigDecimal amount, String method, String quote) {}
 
     public record NextAppointment(
             /** ISO date, resolved on the server, never earlier than today. */
@@ -93,6 +130,6 @@ public record ConsultationDraft(
 
     public static ConsultationDraft empty(String source) {
         return new ConsultationDraft(PatientFields.empty(), null, List.of(), List.of(), List.of(), List.of(),
-                null, source);
+                null, source, List.of());
     }
 }

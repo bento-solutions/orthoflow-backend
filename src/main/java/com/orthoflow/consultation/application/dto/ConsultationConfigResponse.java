@@ -11,6 +11,11 @@ package com.orthoflow.consultation.application.dto;
  * @param cockpit         the one-screen consultation cockpit while recording; false brings back
  *                        the two panels of before (the rollback, no rebuild needed)
  * @param tailReading     the browser may ask for fast readings of the conversation's end
+ * @param defaultMode     {@code deferred} (nothing acts while recording; everything is turned into
+ *                        commands and proposals when the consultation ends) or {@code live}
+ * @param keepAudio       the audio of the conversation is recorded and kept with its transcript
+ * @param maxAudioMegabytes the largest recording the server keeps
  */
 public record ConsultationConfigResponse(boolean enabled, boolean modelExtraction, boolean retainTranscript,
-                                         boolean cockpit, boolean tailReading) {}
+                                         boolean cockpit, boolean tailReading, String defaultMode,
+                                         boolean keepAudio, int maxAudioMegabytes) {}

@@ -1,5 +1,6 @@
 package com.orthoflow.consultation.application.service;
 
+import com.orthoflow.storage.application.service.FileService;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.ACTOR;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.PATIENT;
 import static com.orthoflow.consultation.application.service.ConsultationFixtures.VOICE_SESSION;
@@ -65,7 +66,7 @@ class ConsultationCommitServiceTest {
         ConsultationExtractionProperties properties = new ConsultationExtractionProperties();
         properties.setEnabled(true);
         ConsultationService consultationService = new ConsultationService(repo, null, null, null, null, null, properties,
-                new ObjectMapper(), mock(ConsultationLogService.class));
+                new ObjectMapper(), mock(ConsultationLogService.class), mock(FileService.class));
         service = new ConsultationCommitService(repo, consultationService, writer, voiceCommit, voiceSessions, insuranceForms);
 
         consultation = repo.save(consultation(ConsultationStatus.REVIEW));
@@ -74,7 +75,7 @@ class ConsultationCommitServiceTest {
         when(voiceSessions.findById(VOICE_SESSION)).thenReturn(Optional.of(session));
         when(writer.write(any(), any(), any())).thenAnswer(invocation -> {
             consultation.setStatus(ConsultationStatus.COMPLETED);
-            return consultation;
+            return new ConsultationRecordWriter.Written(consultation, null, null, 0);
         });
     }
 

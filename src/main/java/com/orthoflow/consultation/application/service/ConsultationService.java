@@ -12,6 +12,7 @@ import com.orthoflow.consultation.application.dto.ExtractionResponse;
 import com.orthoflow.consultation.application.dto.StartConsultationRequest;
 import com.orthoflow.consultation.domain.model.Consultation;
 import com.orthoflow.consultation.domain.model.ConsultationDraft;
+import com.orthoflow.consultation.domain.model.ConsultationMode;
 import com.orthoflow.consultation.domain.model.ConsultationStatus;
 import com.orthoflow.consultation.domain.repository.ConsultationRepository;
 import com.orthoflow.consultation.infrastructure.extraction.ConsultationExtractionProperties;
@@ -19,6 +20,7 @@ import com.orthoflow.consultation.infrastructure.extraction.ConsultationExtracto
 import com.orthoflow.consultation.infrastructure.extraction.ConsultationPromptBuilder.CatalogEntry;
 import com.orthoflow.consultation.infrastructure.extraction.RuleBasedExtractor;
 import com.orthoflow.patient.application.port.PatientLookup;
+import com.orthoflow.storage.application.service.FileService;
 import com.orthoflow.treatment.domain.model.Treatment;
 import com.orthoflow.treatment.domain.repository.TreatmentRepository;
 import com.orthoflow.voice.application.dto.CompleteVoiceSessionRequest;
@@ -72,11 +74,19 @@ public class ConsultationService {
     private final ConsultationExtractionProperties properties;
     private final ObjectMapper objectMapper;
     private final ConsultationLogService logs;
+    private final FileService files;
 
     public ConsultationConfigResponse config() {
         return new ConsultationConfigResponse(properties.isEnabled(), properties.isEnabled() && extractor.isModelEnabled(),
                 properties.isRetainTranscript(), properties.isCockpitEnabled(),
-                properties.isEnabled() && extractor.isTailEnabled());
+                properties.isEnabled() && extractor.isTailEnabled(),
+                defaultMode().name().toLowerCase(java.util.Locale.ROOT),
+                properties.audioKept(), properties.getMaxAudioMegabytes());
+    }
+
+    /** The deployment's default; a value it does not know is the deferred mode, the documented default. */
+    ConsultationMode defaultMode() {
+        return ConsultationMode.parse(properties.getDefaultMode(), ConsultationMode.DEFERRED);
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────
@@ -108,6 +118,7 @@ public class ConsultationService {
                 .actorId(actorId)
                 .voiceSessionId(voiceSession.id())
                 .status(ConsultationStatus.INTAKE)
+                .mode(ConsultationMode.parse(request.getMode(), defaultMode()))
                 .locale(request.getLocale())
                 .patientInformedAt(OffsetDateTime.now())
                 .transcript("")
@@ -144,6 +155,20 @@ public class ConsultationService {
         ConsultationExtractor.Extraction result = extractor.extract(transcript, catalog(), today());
         ConsultationDraft draft = remember(id, transcript, result);
         return new ExtractionResponse(draft, result.error(), result.truncated(), result.chartMentions(), List.of(), "full");
+    }
+
+    /**
+     * Keeps the conversation without reading it — what a consultation in the deferred mode sends
+     * while it records, so a crash loses nothing although no model has been asked anything yet.
+     * The lines themselves are stored by the caller ({@link ConsultationLogService#record}).
+     */
+    public void keepTranscript(UUID id, String transcript) {
+        requireEnabled();
+        Consultation consultation = require(id);
+        if (!consultation.getStatus().isOpen()) {
+            throw new ValidationException("This consultation is closed.");
+        }
+        rememberTranscript(id, transcript);
     }
 
     private void rememberTranscript(UUID id, String transcript) {
@@ -229,6 +254,7 @@ public class ConsultationService {
         consultation.setDraft(null);
         consultation.setReviewState(null);
         logs.erase(consultation.getId());
+        eraseAudio(consultation);
         moveVoiceSession(consultation, VoiceSessionStatus.ABANDONED,
                 VoiceSessionStatus.ACTIVE, VoiceSessionStatus.PENDING_REVIEW);
         return consultations.save(consultation);
@@ -258,6 +284,7 @@ public class ConsultationService {
             consultation.setDraft(null);
             consultation.setReviewState(null);
             logs.erase(consultation.getId());
+            eraseAudio(consultation);
             consultations.save(consultation);
             return false;
         }
@@ -408,6 +435,23 @@ public class ConsultationService {
                 .count();
     }
 
+    /**
+     * Deletes the recording (the row is soft-deleted, the bytes go once the transaction commits)
+     * and unlinks it. A conversation that is not kept is not kept as audio either.
+     */
+    void eraseAudio(Consultation consultation) {
+        UUID fileId = consultation.getAudioFileId();
+        if (fileId == null) return;
+        try {
+            files.delete(consultation.getPracticeId(), fileId);
+        } catch (NotFoundException alreadyGone) {
+            // Deleted by hand or by an erasure; the link is what is left to clear.
+        }
+        consultation.setAudioFileId(null);
+        consultation.setAudioStartedAt(null);
+        consultation.setAudioDurationMs(null);
+    }
+
     private void moveVoiceSession(Consultation consultation, VoiceSessionStatus target,
                                   VoiceSessionStatus... onlyFrom) {
         if (consultation.getVoiceSessionId() == null) return;
@@ -435,6 +479,7 @@ public class ConsultationService {
                 .actorId(c.getActorId())
                 .voiceSessionId(c.getVoiceSessionId())
                 .status(c.getStatus().name())
+                .mode(c.getMode() == null ? ConsultationMode.LIVE.name() : c.getMode().name())
                 .locale(c.getLocale())
                 .patientInformedAt(c.getPatientInformedAt())
                 .transcript(withTranscript ? c.getTranscript() : null)
@@ -444,6 +489,8 @@ public class ConsultationService {
                 .reviewed(readJson(c.getReviewed()))
                 .report(c.getReport())
                 .appointmentId(c.getAppointmentId())
+                .invoiceId(c.getInvoiceId())
+                .audio(logs.audio(c))
                 .startedAt(c.getStartedAt())
                 .examinationStartedAt(c.getExaminationStartedAt())
                 .endedAt(c.getEndedAt())

@@ -48,8 +48,11 @@ spring:
       # dictation is not truncated — SpeechToTextService rejects anything
       # over orthoflow.voice.stt.max-audio-bytes with a 400 before the
       # provider call, so this is only the outer backstop.
-      max-file-size: ${VOICE_STT_MAX_UPLOAD:15MB}
-      max-request-size: 16MB
+      # Raised for a consultation's recording (POST /consultations/{id}/audio), which
+      # has its own cap (orthoflow.consultation.max-audio-megabytes). Every other
+      # upload keeps its own, smaller limit (FileOwnerType, max-audio-bytes).
+      max-file-size: ${UPLOAD_MAX_FILE:101MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST:102MB}
 
 app:
   jwt:
@@ -311,6 +314,15 @@ orthoflow:
     # An open consultation untouched for this long is discarded, transcript and
     # all (checked hourly). Runs even with the feature off.
     idle-discard-hours: ${CONSULTATION_IDLE_DISCARD_HOURS:24}
+    # deferred (default): nothing acts while recording; when the consultation ends the whole
+    # conversation is turned into commands and proposals for the doctor to validate.
+    # live: the chart commands act and are read back while the doctor speaks. The doctor can
+    # still pick the other one when starting.
+    default-mode: ${CONSULTATION_DEFAULT_MODE:deferred}
+    # Record the audio of the conversation and keep it beside the timestamped transcript (the
+    # dossier's Documents tab). Only kept where the transcript is (retain-transcript).
+    keep-audio: ${CONSULTATION_KEEP_AUDIO:true}
+    max-audio-megabytes: ${CONSULTATION_MAX_AUDIO_MB:100}
     extraction:
       # Off: nothing is sent to a model; the side panel still shows what simple
       # rules can read (phone, CIN, age, insurer, allergies).

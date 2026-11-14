@@ -82,6 +82,7 @@ public class AuditLog {
                                 WHEN f.owner_type = 'PRESCRIPTION' THEN (SELECT patient_id FROM prescriptions WHERE id = f.owner_id)
                                 WHEN f.owner_type = 'INSURANCE_FORM' THEN (SELECT patient_id FROM insurance_forms WHERE id = f.owner_id)
                                 WHEN f.owner_type = 'LAB_ORDER' THEN (SELECT patient_id FROM lab_orders WHERE id = f.owner_id)
+                                WHEN f.owner_type = 'CONSULTATION_AUDIO' THEN (SELECT patient_id FROM consultations WHERE id = f.owner_id)
                                 WHEN f.owner_type = 'TAX_DOCUMENT' THEN (SELECT patient_id FROM tax_documents WHERE id = f.owner_id)
                            END
                     FROM files f WHERE f.id = ? AND f.practice_id = ?

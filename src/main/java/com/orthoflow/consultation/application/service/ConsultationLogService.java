@@ -4,15 +4,19 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.consultation.application.dto.ConsultationAudioResponse;
 import com.orthoflow.consultation.application.dto.ConsultationLogResponse;
 import com.orthoflow.consultation.application.dto.TranscriptRequest;
 import com.orthoflow.consultation.domain.model.Consultation;
+import com.orthoflow.consultation.domain.model.ConsultationMode;
 import com.orthoflow.consultation.domain.model.ConsultationStatus;
 import com.orthoflow.consultation.domain.model.ConsultationTranscriptLine;
 import com.orthoflow.consultation.domain.model.ConsultationTranscriptLine.Phase;
 import com.orthoflow.consultation.domain.repository.ConsultationLineRepository;
 import com.orthoflow.consultation.domain.repository.ConsultationRepository;
 import com.orthoflow.consultation.infrastructure.extraction.ConsultationExtractionProperties;
+import com.orthoflow.storage.application.service.FileService;
+import com.orthoflow.storage.domain.model.StoredFile;
 import com.orthoflow.voice.application.dto.VoiceCommandAuditResponse;
 import com.orthoflow.voice.application.service.VoiceAuditService;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +60,7 @@ public class ConsultationLogService {
     private final VoiceAuditService voiceAudit;
     private final ConsultationExtractionProperties properties;
     private final ObjectMapper objectMapper;
+    private final FileService files;
 
     /**
      * Stores the lines not stored yet. Deliberately not one transaction around
@@ -147,6 +152,7 @@ public class ConsultationLogService {
                 .patientId(c.getPatientId())
                 .actorId(c.getActorId())
                 .status(c.getStatus().name())
+                .mode(c.getMode() == null ? ConsultationMode.LIVE.name() : c.getMode().name())
                 .locale(c.getLocale())
                 .patientInformedAt(c.getPatientInformedAt())
                 .startedAt(c.getStartedAt())
@@ -158,7 +164,20 @@ public class ConsultationLogService {
                 .commands(commands)
                 .reviewed(readJson(c.getReviewed()))
                 .report(c.getReport())
+                .audio(audio(c))
                 .build();
+    }
+
+    /** The recording's description, or null when there is none (or its file is gone). */
+    public ConsultationAudioResponse audio(Consultation c) {
+        if (c.getAudioFileId() == null) return null;
+        try {
+            StoredFile file = files.require(c.getPracticeId(), c.getAudioFileId());
+            return new ConsultationAudioResponse(file.getId(), file.getContentType(), file.getSizeBytes(),
+                    c.getAudioStartedAt(), c.getAudioDurationMs());
+        } catch (NotFoundException gone) {
+            return null;
+        }
     }
 
     /**

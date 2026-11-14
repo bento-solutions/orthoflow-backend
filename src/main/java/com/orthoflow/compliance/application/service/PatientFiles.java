@@ -39,6 +39,8 @@ public class PatientFiles {
             case PRESCRIPTION -> "SELECT id FROM prescriptions WHERE patient_id = :p";
             case INSURANCE_FORM -> "SELECT id FROM insurance_forms WHERE patient_id = :p";
             case LAB_ORDER -> "SELECT id FROM lab_orders WHERE patient_id = :p";
+            // The recording of a consultation: the patient's voice, so erased and exported with them.
+            case CONSULTATION_AUDIO -> "SELECT id FROM consultations WHERE patient_id = :p";
             // Nothing attaches files to messages yet; when something does, it attaches them to the outbox row.
             case MESSAGE_ATTACHMENT -> "SELECT id FROM message_outbox WHERE patient_id = :p";
             // Fee notes and care sheets: financial records the law keeps, so only anonymisation touches them.
