@@ -3,7 +3,6 @@ package com.orthoflow.storage.application.service;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.storage.application.port.StorageService;
-import com.orthoflow.storage.domain.model.DocumentCategory;
 import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.storage.domain.model.StoredFile;
 import com.orthoflow.storage.infrastructure.StoredFileJpaRepository;
@@ -43,17 +42,6 @@ public class FileService {
      */
     @Transactional
     public StoredFile store(UUID practiceId, FileOwnerType ownerType, UUID ownerId, MultipartFile upload, UUID actorId) {
-        return store(practiceId, ownerType, ownerId, upload, null, actorId);
-    }
-
-    /**
-     * Stores an upload with what it is. Only a patient document has a category, and a document
-     * with one must be a picture: the dossier displays them.
-     */
-    @Transactional
-    public StoredFile store(UUID practiceId, FileOwnerType ownerType, UUID ownerId, MultipartFile upload,
-                            DocumentCategory category, UUID actorId) {
-        checkCategory(ownerType, category);
         if (upload == null || upload.isEmpty()) {
             throw new ValidationException("The file is empty");
         }
@@ -67,9 +55,6 @@ public class FileService {
             throw new UncheckedIOException(e);
         }
         String contentType = sniff(bytes);
-        if (category != null && !contentType.startsWith("image/")) {
-            throw new ValidationException("An X-ray, an intraoral scan or an image must be a PNG, JPEG or WebP picture");
-        }
         UUID id = UUID.randomUUID();
         String key = practiceId + "/" + ownerType.name().toLowerCase() + "/" + id;
         try {
@@ -83,7 +68,6 @@ public class FileService {
                 .practiceId(practiceId)
                 .ownerType(ownerType)
                 .ownerId(ownerId)
-                .category(category)
                 .originalName(cleanName(upload.getOriginalFilename()))
                 .contentType(contentType)
                 .sizeBytes(bytes.length)
@@ -126,24 +110,6 @@ public class FileService {
             throw new ValidationException("The recording is larger than " + cap / (1024 * 1024) + " MB");
         }
         return storeGenerated(practiceId, ownerType, ownerId, name, sniffAudio(bytes), bytes, actorId);
-    }
-
-    /** Says again what a patient document is. A document with a category must be a picture. */
-    @Transactional
-    public StoredFile recategorise(UUID practiceId, UUID id, DocumentCategory category) {
-        StoredFile file = require(practiceId, id);
-        checkCategory(file.getOwnerType(), category);
-        if (category != null && !file.getContentType().startsWith("image/")) {
-            throw new ValidationException("Only a picture can be an X-ray, an intraoral scan or an image");
-        }
-        file.setCategory(category);
-        return file;
-    }
-
-    private static void checkCategory(FileOwnerType ownerType, DocumentCategory category) {
-        if (category != null && ownerType != FileOwnerType.PATIENT_DOCUMENT) {
-            throw new ValidationException("Only a patient document has a category");
-        }
     }
 
     @Transactional(readOnly = true)

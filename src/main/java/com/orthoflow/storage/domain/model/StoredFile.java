@@ -30,11 +30,6 @@ public class StoredFile {
     @Column(name = "owner_id")
     private UUID ownerId;
 
-    /** What a patient document is; null for every other kind of file. */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "category", length = 32)
-    private DocumentCategory category;
-
     @Column(name = "original_name", nullable = false)
     private String originalName;
 
