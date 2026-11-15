@@ -56,8 +56,11 @@ public class FileService {
         if (upload == null || upload.isEmpty()) {
             throw new ValidationException("The file is empty");
         }
-        if (upload.getSize() > ownerType.maxBytes()) {
-            throw new ValidationException("The file is larger than " + ownerType.maxBytes() / (1024 * 1024) + " MB");
+        // An intraoral scan may be a 3D model, and a full-arch one runs to tens of megabytes.
+        boolean mayBeModel = category == DocumentCategory.INTRAORAL_3D;
+        long cap = mayBeModel ? Math.max(MODEL_MAX_BYTES, ownerType.maxBytes()) : ownerType.maxBytes();
+        if (upload.getSize() > cap) {
+            throw new ValidationException("The file is larger than " + cap / (1024 * 1024) + " MB");
         }
         byte[] bytes;
         try {
@@ -65,7 +68,11 @@ public class FileService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        String contentType = sniff(bytes);
+        String model = mayBeModel ? sniffModel(bytes, upload.getOriginalFilename()) : null;
+        String contentType = model != null ? model : sniff(bytes);
+        if (model == null && bytes.length > ownerType.maxBytes()) {
+            throw new ValidationException("The file is larger than " + ownerType.maxBytes() / (1024 * 1024) + " MB");
+        }
         UUID id = UUID.randomUUID();
         String key = practiceId + "/" + ownerType.name().toLowerCase() + "/" + id;
         try {
@@ -215,6 +222,84 @@ public class FileService {
                 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
         if (b.length >= 5 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F' && b[4] == '-') return "application/pdf";
         throw new ValidationException("Only PNG, JPEG, WebP and PDF files can be uploaded");
+    }
+
+    /** The largest 3D model an intraoral scan may be: a full-arch STL is commonly 20 to 60 MB. */
+    public static final long MODEL_MAX_BYTES = 100L * 1024 * 1024;
+
+    /**
+     * The type of a 3D model from its bytes: STL (binary or ASCII), PLY, OBJ, 3MF, and glTF
+     * (binary .glb, or .gltf with its buffers embedded). Null when the bytes are none of these.
+     * The models are served as attachments with nosniff, never inline, and the browser only
+     * ever reads them as data for the viewer.
+     */
+    public static String sniffModel(byte[] b, String name) {
+        if (b.length >= 4 && b[0] == 'g' && b[1] == 'l' && b[2] == 'T' && b[3] == 'F') return "model/gltf-binary";
+        if (startsWith(b, "ply\n") || startsWith(b, "ply\r\n")) return "model/x-ply";
+        if (b.length >= 84) {
+            // Binary STL: an 80-byte header, a little-endian triangle count, 50 bytes per triangle.
+            long triangles = (b[80] & 0xFFL) | (b[81] & 0xFFL) << 8 | (b[82] & 0xFFL) << 16 | (b[83] & 0xFFL) << 24;
+            // Some exporters pad the end; a few hundred bytes over is still the same file.
+            long expected = 84 + 50 * triangles;
+            if (triangles > 0 && b.length >= expected && b.length - expected < 512) return "model/stl";
+        }
+        if (b.length >= 4 && b[0] == 'P' && b[1] == 'K' && b[2] == 3 && b[3] == 4 && isThreeMf(b)) return "model/3mf";
+        String head = asciiHead(b, 4096);
+        if (head == null) return null;
+        String trimmed = head.stripLeading();
+        if (trimmed.startsWith("solid") && head.contains("facet")) return "model/stl";
+        if (trimmed.startsWith("{") && head.contains("\"asset\"") && lowerName(name).endsWith(".gltf")) return "model/gltf+json";
+        if (lowerName(name).endsWith(".obj") && looksLikeObj(head)) return "model/obj";
+        return null;
+    }
+
+    private static boolean startsWith(byte[] b, String prefix) {
+        if (b.length < prefix.length()) return false;
+        for (int i = 0; i < prefix.length(); i++) if (b[i] != prefix.charAt(i)) return false;
+        return true;
+    }
+
+    private static String lowerName(String name) {
+        return name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** The first bytes as text, or null when they hold anything but printable ASCII and whitespace. */
+    private static String asciiHead(byte[] b, int max) {
+        int n = Math.min(b.length, max);
+        for (int i = 0; i < n; i++) {
+            int c = b[i] & 0xFF;
+            if (c >= 0x7F || (c < 0x20 && c != '\n' && c != '\r' && c != '\t')) return null;
+        }
+        return new String(b, 0, n, java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
+    /** OBJ is plain text whose every statement starts with one of a few keywords. */
+    private static boolean looksLikeObj(String head) {
+        boolean vertex = false;
+        for (String line : head.split("\r?\n")) {
+            String l = line.strip();
+            if (l.isEmpty() || l.startsWith("#")) continue;
+            String keyword = l.split("\\s+", 2)[0];
+            if (keyword.equals("v")) vertex = true;
+            else if (!java.util.Set.of("vn", "vt", "vp", "f", "l", "p", "o", "g", "s", "mtllib", "usemtl").contains(keyword)) {
+                // The last line of the head may be cut mid-statement.
+                if (head.endsWith(line)) break;
+                return false;
+            }
+        }
+        return vertex;
+    }
+
+    /** A 3MF is a zip whose model part is 3D/3dmodel.model. */
+    private static boolean isThreeMf(byte[] b) {
+        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(b))) {
+            for (java.util.zip.ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                if (e.getName().equalsIgnoreCase("3D/3dmodel.model")) return true;
+            }
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+        return false;
     }
 
     /**
