@@ -3,6 +3,7 @@ package com.orthoflow.storage.application.service;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.storage.application.port.StorageService;
+import com.orthoflow.storage.domain.model.DocumentCategory;
 import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.storage.domain.model.StoredFile;
 import com.orthoflow.storage.infrastructure.StoredFileJpaRepository;
@@ -42,6 +43,16 @@ public class FileService {
      */
     @Transactional
     public StoredFile store(UUID practiceId, FileOwnerType ownerType, UUID ownerId, MultipartFile upload, UUID actorId) {
+        return store(practiceId, ownerType, ownerId, upload, actorId, null);
+    }
+
+    /** As {@link #store}, recording what a patient document is. Only patient documents take a category. */
+    @Transactional
+    public StoredFile store(UUID practiceId, FileOwnerType ownerType, UUID ownerId, MultipartFile upload, UUID actorId,
+                            DocumentCategory category) {
+        if (category != null && ownerType != FileOwnerType.PATIENT_DOCUMENT) {
+            throw new ValidationException("Only a patient document takes a category");
+        }
         if (upload == null || upload.isEmpty()) {
             throw new ValidationException("The file is empty");
         }
@@ -73,6 +84,7 @@ public class FileService {
                 .sizeBytes(bytes.length)
                 .sha256(sha256(bytes))
                 .storageKey(key)
+                .category(category)
                 .uploadedBy(actorId)
                 .build());
     }
