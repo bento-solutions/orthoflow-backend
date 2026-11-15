@@ -222,6 +222,46 @@ public class ConsultationService {
     }
 
     /**
+     * The doctor forgot something, or wants to add to the dossier before saving: recording starts
+     * again on the same consultation. Nothing already caught is lost — the conversation, its lines,
+     * the review the doctor has started and the audio stay as they are — and ending it again reads
+     * what was added.
+     *
+     * <p>Goes back to the examination when one was called, else to the intake. The dictated session
+     * goes back to dictating with it. Refused once a save has written chart findings: that
+     * consultation is half on the record and must be saved to finish.
+     */
+    @Transactional
+    public ConsultationResponse reopen(UUID id) {
+        requireEnabled();
+        Consultation consultation = require(id);
+        if (consultation.getStatus().isRecording()) {
+            return toResponse(consultation, true);
+        }
+        if (consultation.getStatus() != ConsultationStatus.REVIEW) {
+            throw new ValidationException("The consultation is " + consultation.getStatus() + " and cannot be continued.");
+        }
+        long written = writtenChartFindings(consultation);
+        if (written > 0) {
+            throw new ConflictException(written + " chart finding(s) from this consultation are already in the "
+                    + "patient's chart. Save the consultation to finish it, then start a new one.");
+        }
+        consultation.setStatus(consultation.getExaminationStartedAt() != null
+                ? ConsultationStatus.EXAMINATION : ConsultationStatus.INTAKE);
+        consultation.setEndedAt(null);
+        consultation.touch();
+        if (consultation.getVoiceSessionId() != null) {
+            try {
+                voiceSessions.reopen(consultation.getVoiceSessionId());
+            } catch (NotFoundException e) {
+                // The session is gone (an erasure); the consultation carries on without it.
+                log.warn("Consultation {} lost its voice session", consultation.getId());
+            }
+        }
+        return toResponse(consultations.save(consultation), true);
+    }
+
+    /**
      * Throws the consultation away. What was recorded is erased with it — a
      * conversation the doctor decided not to keep must not linger on the server
      * in a row nobody will ever open. Refused once a save has written chart
