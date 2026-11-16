@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<!--
+  The frame every printed document shares: the page box, the palette, and the clinic's header and
+  legal footer, which repeat on every page as running elements. A template puts
+      <style th:replace="~{frame :: style('A4', '38mm 14mm 24mm 14mm')}"></style>
+  in its head, and these two as the first things in its body, before any content:
+      <div th:replace="~{frame :: header(${title}, ${reference}, ${practitionerLine})}"></div>
+      <div th:replace="~{frame :: footer(${withRib})}"></div>
+  title is what the document is (null leaves the right-hand column out, for a narrow page whose body
+  already says it); reference is its number and date, parts separated by " · " going on lines of their own.
+  It needs ${letterhead} in the model. Its own styles go in a second <style> after the first.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <style th:fragment="style(size, margin)">
+    @page {
+      size: [(${size})];
+      margin: [(${margin})];
+      @top-center { content: element(page-header); vertical-align: bottom; padding-bottom: 4mm; }
+      @bottom-center { content: element(page-footer); vertical-align: top; padding-top: 3mm; }
+    }
+    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
+
+    /* The clinic's identity is written in Latin script: it reads left to right in an Arabic document too. */
+    #page-header { position: running(page-header); width: 100%; direction: ltr; text-align: left; }
+    #page-footer { position: running(page-footer); width: 100%; direction: ltr; text-align: left; }
+    table.ph { width: 100%; border-collapse: collapse; border-bottom: 1.5pt solid #237489; }
+    table.ph td { vertical-align: bottom; padding: 0 0 2.5mm 0; }
+    td.ph-logo { width: 1%; padding-right: 4mm; }
+    td.ph-logo img { max-height: 17mm; max-width: 42mm; }
+    .ph-name { font-size: 13pt; font-weight: bold; color: #237489; }
+    .ph-who { font-size: 8.5pt; font-weight: bold; color: #215e6f; margin-top: 0.5mm; }
+    .ph-line { font-size: 7.8pt; color: #52606d; margin-top: 0.4mm; }
+    td.ph-doc { text-align: right; width: 27%; padding-left: 3mm; }
+    [dir=rtl] td.ph-doc { direction: rtl; }
+    .nw { white-space: nowrap; }
+    .ph-title { font-size: 8.5pt; font-weight: bold; color: #215e6f; text-transform: uppercase; letter-spacing: 0.4pt; }
+    .ph-ref { font-size: 7.8pt; color: #52606d; margin-top: 0.4mm; }
+    table.pf { width: 100%; border-collapse: collapse; border-top: 0.6pt solid #c8dde3; }
+    table.pf td { vertical-align: top; padding-top: 1.5mm; font-size: 7pt; color: #52606d; }
+    td.pf-page { text-align: right; width: 14mm; white-space: nowrap; color: #7b8794; direction: ltr; }
+    .pageno::before { content: counter(page); }
+    .pagecount::before { content: counter(pages); }
+
+    h1 { font-size: 15pt; margin: 0 0 1mm 0; color: #1f2933; letter-spacing: 0.3pt; }
+    h2 { font-size: 11pt; margin: 14px 0 4px 0; color: #215e6f; border-bottom: 1px solid #c8dde3; padding-bottom: 2px; }
+    .subtitle { color: #52606d; font-size: 8.5pt; margin: 0 0 3mm 0; }
+    .legal { font-size: 8pt; color: #52606d; }
+    .muted { color: #7b8794; }
+    .label { color: #7b8794; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.3pt; }
+    .box { border: 1px solid #c8dde3; padding: 6px 8px; background: #f3f9fa; }
+    .meta { width: 100%; margin: 4mm 0 4mm 0; border-collapse: collapse; }
+    .meta td { vertical-align: top; width: 50%; padding: 0 3mm 0 0; }
+    .meta td + td { padding: 0 0 0 3mm; }
+    .stamp { color: #b91c1c; font-weight: bold; border: 1.5pt solid #b91c1c; padding: 1px 7px; font-size: 9pt; margin-left: 8px; }
+    table.lines { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+    table.lines th { background: #e3f0f3; border: 1px solid #c8dde3; padding: 4px 6px; font-size: 8pt; text-align: left; color: #1f2933; }
+    table.lines td { border: 1px solid #dde3ee; padding: 4px 6px; vertical-align: top; }
+    table.lines tr { page-break-inside: avoid; }
+    [dir=rtl] table.lines th { text-align: right; }
+    .right { text-align: right; } .center { text-align: center; }
+    th.right { text-align: right; } th.center { text-align: center; }
+    table.totals { width: 52%; margin-left: auto; border-collapse: collapse; margin-top: 3mm; page-break-inside: avoid; }
+    [dir=rtl] table.totals { margin-left: 0; margin-right: auto; }
+    table.totals td { padding: 2.5px 6px; }
+    table.totals tr.grand td { font-weight: bold; border-top: 1.5pt solid #237489; font-size: 10.5pt; padding-top: 4px; }
+    .words { margin-top: 4mm; padding: 6px 8px; border: 1px dashed #9aa5b1; page-break-inside: avoid; }
+    table.sign { margin-top: 8mm; width: 100%; page-break-inside: avoid; }
+    table.sign td { width: 50%; height: 24mm; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <!-- The header: the clinic on the left, under its logo's side, and what this document is on the right. -->
+  <div th:fragment="header(title, reference, practitionerLine)" id="page-header" dir="ltr">
+    <table class="ph"><tr>
+      <td class="ph-logo" th:if="${letterhead.logoDataUri != null}"><img th:src="${letterhead.logoDataUri}" th:alt="${letterhead.name}"/></td>
+      <td>
+        <div class="ph-name" th:text="${letterhead.name}">Cabinet</div>
+        <div class="ph-who" th:if="${practitionerLine != null}" th:text="${practitionerLine}">Dr · INPE</div>
+        <div class="ph-line" th:if="${letterhead.addressLine() != null}" th:text="${letterhead.addressLine()}">Adresse</div>
+        <div class="ph-line" th:unless="${letterhead.contactParts().isEmpty()}"><th:block th:each="part, at : ${letterhead.contactParts()}"><span class="nw" th:text="${at.last ? part : part + ' ·'}">05 22 00 00 00 ·</span> </th:block></div>
+      </td>
+      <td class="ph-doc" th:if="${title != null}">
+        <div class="ph-title" th:text="${title}">Document</div>
+        <th:block th:if="${reference != null}"><div class="ph-ref" th:each="part : ${#strings.arraySplit(reference, '·')}" th:text="${#strings.trim(part)}">N°</div></th:block>
+      </td>
+    </tr></table>
+  </div>
+
+  <!-- The footer: the clinic's legal identity (and its RIB on a document that asks to be paid), and the page. -->
+  <div th:fragment="footer(withRib)" id="page-footer" dir="ltr">
+    <table class="pf"><tr>
+      <td>
+        <div th:unless="${letterhead.legalParts().isEmpty()}"><th:block th:each="part, at : ${letterhead.legalParts()}"><span class="nw" th:text="${at.last ? part : part + ' ·'}">ICE ·</span> </th:block></div>
+        <div th:if="${withRib and letterhead.ribLine() != null}" th:text="${letterhead.ribLine()}">RIB</div>
+      </td>
+      <td class="pf-page"><span class="pageno"></span> / <span class="pagecount"></span></td>
+    </tr></table>
+  </div>
+</body>
+</html>

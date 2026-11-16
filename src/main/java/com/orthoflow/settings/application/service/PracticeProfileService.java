@@ -44,6 +44,7 @@ public class PracticeProfileService {
         p.setIce(blankToNull(request.ice()));
         p.setTaxId(blankToNull(request.taxId()));
         p.setPatente(blankToNull(request.patente()));
+        p.setRc(blankToNull(request.rc()));
         p.setCnssNumber(blankToNull(request.cnssNumber()));
         p.setRib(blankToNull(request.rib()));
         p.setInpe(blankToNull(request.inpe()));

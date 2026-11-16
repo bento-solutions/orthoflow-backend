@@ -8,6 +8,7 @@ import com.orthoflow.export.application.dto.TableExport;
 import com.orthoflow.export.application.dto.TableExport.Column;
 import com.orthoflow.finance.application.dto.FinanceDtos.*;
 import com.orthoflow.finance.infrastructure.FinanceQuery;
+import com.orthoflow.export.infrastructure.Cells;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -65,7 +66,7 @@ public class FinanceService {
         List<List<Object>> rows = summary.rows().stream().map(r -> List.<Object>of(nz(r.patientCode()), r.lastName().toUpperCase() + " " + r.firstName(),
                 nz(r.phone()), r.fees(), r.paid(), r.balance(), r.credit(), r.lastPayment() == null ? "" : r.lastPayment())).toList();
         return new TableExport(en ? "Patient balances" : ar ? "أرصدة المرضى" : "Situation des patients",
-                from == null ? null : from + " → " + to, columns, rows,
+                from == null ? null : Cells.period(from, to), columns, rows,
                 List.of("Total", "", "", summary.totalFees(), summary.totalPaid(), summary.totalOwed(), summary.totalCredit(), ""));
     }
 
@@ -102,7 +103,7 @@ public class FinanceService {
         rows.add(List.of(en ? "Result" : ar ? "النتيجة" : "Résultat", d.result()));
         d.collectionsByMethod().forEach(b -> rows.add(List.of("  " + (en ? "Collected by " : ar ? "مقبوض ب" : "Encaissé par ") + b.label(), b.amount())));
         d.expensesByCategory().forEach(b -> rows.add(List.of("  " + b.label(), b.amount())));
-        return new TableExport(en ? "Financial dashboard" : ar ? "اللوحة المالية" : "Tableau de bord financier", d.from() + " → " + d.to(),
+        return new TableExport(en ? "Financial dashboard" : ar ? "اللوحة المالية" : "Tableau de bord financier", Cells.period(d.from(), d.to()),
                 List.of(Column.text(metric), Column.number(value)), rows.stream().map(r -> List.<Object>of(r.get(0), r.get(1))).toList());
     }
 

@@ -8,6 +8,7 @@ import com.orthoflow.reporting.application.dto.AnalyticsDtos.*;
 import com.orthoflow.reporting.infrastructure.ReportingQuery;
 import com.orthoflow.reporting.infrastructure.ReportingQuery.DayAmount;
 import com.orthoflow.reporting.infrastructure.ReportingQuery.ExpenseDay;
+import com.orthoflow.export.infrastructure.Cells;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -143,7 +144,7 @@ public class IncomeStatementService {
             cells.add(r.total() == null ? "" : r.total());
             rows.add(cells);
         }
-        return new TableExport(l.get("title"), s.from() + " → " + s.to(), columns, rows);
+        return new TableExport(l.get("title"), Cells.period(s.from(), s.to()), columns, rows);
     }
 
     // ── Periods ──

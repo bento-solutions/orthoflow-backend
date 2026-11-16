@@ -27,7 +27,8 @@ public class PracticeLetterheadProvider implements LetterheadProvider {
     public Letterhead forPractice(UUID practiceId) {
         PracticeProfile p = profiles.require(practiceId);
         return new Letterhead(p.getName(), p.getLegalName(), p.getIce(), p.getTaxId(), p.getPatente(), p.getRib(),
-                p.getAddress(), p.getCity(), p.getPhone(), p.getEmail(), logo(p));
+                p.getAddress(), p.getCity(), p.getPhone(), p.getEmail(), logo(p),
+                p.getRc(), p.getCnssNumber(), p.getInpe(), p.getWebsite());
     }
 
     private String logo(PracticeProfile p) {

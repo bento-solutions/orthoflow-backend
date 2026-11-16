@@ -21,6 +21,7 @@ public final class PracticeProfileDtos {
             @Size(max = 30) String ice,
             @Size(max = 30) String taxId,
             @Size(max = 30) String patente,
+            @Size(max = 30) String rc,
             @Size(max = 30) String cnssNumber,
             @Size(max = 40) String rib,
             @Size(max = 20) String inpe,
@@ -36,7 +37,7 @@ public final class PracticeProfileDtos {
 
         public static Profile from(PracticeProfile p) {
             return new Profile(p.getName(), p.getLegalName(), p.getIce(), p.getTaxId(), p.getPatente(),
-                    p.getCnssNumber(), p.getRib(), p.getInpe(), p.getAddress(), p.getCity(), p.getPhone(),
+                    p.getRc(), p.getCnssNumber(), p.getRib(), p.getInpe(), p.getAddress(), p.getCity(), p.getPhone(),
                     p.getEmail(), p.getWebsite(), p.getCurrency(), p.getTimezone(), p.getDefaultLanguage(),
                     p.getLogoFileId());
         }

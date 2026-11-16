@@ -45,10 +45,16 @@ public final class PostgresTestSupport {
         return new JdbcTemplate(dataSource());
     }
 
-    /** A clinic of its own: every row a test creates belongs to it. */
+    /**
+     * A clinic of its own: every row a test creates belongs to it. Its profile is complete enough
+     * to issue invoices, fee notes and prescriptions.
+     */
     public static UUID newPractice(JdbcTemplate jdbc) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO practices (id, name) VALUES (?, ?)", id, "Test clinic " + id);
+        jdbc.update("""
+                INSERT INTO practices (id, name, address, city, phone, ice, tax_id)
+                VALUES (?, ?, '12 rue des Tests', 'Casablanca', '0522000000', '001234567000089', '12345678')
+                """, id, "Test clinic " + id);
         return id;
     }
 

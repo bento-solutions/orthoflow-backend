@@ -10,6 +10,7 @@ import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.common.tenancy.PracticeZone;
 import com.orthoflow.export.application.port.LetterheadProvider;
+import com.orthoflow.export.infrastructure.Cells;
 import com.orthoflow.export.infrastructure.PdfService;
 import com.orthoflow.retrocession.application.dto.RetrocessionDtos.*;
 import com.orthoflow.retrocession.domain.model.RetrocessionRule;
@@ -231,11 +232,11 @@ public class StatementService {
         Map<String, Object> st = new LinkedHashMap<>();
         st.put("number", s.number());
         st.put("practitioner", s.practitionerName() == null ? "" : s.practitionerName());
-        st.put("from", s.from().toString());
-        st.put("to", s.to().toString());
+        st.put("from", Cells.text(s.from()));
+        st.put("to", Cells.text(s.to()));
         st.put("voided", s.status() == PayStatus.VOID);
         st.put("voidReason", s.voidReason() == null ? "" : s.voidReason());
-        st.put("validatedAt", s.validatedAt() == null ? "" : s.validatedAt().toLocalDate().toString());
+        st.put("validatedAt", s.validatedAt() == null ? "" : Cells.text(s.validatedAt().toLocalDate()));
         st.put("notes", s.notes() == null ? "" : s.notes());
         st.put("base", money.format(s.base()));
         st.put("labDeduction", money.format(s.labDeduction()));
@@ -254,7 +255,7 @@ public class StatementService {
         List<Map<String, Object>> lines = new ArrayList<>();
         for (LineView l : s.lines()) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("date", l.date() == null ? "" : l.date().toString());
+            m.put("date", l.date() == null ? "" : Cells.text(l.date()));
             m.put("reference", l.invoiceNumber() == null ? "" : l.invoiceNumber());
             m.put("patient", l.patientCode() == null ? "" : l.patientCode());
             m.put("what", l.label() != null ? l.label() : l.category() == null ? "" : l.category());
