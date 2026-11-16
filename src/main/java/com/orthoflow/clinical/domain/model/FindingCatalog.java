@@ -221,6 +221,26 @@ public final class FindingCatalog {
         def("soft_tissue_trauma", FindingKind.CONDITION, null, 0);
         def("ankylosis", FindingKind.CONDITION, null, 0);
         def("percussion_sensitivity", FindingKind.CONDITION, null, 0);
+
+        // ── Référentiel v2 ──────────────────────────────────────────────
+        // The second edition of the referential ("Référentiel clinique & diagnostique dentaire"):
+        // the AAE diagnoses of the apex, the AAP / EFP ones of the periodontium and the implant,
+        // a restoration said to be sound, dentin hypersensitivity and the alveolar fracture. None of
+        // them is a status the chart paints: the tooth looks the same, the state is recorded and shown.
+        def("dentin_hypersensitivity", FindingKind.CONDITION, null, 0);
+        def("intact_restoration", FindingKind.OBSERVATION, null, 0);
+        def("normal_apical_tissues", FindingKind.OBSERVATION, null, 0);
+        def("symptomatic_apical_periodontitis", FindingKind.CONDITION, null, 0);
+        def("asymptomatic_apical_periodontitis", FindingKind.CONDITION, null, 0);
+        def("acute_apical_abscess", FindingKind.CONDITION, null, 0);
+        def("chronic_apical_abscess", FindingKind.CONDITION, null, 0);
+        def("condensing_osteitis", FindingKind.CONDITION, null, 0);
+        def("periodontal_health", FindingKind.OBSERVATION, null, 0);
+        def("necrotizing_gingivitis", FindingKind.CONDITION, null, 0);
+        def("necrotizing_periodontitis", FindingKind.CONDITION, null, 0);
+        def("endo_perio_lesion", FindingKind.CONDITION, null, 0);
+        def("peri_implant_health", FindingKind.OBSERVATION, null, 0);
+        def("alveolar_fracture", FindingKind.CONDITION, null, 0);
     }
 
     private FindingCatalog() {}

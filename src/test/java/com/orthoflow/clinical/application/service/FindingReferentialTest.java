@@ -98,8 +98,8 @@ class FindingReferentialTest {
 
     @Test
     void theCatalogueHoldsEveryStateOfTheReferential() {
-        // The 106 states the referential added, to the 57 of the base catalogue.
-        assertThat(FindingCatalog.codes()).hasSize(163);
+        // The 106 states the referential added, to the 57 of the base catalogue, and the 14 of its second edition.
+        assertThat(FindingCatalog.codes()).hasSize(177);
         for (String code : List.of(
                 "agenesis", "unerupted", "persistent_deciduous", "cracked_tooth", "craze_lines", "cusp_fracture",
                 "root_fracture", "existing_glass_ionomer", "existing_onlay", "existing_overlay", "bridge_pontic",
@@ -110,6 +110,22 @@ class FindingReferentialTest {
                 "extrusive_luxation", "complicated_crown_fracture", "ankylosis", "percussion_sensitivity")) {
             assertThat(FindingCatalog.isKnown(code)).as(code).isTrue();
         }
+    }
+
+    @Test
+    void theCatalogueHoldsTheSecondEditionOfTheReferential() {
+        // AAE (apex), AAP / EFP (periodontium, implant), a sound restoration, dentin hypersensitivity, the alveolar bone.
+        for (String code : List.of(
+                "dentin_hypersensitivity", "intact_restoration", "normal_apical_tissues",
+                "symptomatic_apical_periodontitis", "asymptomatic_apical_periodontitis", "acute_apical_abscess",
+                "chronic_apical_abscess", "condensing_osteitis", "periodontal_health", "necrotizing_gingivitis",
+                "necrotizing_periodontitis", "endo_perio_lesion", "peri_implant_health", "alveolar_fracture")) {
+            assertThat(FindingCatalog.isKnown(code)).as(code).isTrue();
+            // None of them changes the one status the chart paints: the tooth looks the same.
+            assertThat(FindingCatalog.get(code).orElseThrow().impliedStatus()).as(code).isNull();
+        }
+        assertThat(FindingCatalog.get("periodontal_health").orElseThrow().kind()).isEqualTo(FindingKind.OBSERVATION);
+        assertThat(FindingCatalog.get("acute_apical_abscess").orElseThrow().kind()).isEqualTo(FindingKind.CONDITION);
     }
 
     @Test
