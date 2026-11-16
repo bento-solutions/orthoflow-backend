@@ -180,6 +180,16 @@ public class ConsultationController {
     }
 
     /**
+     * The doctor continues a consultation that is waiting for review: recording starts again, and
+     * everything caught so far is kept.
+     */
+    @PostMapping("/{id}/continue")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ConsultationResponse continueConsultation(@PathVariable UUID id) {
+        return consultationService.reopen(id);
+    }
+
+    /**
      * Saves what the doctor validated. When a chart finding fails to write the
      * response says so ({@code saved: false}) and nothing else is written.
      */

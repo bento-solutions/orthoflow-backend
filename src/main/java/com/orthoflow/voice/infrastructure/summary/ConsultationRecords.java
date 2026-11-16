@@ -158,7 +158,7 @@ public final class ConsultationRecords {
         f("post_and_crown", "tenon et couronne", "post and crown");
         f("defective_restoration", "restauration défectueuse", "defective restoration");
         f("fractured_restoration", "restauration fracturée", "fractured restoration");
-        f("lost_restoration", "restauration absente / perdue", "lost restoration");
+        f("lost_restoration", "restauration descellée / perdue", "debonded / lost restoration");
         f("marginal_defect", "défaut marginal", "marginal defect");
         f("restoration_overhang", "débordement de restauration", "restoration overhang");
         f("normal_pulp", "pulpe normale", "normal pulp");
@@ -207,7 +207,7 @@ public final class ConsultationRecords {
         f("buccal_displacement", "déplacement vestibulaire", "buccal displacement");
         f("lingual_displacement", "déplacement lingual / palatin", "lingual / palatal displacement");
         f("displacement", "déplacement dentaire", "tooth displacement");
-        f("intrusion", "intrusion", "intrusion");
+        f("intrusion", "ingression / intrusion", "intrusion");
         f("extrusion", "égression / extrusion", "egression / extrusion");
         f("mesial_migration", "migration mésiale", "mesial migration");
         f("distal_migration", "migration distale", "distal migration");
@@ -224,8 +224,22 @@ public final class ConsultationRecords {
         f("intrusive_luxation", "luxation intrusive", "intrusive luxation");
         f("enamel_fracture", "fracture amélaire", "enamel fracture");
         f("soft_tissue_trauma", "traumatisme des tissus mous", "soft tissue trauma");
-        f("ankylosis", "ankylose", "ankylosis");
-        f("percussion_sensitivity", "sensibilité à la percussion", "percussion sensitivity");
+        f("ankylosis", "ankylose / résorption de remplacement", "ankylosis / replacement resorption");
+        f("percussion_sensitivity", "sensibilité à la percussion / palpation", "tender to percussion / palpation");
+        f("dentin_hypersensitivity", "sensibilité dentinaire (hypersensibilité)", "dentin hypersensitivity");
+        f("intact_restoration", "restauration intègre / fonctionnelle", "intact / functional restoration");
+        f("normal_apical_tissues", "tissus apicaux normaux", "normal apical tissues");
+        f("symptomatic_apical_periodontitis", "parodontite apicale symptomatique", "symptomatic apical periodontitis");
+        f("asymptomatic_apical_periodontitis", "parodontite apicale asymptomatique", "asymptomatic apical periodontitis");
+        f("acute_apical_abscess", "abcès apical aigu", "acute apical abscess");
+        f("chronic_apical_abscess", "abcès apical chronique (tractus fistuleux)", "chronic apical abscess (sinus tract)");
+        f("condensing_osteitis", "ostéite condensante", "condensing osteitis");
+        f("periodontal_health", "santé parodontale", "periodontal health");
+        f("necrotizing_gingivitis", "gingivite nécrosante", "necrotizing gingivitis");
+        f("necrotizing_periodontitis", "parodontite nécrosante", "necrotizing periodontitis");
+        f("endo_perio_lesion", "lésion endo-parodontale", "endo-periodontal lesion");
+        f("peri_implant_health", "santé péri-implantaire", "peri-implant health");
+        f("alveolar_fracture", "fracture alvéolaire", "alveolar fracture");
     }
 
     private static final Pattern TOOTH_NUMBER =

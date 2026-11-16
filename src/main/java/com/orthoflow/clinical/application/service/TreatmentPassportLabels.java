@@ -111,7 +111,7 @@ final class TreatmentPassportLabels {
         Map.entry("post_and_crown", new String[] {"Post and crown", "Tenon et couronne", "وتد وتاج"}),
         Map.entry("defective_restoration", new String[] {"Defective restoration", "Restauration défectueuse", "ترميم معيب"}),
         Map.entry("fractured_restoration", new String[] {"Fractured restoration", "Restauration fracturée", "ترميم مكسور"}),
-        Map.entry("lost_restoration", new String[] {"Lost restoration", "Restauration absente / perdue", "ترميم مفقود"}),
+        Map.entry("lost_restoration", new String[] {"Debonded / lost restoration", "Restauration descellée / perdue", "ترميم منفك / مفقود"}),
         Map.entry("marginal_defect", new String[] {"Marginal defect", "Défaut marginal", "عيب حافّي"}),
         Map.entry("restoration_overhang", new String[] {"Restoration overhang", "Débordement de restauration", "زيادة في حافة الترميم"}),
         Map.entry("normal_pulp", new String[] {"Normal pulp", "Pulpe normale", "لب سليم"}),
@@ -160,7 +160,7 @@ final class TreatmentPassportLabels {
         Map.entry("buccal_displacement", new String[] {"Buccal displacement", "Déplacement vestibulaire", "انزياح دهليزي"}),
         Map.entry("lingual_displacement", new String[] {"Lingual / palatal displacement", "Déplacement lingual / palatin", "انزياح لساني / حنكي"}),
         Map.entry("displacement", new String[] {"Tooth displacement", "Déplacement dentaire", "إزاحة السن"}),
-        Map.entry("intrusion", new String[] {"Intrusion", "Intrusion", "انغراس السن"}),
+        Map.entry("intrusion", new String[] {"Intrusion", "Ingression / intrusion", "انغراس السن"}),
         Map.entry("extrusion", new String[] {"Egression / extrusion", "Égression / extrusion", "بزوغ زائد للسن"}),
         Map.entry("mesial_migration", new String[] {"Mesial migration", "Migration mésiale", "هجرة إنسية"}),
         Map.entry("distal_migration", new String[] {"Distal migration", "Migration distale", "هجرة وحشية"}),
@@ -177,8 +177,22 @@ final class TreatmentPassportLabels {
         Map.entry("intrusive_luxation", new String[] {"Intrusive luxation", "Luxation intrusive", "خلع غرزي"}),
         Map.entry("enamel_fracture", new String[] {"Enamel fracture", "Fracture amélaire", "كسر المينا"}),
         Map.entry("soft_tissue_trauma", new String[] {"Soft tissue trauma", "Traumatisme des tissus mous", "رضّ الأنسجة الرخوة"}),
-        Map.entry("ankylosis", new String[] {"Ankylosis", "Ankylose", "التحام السن بالعظم"}),
-        Map.entry("percussion_sensitivity", new String[] {"Percussion sensitivity", "Sensibilité à la percussion", "حساسية للقرع"})
+        Map.entry("ankylosis", new String[] {"Ankylosis / replacement resorption", "Ankylose / résorption de remplacement", "التحام السن بالعظم"}),
+        Map.entry("percussion_sensitivity", new String[] {"Tender to percussion / palpation", "Sensibilité à la percussion / palpation", "حساسية للقرع / الجس"}),
+        Map.entry("dentin_hypersensitivity", new String[] {"Dentin hypersensitivity", "Sensibilité dentinaire (hypersensibilité)", "فرط حساسية العاج"}),
+        Map.entry("intact_restoration", new String[] {"Intact / functional restoration", "Restauration intègre / fonctionnelle", "ترميم سليم"}),
+        Map.entry("normal_apical_tissues", new String[] {"Normal apical tissues", "Tissus apicaux normaux", "أنسجة ذروية طبيعية"}),
+        Map.entry("symptomatic_apical_periodontitis", new String[] {"Symptomatic apical periodontitis", "Parodontite apicale symptomatique", "التهاب دواعم الذروة العرضي"}),
+        Map.entry("asymptomatic_apical_periodontitis", new String[] {"Asymptomatic apical periodontitis", "Parodontite apicale asymptomatique", "التهاب دواعم الذروة اللاعرضي"}),
+        Map.entry("acute_apical_abscess", new String[] {"Acute apical abscess", "Abcès apical aigu", "خراج ذروي حاد"}),
+        Map.entry("chronic_apical_abscess", new String[] {"Chronic apical abscess (sinus tract)", "Abcès apical chronique (tractus fistuleux)", "خراج ذروي مزمن"}),
+        Map.entry("condensing_osteitis", new String[] {"Condensing osteitis", "Ostéite condensante", "التهاب العظم المكثف"}),
+        Map.entry("periodontal_health", new String[] {"Periodontal health", "Santé parodontale", "صحة دواعم السن"}),
+        Map.entry("necrotizing_gingivitis", new String[] {"Necrotizing gingivitis", "Gingivite nécrosante", "التهاب اللثة الناخر"}),
+        Map.entry("necrotizing_periodontitis", new String[] {"Necrotizing periodontitis", "Parodontite nécrosante", "التهاب دواعم السن الناخر"}),
+        Map.entry("endo_perio_lesion", new String[] {"Endo-periodontal lesion", "Lésion endo-parodontale", "آفة لبية لثوية"}),
+        Map.entry("peri_implant_health", new String[] {"Peri-implant health", "Santé péri-implantaire", "صحة الأنسجة حول الزرعة"}),
+        Map.entry("alveolar_fracture", new String[] {"Alveolar fracture", "Fracture alvéolaire", "كسر السنخ"})
     );
 
     private static final Map<String, String[]> SURFACES = Map.ofEntries(

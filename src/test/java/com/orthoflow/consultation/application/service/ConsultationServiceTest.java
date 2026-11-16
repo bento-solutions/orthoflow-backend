@@ -398,6 +398,59 @@ class ConsultationServiceTest {
         assertThat(c.getStatus()).isEqualTo(ConsultationStatus.REVIEW);
     }
 
+    // ── Continuing after the end ────────────────────────────────────────
+
+    @Test
+    void continuingAReviewGoesBackToTheExaminationKeepingEverythingAndReopensTheDictatedSession() {
+        Consultation c = open(ConsultationStatus.EXAMINATION);
+        c.setExaminationStartedAt(java.time.OffsetDateTime.now());
+        service.end(c.getId(), "toute la conversation");
+        c.setReviewState("{\"v\":1}");
+
+        ConsultationResponse continued = service.reopen(c.getId());
+
+        assertThat(continued.status()).isEqualTo("EXAMINATION");
+        assertThat(c.getEndedAt()).isNull();
+        assertThat(c.getTranscript()).isEqualTo("toute la conversation");
+        assertThat(c.getReviewState()).isEqualTo("{\"v\":1}");
+        verify(voiceSessions).reopen(VOICE_SESSION);
+    }
+
+    @Test
+    void continuingAConsultationThatNeverReachedTheExaminationGoesBackToTheIntake() {
+        Consultation c = open(ConsultationStatus.REVIEW);
+
+        assertThat(service.reopen(c.getId()).status()).isEqualTo("INTAKE");
+    }
+
+    @Test
+    void continuingOneStillRecordingChangesNothing() {
+        Consultation c = open(ConsultationStatus.EXAMINATION);
+
+        assertThat(service.reopen(c.getId()).status()).isEqualTo("EXAMINATION");
+        verify(voiceSessions, never()).reopen(any());
+    }
+
+    @Test
+    void aSavedOrDiscardedConsultationCannotBeContinued() {
+        Consultation saved = open(ConsultationStatus.COMPLETED);
+        assertThatThrownBy(() -> service.reopen(saved.getId())).isInstanceOf(ValidationException.class);
+        repo.rows.clear();
+        Consultation discarded = open(ConsultationStatus.ABANDONED);
+        assertThatThrownBy(() -> service.reopen(discarded.getId())).isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void aConsultationWhoseSaveAlreadyWroteChartFindingsCannotBeContinued() {
+        Consultation c = open(ConsultationStatus.REVIEW);
+        when(voiceAudit.forSession(VOICE_SESSION)).thenReturn(List.of(
+                VoiceCommandAuditResponse.builder().id(UUID.randomUUID()).riskTier("CONFIRM").outcome("EXECUTED").build()));
+
+        assertThatThrownBy(() -> service.reopen(c.getId())).isInstanceOf(ConflictException.class);
+        assertThat(c.getStatus()).isEqualTo(ConsultationStatus.REVIEW);
+        verify(voiceSessions, never()).reopen(any());
+    }
+
     // ── Throwing away ───────────────────────────────────────────────────
 
     @Test

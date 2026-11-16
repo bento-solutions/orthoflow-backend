@@ -70,6 +70,24 @@ public class VoiceSessionService {
         return toResponse(voiceSessionRepository.save(session));
     }
 
+    /**
+     * Dictation starts again on a session waiting for review — a recorded consultation the doctor
+     * continues. What it staged stays staged; only a session still in review can go back.
+     */
+    @Transactional
+    public VoiceSessionResponse reopen(UUID sessionId) {
+        VoiceSession session = requireSession(sessionId);
+        if (session.getStatus() == VoiceSessionStatus.ACTIVE) {
+            return toResponse(session);
+        }
+        if (session.getStatus() != VoiceSessionStatus.PENDING_REVIEW) {
+            throw new ValidationException("The voice session is " + session.getStatus() + " and cannot be reopened.");
+        }
+        session.setStatus(VoiceSessionStatus.ACTIVE);
+        session.setEndedAt(null);
+        return toResponse(voiceSessionRepository.save(session));
+    }
+
     @Transactional(readOnly = true)
     public VoiceSessionResponse get(UUID sessionId) {
         return toResponse(requireSession(sessionId));
