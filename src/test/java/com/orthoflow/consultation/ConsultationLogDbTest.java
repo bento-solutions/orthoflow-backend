@@ -68,7 +68,9 @@ class ConsultationLogDbTest extends SpringDbTest {
     @Test
     void theLinesComeBackInOrderWithTheirTimesAndAreNotDuplicatedByAResend() {
         ConsultationResponse c = started();
-        OffsetDateTime t = c.startedAt().plusSeconds(5);
+        // Postgres keeps microseconds and rounds the rest; a Linux clock gives nanoseconds. Send
+        // a time Postgres stores as it is, so the check does not depend on which way it rounds.
+        OffsetDateTime t = c.startedAt().plusSeconds(5).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         List<TranscriptRequest.Line> sent = List.of(
                 line(0, t, "Bonjour docteur", "INTAKE"),
                 line(1, t.plusSeconds(12), "Dent 16, carie", "EXAMINATION"));
@@ -80,9 +82,7 @@ class ConsultationLogDbTest extends SpringDbTest {
         assertThat(log.lines()).extracting(ConsultationLogResponse.Line::text)
                 .containsExactly("Bonjour docteur", "Dent 16, carie");
         assertThat(log.lines()).extracting(ConsultationLogResponse.Line::phase).containsExactly("INTAKE", "EXAMINATION");
-        // Postgres keeps microseconds; a Linux clock gives nanoseconds.
-        assertThat(log.lines().get(1).at().toInstant())
-                .isEqualTo(t.plusSeconds(12).toInstant().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+        assertThat(log.lines().get(1).at().toInstant()).isEqualTo(t.plusSeconds(12).toInstant());
         assertThat(jdbc.queryForObject("SELECT practice_id FROM consultation_transcript_lines WHERE consultation_id = ? AND seq = 0",
                 UUID.class, c.id())).isEqualTo(practice);
     }
