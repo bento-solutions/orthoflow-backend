@@ -90,6 +90,14 @@ class DocumentCategoryTest {
     }
 
     @Test
+    void anImageMayBeA3dModel() {
+        StoredFile stored = service.store(practice, FileOwnerType.PATIENT_DOCUMENT, patient,
+                new MockMultipartFile("file", "wax-up.stl", "application/octet-stream", binaryStl(3)), null, DocumentCategory.IMAGE);
+        assertThat(stored.getContentType()).isEqualTo("model/stl");
+        assertThat(stored.getCategory()).isEqualTo(DocumentCategory.IMAGE);
+    }
+
+    @Test
     void textThatIsNotAModelIsRefused() {
         assertThatThrownBy(() -> scan("page.obj", "<html><script>alert(1)</script></html>".getBytes(StandardCharsets.US_ASCII)))
                 .isInstanceOf(ValidationException.class);

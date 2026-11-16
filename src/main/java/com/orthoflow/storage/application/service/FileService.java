@@ -56,8 +56,10 @@ public class FileService {
         if (upload == null || upload.isEmpty()) {
             throw new ValidationException("The file is empty");
         }
-        // An intraoral scan may be a 3D model, and a full-arch one runs to tens of megabytes.
-        boolean mayBeModel = category == DocumentCategory.INTRAORAL_3D;
+        // An intraoral scan may be a 3D model, and a full-arch one runs to tens of megabytes. So may
+        // any other image the doctor pins to the patient file (a model of an appliance, a wax-up).
+        // An X-ray never is.
+        boolean mayBeModel = category == DocumentCategory.INTRAORAL_3D || category == DocumentCategory.IMAGE;
         long cap = mayBeModel ? Math.max(MODEL_MAX_BYTES, ownerType.maxBytes()) : ownerType.maxBytes();
         if (upload.getSize() > cap) {
             throw new ValidationException("The file is larger than " + cap / (1024 * 1024) + " MB");
