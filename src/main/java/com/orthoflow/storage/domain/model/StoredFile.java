@@ -45,6 +45,11 @@ public class StoredFile {
     @Column(name = "storage_key", nullable = false, unique = true)
     private String storageKey;
 
+    /** What a patient document is; null for older files and other owner types. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 32)
+    private DocumentCategory category;
+
     @Column(name = "uploaded_by")
     private UUID uploadedBy;
 

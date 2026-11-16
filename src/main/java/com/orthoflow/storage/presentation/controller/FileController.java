@@ -2,6 +2,7 @@ package com.orthoflow.storage.presentation.controller;
 
 import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.storage.application.service.FileService;
+import com.orthoflow.storage.domain.model.DocumentCategory;
 import com.orthoflow.storage.domain.model.FileOwnerType;
 import com.orthoflow.storage.domain.model.StoredFile;
 import lombok.RequiredArgsConstructor;
@@ -28,10 +29,10 @@ import java.util.UUID;
 public class FileController {
 
     public record FileInfo(UUID id, FileOwnerType ownerType, UUID ownerId, String name, String contentType,
-                           long sizeBytes, OffsetDateTime createdAt) {
+                           long sizeBytes, OffsetDateTime createdAt, DocumentCategory category) {
         static FileInfo from(StoredFile f) {
             return new FileInfo(f.getId(), f.getOwnerType(), f.getOwnerId(), f.getOriginalName(), f.getContentType(),
-                    f.getSizeBytes(), f.getCreatedAt());
+                    f.getSizeBytes(), f.getCreatedAt(), f.getCategory());
         }
     }
 
@@ -41,10 +42,11 @@ public class FileController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public FileInfo upload(@RequestParam FileOwnerType ownerType, @RequestParam(required = false) UUID ownerId,
+                           @RequestParam(required = false) DocumentCategory category,
                            @RequestPart("file") MultipartFile file) {
         require(ownerType.writePermission().name());
         return FileInfo.from(fileService.store(currentUser.requirePracticeId(), ownerType, ownerId, file,
-                currentUser.requireUserId()));
+                currentUser.requireUserId(), category));
     }
 
     @GetMapping("/{id}")
