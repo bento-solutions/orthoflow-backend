@@ -7,6 +7,7 @@ import com.orthoflow.reporting.infrastructure.ReportingQuery;
 import com.orthoflow.reporting.infrastructure.ReportingQuery.ProcedureAgg;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.treatment.domain.model.TreatmentInvoiceStatus;
+import com.orthoflow.export.infrastructure.Cells;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class ProcedureActivityService {
                 r.practitionerName() == null ? "—" : r.practitionerName(), r.status(), r.sessions(), r.revenue(), r.materialCost(),
                 r.grossMargin(), r.marginPercent())).toList();
         GroupTotal t = a.total();
-        return new TableExport(en ? "Procedure activity" : ar ? "نشاط الإجراءات" : "Activité par acte", a.from() + " → " + a.to(), columns, rows,
+        return new TableExport(en ? "Procedure activity" : ar ? "نشاط الإجراءات" : "Activité par acte", Cells.period(a.from(), a.to()), columns, rows,
                 List.of("Total", "", "", "", t.sessions(), t.revenue(), t.materialCost(), t.grossMargin(), percent(t.grossMargin(), t.revenue())));
     }
 

@@ -192,6 +192,7 @@ public class PrescriptionService {
         if (r.templateId() != null) {
             requireTemplate(practiceId, r.templateId());
         }
+        Letterhead lh = letterheads.forPractice(practiceId).requireFor(Letterhead.Use.PRESCRIPTION);
         Practitioner practitioner = practitioner(practiceId, r.practitionerId(), actorId, p.id());
         LocalDate today = LocalDate.now(zone.of(practiceId));
         String number = "ORD-" + today.getYear() + "-" + String.format("%05d", numbers.next(practiceId, "prescription"));
@@ -199,7 +200,7 @@ public class PrescriptionService {
                 .practitionerId(practitioner == null ? null : practitioner.getId()).consultationId(r.consultationId())
                 .templateId(r.templateId()).lines(write(lines)).advice(blankToNull(r.advice()))
                 .allergyWarnings(warnings.isEmpty() ? null : write(warnings)).createdBy(actorId).build();
-        byte[] pdf = render(practiceId, rx, p, practitioner, lines, today);
+        byte[] pdf = render(lh, rx, p, practitioner, lines, today);
         rx.setFileId(files.storeGenerated(practiceId, FileOwnerType.PRESCRIPTION, rx.getId(), number + ".pdf",
                 "application/pdf", pdf, actorId).getId());
         return view(prescriptions.save(rx), p.fullName(), practitioner);
@@ -233,9 +234,8 @@ public class PrescriptionService {
 
     // ── Rendering ───────────────────────────────────────────────────────
 
-    private byte[] render(UUID practiceId, Prescription rx, PatientIdentity p, Practitioner practitioner, List<Line> lines,
+    private byte[] render(Letterhead lh, Prescription rx, PatientIdentity p, Practitioner practitioner, List<Line> lines,
                           LocalDate today) {
-        Letterhead lh = letterheads.forPractice(practiceId);
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("letterhead", lh);
         model.put("number", rx.getNumber());

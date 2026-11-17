@@ -5,7 +5,9 @@ import com.orthoflow.billing.domain.model.InvoiceLine;
 import com.orthoflow.billing.domain.model.Payment;
 import com.orthoflow.billing.domain.repository.InvoiceRepository;
 import com.orthoflow.common.exception.NotFoundException;
+import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.port.LetterheadProvider;
+import com.orthoflow.export.infrastructure.Cells;
 import com.orthoflow.export.infrastructure.PdfService;
 import com.orthoflow.patient.application.port.PatientLookup;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ public class InvoicePdfService {
         view.put("lines", lines);
 
         Map<String, Object> model = new LinkedHashMap<>();
-        model.put("letterhead", letterheads.forPractice(invoice.getPracticeId()));
+        model.put("letterhead", letterheads.forPractice(invoice.getPracticeId()).requireFor(Letterhead.Use.FINANCIAL));
         model.put("labels", labels(lang));
         model.put("invoice", view);
         return new Rendered(invoice.getInvoiceNumber(), pdf.render("invoice", model, lang));
@@ -108,7 +109,6 @@ public class InvoicePdfService {
             Map.entry("tax", new String[] {"TVA", "Tax", "الضريبة"}),
             Map.entry("paid", new String[] {"Réglé", "Paid", "المدفوع"}),
             Map.entry("balance", new String[] {"Reste dû", "Balance due", "الباقي"}),
-            Map.entry("generated", new String[] {"Document généré le", "Generated on", "أُنشئت في"}),
             Map.entry("status.DRAFT", new String[] {"Brouillon", "Draft", "مسودة"}),
             Map.entry("status.SENT", new String[] {"Émise", "Issued", "صادرة"}),
             Map.entry("status.PARTIALLY_PAID", new String[] {"Partiellement réglée", "Partly paid", "مدفوعة جزئياً"}),
@@ -131,7 +131,7 @@ public class InvoicePdfService {
     }
 
     private static String money(BigDecimal value) {
-        return nz(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return Cells.money(nz(value));
     }
 
     private static BigDecimal nz(BigDecimal value) {

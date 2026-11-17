@@ -7,38 +7,31 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${'Ordonnance ' + number}">Ordonnance</title>
+  <style th:replace="~{frame :: style('A5', '36mm 12mm 22mm 12mm')}"></style>
   <style>
-    @page { size: A5; margin: 12mm 12mm 14mm 12mm; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
-    .head { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 6px; margin-bottom: 10px; }
-    .head td { vertical-align: top; }
-    .doctor { font-size: 12pt; font-weight: bold; color: #1d4ed8; }
-    .legal { font-size: 7.5pt; color: #52606d; }
-    .place { text-align: right; margin: 4px 0 10px 0; }
-    .patient { margin-bottom: 12px; }
-    h1 { font-size: 13pt; text-align: center; letter-spacing: 2px; margin: 4px 0 12px 0; }
+    .ph-name { font-size: 11.5pt; }
+    td.ph-logo img { max-height: 14mm; max-width: 32mm; }
+    table.top { width: 100%; border-collapse: collapse; margin: 0 0 4mm 0; }
+    table.top td { padding: 0; vertical-align: top; font-size: 8pt; color: #52606d; }
+    table.top td.place { text-align: right; font-size: 9.5pt; color: #1f2933; }
+    .patient { margin-bottom: 4mm; }
+    h1 { font-size: 13pt; text-align: center; letter-spacing: 2px; margin: 2mm 0 5mm 0; }
     .rx { margin: 0 0 9px 0; page-break-inside: avoid; }
     .drug { font-weight: bold; }
-    .dci { color: #52606d; font-style: italic; font-size: 8.5pt; }
+    .dci { color: #52606d; font-size: 8.5pt; }
     .posology { margin: 1px 0 0 12px; }
     .advice { margin-top: 12px; padding: 6px 8px; border: 1px dashed #9aa5b1; font-size: 8.5pt; }
-    .sign { margin-top: 26px; text-align: right; font-size: 8pt; color: #52606d; }
-    .foot { margin-top: 10px; font-size: 7pt; color: #7b8794; }
+    .sign { margin-top: 10mm; text-align: right; font-size: 8pt; color: #52606d; page-break-inside: avoid; }
   </style>
 </head>
 <body>
-  <table class="head"><tr>
-    <td>
-      <div class="doctor" th:text="${practitioner != null ? practitioner.name : letterhead.name}">Dr</div>
-      <div class="legal" th:if="${practitioner != null and practitioner.inpe != ''}" th:text="${'INPE ' + practitioner.inpe}"></div>
-      <div class="legal" th:text="${letterhead.name}">Cabinet</div>
-      <div class="legal" th:if="${letterhead.address != null}" th:text="${letterhead.address + (letterhead.city != null ? ', ' + letterhead.city : '')}"></div>
-      <div class="legal" th:if="${letterhead.phone != null}" th:text="${letterhead.phone}"></div>
-    </td>
-    <td style="text-align: right;"><img th:if="${letterhead.logoDataUri != null}" th:src="${letterhead.logoDataUri}" style="max-height: 48px; max-width: 120px;" th:alt="${letterhead.name}"/></td>
-  </tr></table>
+  <div th:replace="~{frame :: header(null, null, ${practitioner != null ? letterhead.practitionerLine(practitioner.name, practitioner.inpe) : letterhead.practitionerLine(null, null)})}"></div>
+  <div th:replace="~{frame :: footer(false)}"></div>
 
-  <div class="place" th:text="${signedAt}">Casablanca, le</div>
+  <table class="top"><tr>
+    <td th:text="${'N° ' + number}">N°</td>
+    <td class="place" th:text="${signedAt}">Casablanca, le</td>
+  </tr></table>
   <div class="patient"><b th:text="${patient.name}">Patient</b><span th:if="${patient.age != null}" th:text="${' — ' + patient.age}"></span></div>
 
   <h1>ORDONNANCE</h1>
@@ -54,6 +47,5 @@
   </div>
 
   <div class="sign">Signature et cachet du praticien</div>
-  <div class="foot" th:text="${'N° ' + number}">N°</div>
 </body>
 </html>

@@ -53,6 +53,14 @@ public class GlobalExceptionHandler {
     // serialisation, a missing font or a tenancy fault throws, and its raw
     // message went back to the browser as a 409. A business rule that refuses
     // the current state throws ConflictException; anything else is a 500.
+    @ExceptionHandler(IncompleteProfileException.class)
+    public ProblemDetail handleIncompleteProfile(IncompleteProfileException ex, HttpServletRequest request) {
+        ProblemDetail problem = problem(HttpStatus.CONFLICT, ex.getMessage(), request);
+        problem.setProperty("code", IncompleteProfileException.CODE);
+        problem.setProperty("missing", ex.missing());
+        return problem;
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(RuntimeException ex, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, ex.getMessage(), request);

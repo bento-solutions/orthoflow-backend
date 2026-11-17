@@ -15,6 +15,7 @@ import com.orthoflow.clinical.application.dto.AllergyResponse;
 import com.orthoflow.clinical.application.service.ClinicalRecordService;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.common.numbering.DocumentNumbers;
+import com.orthoflow.common.exception.IncompleteProfileException;
 import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.port.LetterheadProvider;
 import com.orthoflow.export.infrastructure.PdfService;
@@ -62,6 +63,8 @@ class PrescriptionServiceTest {
     private ClinicalRecordService clinical;
     private FileService files;
     private PrescriptionService service;
+    private LetterheadProvider letterheads;
+    private DocumentNumbers numbers;
     private final Practitioner doctor = Practitioner.builder().id(UUID.randomUUID()).displayName("Dr Amrani").inpe("123456789").build();
 
     @BeforeEach
@@ -78,13 +81,13 @@ class PrescriptionServiceTest {
         PractitionerService practitioners = mock(PractitionerService.class);
         when(practitioners.findIdByUser(ACTOR)).thenReturn(Optional.of(doctor.getId()));
         when(practitioners.require(PRACTICE, doctor.getId())).thenReturn(doctor);
-        LetterheadProvider letterheads = mock(LetterheadProvider.class);
+        letterheads = mock(LetterheadProvider.class);
         when(letterheads.forPractice(PRACTICE)).thenReturn(new Letterhead("Cabinet Bento", null, null, null, null, null,
-                "12 bd Anfa", "Casablanca", null, null, null));
+                "12 bd Anfa", "Casablanca", "0522 00 00 00", null, null));
         files = mock(FileService.class);
         when(files.storeGenerated(eq(PRACTICE), eq(FileOwnerType.PRESCRIPTION), any(), anyString(), eq("application/pdf"), any(), eq(ACTOR)))
                 .thenAnswer(i -> StoredFile.builder().id(UUID.randomUUID()).build());
-        DocumentNumbers numbers = mock(DocumentNumbers.class);
+        numbers = mock(DocumentNumbers.class);
         when(numbers.next(PRACTICE, "prescription")).thenReturn(4L);
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         service = new PrescriptionService(prescriptions, templates, library, clinical, patients, practitioners,
@@ -128,6 +131,18 @@ class PrescriptionServiceTest {
                     .contains("AUGMENTIN 1 G/125 MG").contains("Amoxicilline + acide clavulanique")
                     .contains("1 sachet 3 fois par jour pendant 7 jours").contains("Ne pas fumer.").contains("Casablanca, le");
         }
+    }
+
+    @Test
+    void noOrdonnanceIsIssuedOrNumberedWhileTheClinicHasNoPhoneOnFile() {
+        when(clinical.listAllergies(PATIENT)).thenReturn(List.of());
+        when(letterheads.forPractice(PRACTICE)).thenReturn(new Letterhead("Cabinet Bento", null, null, null, null, null,
+                "12 bd Anfa", "Casablanca", null, null, null));
+
+        assertThatThrownBy(() -> service.issue(PRACTICE, ACTOR, new IssueRequest(PATIENT, null, null, null, List.of(AUGMENTIN), null, false)))
+                .isInstanceOfSatisfying(IncompleteProfileException.class, e -> assertThat(e.missing()).containsExactly("phone"));
+        verify(numbers, never()).next(any(), any());
+        verify(prescriptions, never()).save(any());
     }
 
     @Test

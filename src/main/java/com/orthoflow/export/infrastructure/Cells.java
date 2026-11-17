@@ -28,6 +28,11 @@ public final class Cells {
         return String.valueOf(cell);
     }
 
+    /** "01/11/2026 → 30/11/2026": a report's period as its subtitle prints it. */
+    public static String period(Object from, Object to) {
+        return text(from) + " → " + text(to);
+    }
+
     /** 1 234,50 — the French grouping a Moroccan accountant reads without a second look. */
     public static String money(BigDecimal value) {
         DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.FRANCE);

@@ -40,6 +40,9 @@ public class PracticeProfile {
 
     private String patente;
 
+    /** Registre de Commerce number. */
+    private String rc;
+
     @Column(name = "cnss_number")
     private String cnssNumber;
 

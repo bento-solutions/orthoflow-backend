@@ -12,6 +12,7 @@ import com.orthoflow.finance.domain.model.Expense;
 import com.orthoflow.finance.domain.model.ExpenseCategory;
 import com.orthoflow.finance.infrastructure.ExpenseCategoryJpaRepository;
 import com.orthoflow.finance.infrastructure.ExpenseJpaRepository;
+import com.orthoflow.export.infrastructure.Cells;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -158,7 +159,7 @@ public class ExpenseService {
                 v.expenseDate(), v.categoryName(), nz(v.payee()), nz(v.description()), v.amount(), v.status().name(),
                 v.paidDate() == null ? "" : v.paidDate())).toList();
         BigDecimal total = data.stream().map(r -> (BigDecimal) r.get(4)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new TableExport(en ? "Expenses" : ar ? "المصاريف" : "Dépenses", from + " → " + to, columns, data,
+        return new TableExport(en ? "Expenses" : ar ? "المصاريف" : "Dépenses", Cells.period(from, to), columns, data,
                 List.of("Total", "", "", "", total, "", ""));
     }
 

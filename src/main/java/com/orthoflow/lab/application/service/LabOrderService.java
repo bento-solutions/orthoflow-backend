@@ -8,6 +8,7 @@ import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.common.tenancy.PracticeZone;
 import com.orthoflow.export.application.dto.Letterhead;
 import com.orthoflow.export.application.port.LetterheadProvider;
+import com.orthoflow.export.infrastructure.Cells;
 import com.orthoflow.export.infrastructure.PdfService;
 import com.orthoflow.inventory.domain.model.Supplier;
 import com.orthoflow.inventory.domain.model.SupplierKind;
@@ -160,11 +161,14 @@ public class LabOrderService {
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("letterhead", letterhead);
         model.put("order", Map.of("itemType", o.getItemType().name(), "description", o.getDescription() == null ? "" : o.getDescription(),
-                "sentDate", o.getSentDate() == null ? "" : o.getSentDate().toString(), "dueDate", o.getDueDate() == null ? "" : o.getDueDate().toString(),
+                "sentDate", o.getSentDate() == null ? "" : Cells.text(o.getSentDate()), "dueDate", o.getDueDate() == null ? "" : Cells.text(o.getDueDate()),
                 "urgent", o.isUrgent(), "notes", o.getNotes() == null ? "" : o.getNotes(), "reference", o.getId().toString().substring(0, 8).toUpperCase()));
         model.put("patient", patient);
         model.put("lab", Map.of("name", lab.getName(), "contact", lab.getContactName() == null ? "" : lab.getContactName()));
         model.put("practitioner", practitioner == null ? "" : practitioner.getDisplayName());
+        model.put("practitionerLine", practitioner == null ? letterhead.practitionerLine(null, null)
+                : letterhead.practitionerLine(practitioner.getDisplayName(), practitioner.getInpe()));
+        model.put("birthDate", patient.dateOfBirth() == null ? null : Cells.text(patient.dateOfBirth()));
         return pdfService.render("lab-order", model, "ar".equals(lang) || "en".equals(lang) ? lang : "fr");
     }
 

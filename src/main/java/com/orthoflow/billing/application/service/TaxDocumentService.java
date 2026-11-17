@@ -77,6 +77,7 @@ public class TaxDocumentService {
         if (documents.existsByInvoiceIdAndKindAndDuplicateOfIsNullAndStatusNot(invoice.getId(), r.kind(), TaxDocument.Status.VOID)) {
             throw new ConflictException("A " + r.kind() + " was already issued for this invoice; print a duplicate instead");
         }
+        letterheadProvider.forPractice(practiceId).requireFor(Letterhead.Use.FINANCIAL);
         UUID practitionerId = r.practitionerId() != null ? r.practitionerId() : invoice.getPractitionerId();
         TaxDocument doc = TaxDocument.builder().id(UUID.randomUUID()).practiceId(practiceId).kind(r.kind()).number(nextNumber(practiceId, r.kind()))
                 .patientId(invoice.getPatientId()).invoiceId(invoice.getId()).practitionerId(practitionerId)
@@ -94,6 +95,7 @@ public class TaxDocumentService {
         if (original.getDuplicateOf() != null) {
             throw new ConflictException("Duplicate the original, not a duplicate");
         }
+        letterheadProvider.forPractice(practiceId).requireFor(Letterhead.Use.FINANCIAL);
         Invoice invoice = invoices.findById(original.getInvoiceId()).orElseThrow(() -> new NotFoundException("Invoice not found"));
         TaxDocument copy = TaxDocument.builder().id(UUID.randomUUID()).practiceId(practiceId).kind(original.getKind())
                 .number(original.getNumber() + "/D" + (documents.countByDuplicateOf(original.getId()) + 1))
@@ -179,6 +181,7 @@ public class TaxDocumentService {
                 "issuedOn", DAY.format((doc.getIssuedAt() != null ? doc.getIssuedAt() : OffsetDateTime.now())
                         .atZoneSameInstant(practiceZone.of(doc.getPracticeId())))));
         model.put("patient", patient);
+        model.put("birthDate", patient.dateOfBirth() == null ? null : DAY.format(patient.dateOfBirth()));
         Practitioner practitioner = doc.getPractitionerId() == null ? null : practitionerService.require(doc.getPracticeId(), doc.getPractitionerId());
         model.put("practitioner", practitioner == null ? null : Map.of("name", practitioner.getDisplayName(),
                 "inpe", practitioner.getInpe() == null ? "" : practitioner.getInpe()));
