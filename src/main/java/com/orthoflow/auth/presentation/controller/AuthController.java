@@ -67,16 +67,16 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
-        if (restrictRegistrationToBootstrap) {
-            boolean bootstrap = authService.noUsersExist();
-            if (bootstrap) {
-                // First account is the practice owner. Never honour a
-                // client-supplied role here — that is the ADMIN-mints-ADMIN
-                // hole this whole branch exists to close.
-                request.setRole(UserRole.ADMIN);
-            } else if (!hasAdminRole()) {
-                throw new UnauthorizedException("Only an administrator can create new accounts");
-            }
+        boolean bootstrap = authService.noUsersExist();
+        if (bootstrap) {
+            // First account is the practice owner, whether or not registration is
+            // restricted: a local or demo setup that left it open used to start with
+            // a doctor who could not reach Settings (UI V2 audit L9). Never honour a
+            // client-supplied role here — that is the ADMIN-mints-ADMIN hole the
+            // restriction exists to close.
+            request.setRole(UserRole.ADMIN);
+        } else if (restrictRegistrationToBootstrap && !hasAdminRole()) {
+            throw new UnauthorizedException("Only an administrator can create new accounts");
         }
         // An administrator creates accounts in their own clinic; the very first
         // account (nobody signed in) opens the clinic every deployment starts with.
