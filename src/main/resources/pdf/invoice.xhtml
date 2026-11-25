@@ -70,6 +70,7 @@
 
   <div class="words" th:if="${invoice.words != null}"><span th:text="${labels.words}">Arrêtée la présente facture à la somme de</span> <b th:text="${invoice.words}">mille dirhams</b>.</div>
 
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <table class="close"><tr>
     <td>
       <div class="close-h" th:text="${labels.payment}">Règlement</div>
@@ -82,5 +83,6 @@
       <div class="sign-rule" th:text="${labels.signature}">Cachet et signature</div>
     </td>
   </tr></table>
+  <div id="page-end"></div>
 </body>
 </html>

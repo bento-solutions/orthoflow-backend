@@ -40,9 +40,11 @@
 
   <div class="words" th:if="${order.notes != ''}"><b>Instructions :</b> <span th:text="${order.notes}">…</span></div>
 
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <table class="sign"><tr>
     <td><div class="label">Reçu par le laboratoire</div></td>
     <td><div class="label">Cachet et signature du praticien</div></td>
   </tr></table>
+  <div id="page-end"></div>
 </body>
 </html>

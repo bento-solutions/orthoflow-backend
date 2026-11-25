@@ -62,10 +62,12 @@
 
   <div class="words" th:if="${words != null}"><span th:text="${labels.words}">Arrêtée la présente note à la somme de</span> <b th:text="${words}">mille dirhams</b>.</div>
 
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <table class="sign"><tr>
     <td><div class="sign-space"></div><div class="sign-rule" th:text="${labels.patientSignature}">Signature du patient</div></td>
     <td><div class="sign-space"></div><div class="sign-rule" th:text="${labels.practitionerSignature}">Cachet et signature du praticien</div></td>
   </tr></table>
 
+  <div id="page-end"></div>
 </body>
 </html>

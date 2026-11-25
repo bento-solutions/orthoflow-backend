@@ -54,6 +54,8 @@
     <div th:each="a : ${advice}" th:text="${a}">Conseil</div>
   </div>
 
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <div class="sign">Signature et cachet du praticien</div>
+  <div id="page-end"></div>
 </body>
 </html>

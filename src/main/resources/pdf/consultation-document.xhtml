@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<!-- A consultation's paper (the report, or the assistant's sheet), worded by the app and laid out in
+     the shared frame. Everything is printed with th:text: what a patient or a transcript said stays text. -->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" th:lang="${lang}" th:dir="${dir}">
+<head>
+  <meta charset="UTF-8"/>
+  <title th:text="${doc.title}">Compte rendu</title>
+  <style th:replace="~{frame :: style('A4', '40mm 14mm 20mm 14mm')}"></style>
+  <style>
+    table.kv { border-collapse: collapse; width: 100%; }
+    table.kv td { padding: 1.5px 0; vertical-align: top; font-size: 9pt; }
+    table.kv td.k { width: 16%; padding-right: 3mm; }
+    table.kv td.v { width: 34%; }
+    table.kv td.v { font-weight: bold; }
+    [dir=rtl] table.kv td.k { padding-right: 0; padding-left: 3mm; }
+    .sec { page-break-inside: avoid; margin-top: 5mm; }
+    .sec h2 { margin-top: 0; }
+    .sec p { margin: 1mm 0 0 0; line-height: 1.5; }
+    ul.items { margin: 1mm 0 0 0; padding-left: 5mm; }
+    [dir=rtl] ul.items { padding-left: 0; padding-right: 5mm; }
+    ul.items li { margin: 0.8mm 0; line-height: 1.45; }
+    .alert-box { background-color: #fdf0f0; border-left: 2.2pt solid #b91c1c; padding: 4px 9px; }
+    [dir=rtl] .alert-box { border-left: none; border-right: 2.2pt solid #b91c1c; }
+    .alert-box li { color: #9b1c1c; font-weight: bold; }
+    .sec h2.alert { color: #9b1c1c; border-bottom-color: #f3b4b4; }
+    .note { margin-top: 2mm; font-size: 8pt; color: #52606d; }
+    tr.total td { font-weight: bold; background-color: #8fd3c8; color: #123f4a; font-size: 10pt; border-bottom: none; }
+    .sign-wrap { width: 50%; margin-left: auto; margin-top: 8mm; page-break-inside: avoid; }
+    .sign-wrap .sign-space { height: 18mm; }
+    [dir=rtl] .sign-wrap { margin-left: 0; margin-right: auto; }
+  </style>
+</head>
+<body>
+  <div th:replace="~{frame :: header(${doc.title}, ${doc.dateText}, ${practitionerLine})}"></div>
+  <div th:replace="~{frame :: footer(false)}"></div>
+
+  <h1 th:text="${doc.title}">Compte rendu de consultation</h1>
+  <div class="docno" th:if="${doc.dateText != null}" th:text="${doc.dateText}">25 novembre 2026</div>
+
+  <div class="box" style="margin-top: 4mm;" th:unless="${patientRows.isEmpty()}">
+    <!-- Two label/value pairs per row: six fields take three lines, which leaves the page to the visit. -->
+    <table class="kv">
+      <tr th:each="i : ${#numbers.sequence(0, patientRows.size() - 1, 2)}">
+        <td class="k label" th:text="${patientRows[i].label}">Patient</td><td class="v" th:text="${patientRows[i].value}">Nom</td>
+        <th:block th:if="${i + 1 &lt; patientRows.size()}"><td class="k label" th:text="${patientRows[i + 1].label}">Âge</td><td class="v" th:text="${patientRows[i + 1].value}">32 ans</td></th:block>
+        <th:block th:unless="${i + 1 &lt; patientRows.size()}"><td class="k"></td><td class="v"></td></th:block>
+      </tr>
+    </table>
+  </div>
+
+  <th:block th:each="s : ${sections}">
+    <div class="sec" th:if="${(s.text != null and !#strings.isEmpty(s.text)) or (s.items != null and !s.items.isEmpty()) or s.table != null}">
+      <h2 th:classappend="${s.alert ? 'alert' : ''}" th:text="${s.title}">Section</h2>
+      <th:block th:if="${s.text != null}"><p th:each="line : ${#strings.arraySplit(s.text, '&#10;')}" th:text="${line}">Texte</p></th:block>
+      <div th:if="${s.items != null and !s.items.isEmpty()}" th:class="${s.alert ? 'alert-box' : ''}">
+        <ul class="items"><li th:each="item : ${s.items}" th:text="${item}">Élément</li></ul>
+      </div>
+      <th:block th:if="${s.table != null}">
+        <table class="lines">
+          <thead><tr><th th:each="h, at : ${s.table.headers}" th:classappend="${at.index >= 2 ? 'right' : ''}" th:text="${h}">Col</th></tr></thead>
+          <tbody>
+            <tr th:each="row : ${s.table.rows}"><td th:each="cell, at : ${row}" th:classappend="${at.index >= 2 ? 'right' : ''}" th:text="${cell}">Cell</td></tr>
+            <tr class="total" th:if="${s.table.total != null}">
+              <td th:colspan="${s.table.headers.size() - 1}" th:text="${s.table.totalLabel}">Total</td>
+              <td class="right" th:text="${s.table.total}">0</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note" th:if="${s.table.note != null}" th:text="${s.table.note}">Note</div>
+      </th:block>
+    </div>
+  </th:block>
+
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
+  <div class="sign-wrap" th:if="${doc.signature != null}">
+    <div class="sign-space"></div>
+    <div class="sign-rule" th:text="${doc.signature}">Signature du praticien</div>
+  </div>
+  <div id="page-end"></div>
+</body>
+</html>

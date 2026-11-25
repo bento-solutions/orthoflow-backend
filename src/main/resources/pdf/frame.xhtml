@@ -61,6 +61,7 @@
     table.pf { width: 100%; border-collapse: collapse; }
     table.pf td { vertical-align: middle; font-size: 7pt; color: #e6f3f2; line-height: 1.45; }
     .pf-name { font-weight: bold; color: #ffffff; }
+    .pf-note { font-weight: bold; color: #8fd3c8; letter-spacing: 0.3pt; }
     td.pf-page { text-align: right; width: 16mm; white-space: nowrap; color: #ffffff; font-weight: bold; direction: ltr; font-size: 7.5pt; }
     .pageno::before { content: counter(page); }
     .pagecount::before { content: counter(pages); }
@@ -84,8 +85,8 @@
 
     /* Lines: a coloured band for the column titles, light rules between rows, every other row tinted. */
     table.lines { width: 100%; border-collapse: collapse; margin-top: 2mm; }
-    table.lines th { background-color: #1d6577; color: #ffffff; padding: 5px 7px; font-size: 7.5pt; text-align: left; text-transform: uppercase; letter-spacing: 0.5pt; border: none; }
-    table.lines td { border: none; border-bottom: 0.6pt solid #dbe7e9; padding: 6px 7px; vertical-align: top; }
+    table.lines th { background-color: #1d6577; color: #ffffff; padding: 7px 8px; font-size: 7.5pt; text-align: left; text-transform: uppercase; letter-spacing: 0.5pt; border: none; }
+    table.lines td { border: none; border-bottom: 0.6pt solid #dbe7e9; padding: 8px 8px; vertical-align: top; }
     table.lines tbody tr:nth-child(even) td { background-color: #f4f9f9; }
     table.lines tr { page-break-inside: avoid; }
     [dir=rtl] table.lines th { text-align: right; }
@@ -154,6 +155,7 @@
       <td>
         <div th:unless="${letterhead.legalParts().isEmpty()}"><th:block th:each="part, at : ${letterhead.legalParts()}"><span class="nw" th:classappend="${at.first ? 'pf-name' : ''}" th:text="${at.last ? part : part + ' ·'}">ICE ·</span> </th:block></div>
         <div th:if="${withRib and letterhead.ribLine() != null}" th:text="${letterhead.ribLine()}">RIB</div>
+        <div class="pf-note" th:if="${confidentialNote != null}" th:text="${confidentialNote}">Document médical confidentiel</div>
       </td>
       <td class="pf-page"><span class="pageno"></span> / <span class="pagecount"></span></td>
     </tr></table>

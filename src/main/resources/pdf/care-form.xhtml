@@ -63,10 +63,12 @@
     <tr><td th:text="${labels.paid}">Réglé par le patient</td><td class="right" th:text="${invoice.paid + ' ' + invoice.currency}">0</td></tr>
   </table>
 
+  <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <table class="sign"><tr>
     <td><div class="label" th:text="${labels.patientSignature}">Signature du patient</div></td>
     <td><div class="label" th:text="${labels.practitionerSignature}">Cachet et signature du praticien</div></td>
   </tr></table>
 
+  <div id="page-end"></div>
 </body>
 </html>

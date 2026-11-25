@@ -4,6 +4,7 @@ import com.orthoflow.common.security.CurrentUserProvider;
 import com.orthoflow.consultation.application.dto.CommitConsultationRequest;
 import com.orthoflow.consultation.application.dto.CommitConsultationResponse;
 import com.orthoflow.consultation.application.dto.ConsultationConfigResponse;
+import com.orthoflow.consultation.application.dto.ConsultationDocumentRequest;
 import com.orthoflow.consultation.application.dto.ConsultationLogResponse;
 import com.orthoflow.consultation.application.dto.ConsultationResponse;
 import com.orthoflow.consultation.application.dto.ExtractionResponse;
@@ -11,6 +12,7 @@ import com.orthoflow.consultation.application.dto.StartConsultationRequest;
 import com.orthoflow.consultation.application.dto.TranscriptRequest;
 import com.orthoflow.consultation.application.service.ConsultationAudioService;
 import com.orthoflow.consultation.application.service.ConsultationCommitService;
+import com.orthoflow.consultation.application.service.ConsultationDocumentService;
 import com.orthoflow.consultation.application.service.ConsultationLogService;
 import com.orthoflow.consultation.application.service.ConsultationService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,6 +53,25 @@ public class ConsultationController {
     private final ConsultationLogService logService;
     private final ConsultationAudioService audioService;
     private final CurrentUserProvider currentUserProvider;
+    private final ConsultationDocumentService documentService;
+
+    /**
+     * The report or the assistant's sheet as a PDF in the shared frame. The report is also kept in
+     * the patient's documents; its file id comes back in {@code X-File-Id}.
+     */
+    @PostMapping(value = "/documents", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<byte[]> document(@Valid @RequestBody ConsultationDocumentRequest request) {
+        var rendered = documentService.render(currentUserProvider.requirePracticeId(), currentUserProvider.requireUserId(), request);
+        var headers = ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(rendered.fileName(), StandardCharsets.UTF_8).build().toString());
+        if (rendered.fileId() != null) {
+            headers = headers.header("X-File-Id", rendered.fileId().toString())
+                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "X-File-Id");
+        }
+        return headers.body(rendered.bytes());
+    }
 
     /** Whether to offer the feature, and whether a model reads the conversation. */
     @GetMapping("/config")
