@@ -7,24 +7,34 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${labels.title + ' ' + invoice.number}">Invoice</title>
-  <style th:replace="~{frame :: style('A4', '38mm 14mm 24mm 14mm')}"></style>
+  <style th:replace="~{frame :: style('A4', '40mm 14mm 20mm 14mm')}"></style>
+  <style>
+    table.kv { border-collapse: collapse; }
+    table.kv td { padding: 1.2px 0; vertical-align: top; }
+    table.kv td.k { padding-right: 4mm; }
+    [dir=rtl] table.kv td.k { padding-right: 0; padding-left: 4mm; }
+  </style>
 </head>
 <body>
   <div th:replace="~{frame :: header(${labels.title}, ${'N° ' + invoice.number + ' · ' + invoice.issued}, null)}"></div>
   <div th:replace="~{frame :: footer(true)}"></div>
+  <div class="draft-mark" th:if="${invoice.draft}" th:text="${labels.draft}">BROUILLON</div>
 
-  <h1><span th:text="${labels.title}">FACTURE</span> <span th:text="${'N° ' + invoice.number}">N° 1</span></h1>
+  <h1 th:text="${labels.title}">FACTURE</h1>
+  <div class="docno" th:text="${'N° ' + invoice.number}">N° 1</div>
 
   <table class="meta"><tr>
     <td><div class="box">
-      <div class="label" th:text="${labels.patient}">Patient</div>
-      <div><b th:text="${invoice.patient}">Patient</b></div>
+      <div class="label" th:text="${labels.billedTo}">Facturé à</div>
+      <div class="who" th:text="${invoice.patient}">Patient</div>
       <div th:if="${invoice.patientCode != null}" th:text="${labels.file + ' ' + invoice.patientCode}"></div>
     </div></td>
     <td><div class="box">
-      <div><span class="label" th:text="${labels.issued}">Date</span> <span th:text="${invoice.issued}"></span></div>
-      <div th:if="${invoice.due != null}"><span class="label" th:text="${labels.due}">Échéance</span> <span th:text="${invoice.due}"></span></div>
-      <div><span class="label" th:text="${labels.status}">Statut</span> <span th:text="${invoice.status}"></span></div>
+      <table class="kv">
+        <tr><td class="k label" th:text="${labels.issued}">Date</td><td th:text="${invoice.issued}"></td></tr>
+        <tr th:if="${invoice.due != null}"><td class="k label" th:text="${labels.due}">Échéance</td><td th:text="${invoice.due}"></td></tr>
+        <tr><td class="k label" th:text="${labels.status}">Statut</td><td th:text="${invoice.status}"></td></tr>
+      </table>
     </div></td>
   </tr></table>
 
@@ -32,7 +42,7 @@
     <thead><tr>
       <th scope="col" th:text="${labels.code}">Code</th>
       <th scope="col" th:text="${labels.description}">Désignation</th>
-      <th scope="col" class="right" th:text="${labels.qty}">Qté</th>
+      <th scope="col" class="center" th:text="${labels.qty}">Qté</th>
       <th scope="col" class="right" th:text="${labels.unit}">P.U.</th>
       <th scope="col" class="right" th:text="${labels.discount}">Remise</th>
       <th scope="col" class="right" th:text="${labels.total}">Total</th>
@@ -41,7 +51,7 @@
       <tr th:each="line : ${invoice.lines}">
         <td th:text="${line.code}"></td>
         <td th:text="${line.label}"></td>
-        <td class="right" th:text="${line.qty}"></td>
+        <td class="center" th:text="${line.qty}"></td>
         <td class="right" th:text="${line.unit}"></td>
         <td class="right" th:text="${line.discount}"></td>
         <td class="right" th:text="${line.total}"></td>
@@ -54,8 +64,23 @@
     <tr th:if="${invoice.discount != null}"><td th:text="${labels.discount}">Remise</td><td class="right" th:text="${'- ' + invoice.discount}"></td></tr>
     <tr><td th:text="${labels.tax}">TVA</td><td class="right" th:text="${invoice.tax}"></td></tr>
     <tr class="grand"><td th:text="${labels.total}">Total</td><td class="right" th:text="${invoice.total + ' ' + invoice.currency}"></td></tr>
-    <tr><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid}"></td></tr>
-    <tr><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance}"></td></tr>
+    <tr class="after-grand"><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid}"></td></tr>
+    <tr class="due"><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance + ' ' + invoice.currency}"></td></tr>
   </table>
+
+  <div class="words" th:if="${invoice.words != null}"><span th:text="${labels.words}">Arrêtée la présente facture à la somme de</span> <b th:text="${invoice.words}">mille dirhams</b>.</div>
+
+  <table class="close"><tr>
+    <td>
+      <div class="close-h" th:text="${labels.payment}">Règlement</div>
+      <div class="close-line" th:if="${invoice.due != null}" th:text="${labels.payBy + ' ' + invoice.due}">À régler avant le</div>
+      <div class="close-line" th:if="${letterhead.ribLine() != null}" th:text="${letterhead.ribLine()}">RIB</div>
+      <div class="close-line" th:if="${letterhead.phone() != null}" th:text="${labels.questions + ' ' + letterhead.phone()}">Questions</div>
+    </td>
+    <td>
+      <div class="sign-space"></div>
+      <div class="sign-rule" th:text="${labels.signature}">Cachet et signature</div>
+    </td>
+  </tr></table>
 </body>
 </html>

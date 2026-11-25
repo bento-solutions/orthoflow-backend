@@ -4,13 +4,14 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${'Bon de laboratoire ' + order.reference}">Bon de laboratoire</title>
-  <style th:replace="~{frame :: style('A4', '38mm 14mm 24mm 14mm')}"></style>
+  <style th:replace="~{frame :: style('A4', '40mm 14mm 20mm 14mm')}"></style>
 </head>
 <body>
   <div th:replace="~{frame :: header('Bon de laboratoire', ${'N° ' + order.reference + (order.sentDate != '' ? ' · ' + order.sentDate : '')}, ${practitionerLine})}"></div>
   <div th:replace="~{frame :: footer(false)}"></div>
 
-  <h1>BON DE LABORATOIRE <span th:text="${'N° ' + order.reference}">N° 1</span><span class="stamp" th:if="${order.urgent}">URGENT</span></h1>
+  <h1>BON DE LABORATOIRE</h1>
+  <div class="docno"><span class="docno-n" th:text="${'N° ' + order.reference}">N° 1</span><span class="stamp" th:if="${order.urgent}">URGENT</span></div>
   <div class="legal" th:if="${order.sentDate != ''}" th:text="${'Envoyé le ' + order.sentDate}">Date</div>
 
   <table class="meta"><tr>

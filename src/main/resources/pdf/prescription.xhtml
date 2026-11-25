@@ -7,10 +7,18 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${'Ordonnance ' + number}">Ordonnance</title>
-  <style th:replace="~{frame :: style('A5', '36mm 12mm 22mm 12mm')}"></style>
+  <style th:replace="~{frame :: style('A5', '34mm 12mm 18mm 12mm')}"></style>
   <style>
     .ph-name { font-size: 11.5pt; }
     td.ph-logo img { max-height: 14mm; max-width: 32mm; }
+    td.ph-doc { width: 24mm; }
+    table.motif { border-spacing: 0.6mm; }
+    table.motif td, .m { width: 2.8mm; height: 2.8mm; }
+    .m-circle { border-radius: 1.4mm; }
+    .m-q1 { border-top-left-radius: 2.8mm; } .m-q2 { border-top-right-radius: 2.8mm; } .m-q3 { border-bottom-right-radius: 2.8mm; } .m-q4 { border-bottom-left-radius: 2.8mm; }
+    .m-ring { width: 1.2mm; height: 1.2mm; border-width: 0.8mm; border-radius: 1.4mm; }
+    .m-small { width: 1.6mm; height: 1.6mm; }
+    .m-dot { width: 1mm; height: 1mm; border-radius: 0.5mm; }
     table.top { width: 100%; border-collapse: collapse; margin: 0 0 4mm 0; }
     table.top td { padding: 0; vertical-align: top; font-size: 8pt; color: #52606d; }
     table.top td.place { text-align: right; font-size: 9.5pt; color: #1f2933; }

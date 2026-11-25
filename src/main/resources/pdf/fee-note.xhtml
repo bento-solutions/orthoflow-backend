@@ -4,26 +4,28 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${labels.title + ' ' + doc.number}">Fee note</title>
-  <style th:replace="~{frame :: style('A4', '38mm 14mm 24mm 14mm')}"></style>
+  <style th:replace="~{frame :: style('A4', '40mm 14mm 20mm 14mm')}"></style>
+  <style>
+  </style>
 </head>
 <body>
   <div th:replace="~{frame :: header(${labels.title}, ${'N° ' + doc.number + ' · ' + doc.issuedOn}, ${practitioner != null ? letterhead.practitionerLine(practitioner.name, practitioner.inpe) : letterhead.practitionerLine(null, null)})}"></div>
   <div th:replace="~{frame :: footer(true)}"></div>
 
-  <h1><span th:text="${labels.title}">NOTE D'HONORAIRES</span> <span th:text="${'N° ' + doc.number}">N° 1</span><span class="stamp" th:if="${doc.duplicate}" th:text="${labels.duplicate}">DUPLICATA</span></h1>
-  <div class="legal" th:text="${labels.date + ' : ' + doc.issuedOn}">Date</div>
+  <h1 th:text="${labels.title}">NOTE D'HONORAIRES</h1>
+  <div class="docno"><span th:text="${'N° ' + doc.number + ' · ' + labels.date + ' ' + doc.issuedOn}">N° 1</span><span class="stamp" th:if="${doc.duplicate}" th:text="${labels.duplicate}">DUPLICATA</span></div>
 
   <table class="meta"><tr>
     <td><div class="box">
       <div class="label" th:text="${labels.patient}">Patient</div>
-      <div><b th:text="${patient.fullName}">Patient</b></div>
+      <div class="who" th:text="${patient.fullName}">Patient</div>
       <div th:if="${patient.code != null}" th:text="${labels.file + ' ' + patient.code}"></div>
       <div th:if="${patient.cin != null}" th:text="${'CIN ' + patient.cin}"></div>
       <div th:if="${patient.address != null}" th:text="${patient.address}"></div>
     </div></td>
     <td><div class="box">
       <div class="label" th:text="${labels.practitioner}">Praticien</div>
-      <div><b th:text="${practitioner != null ? practitioner.name : letterhead.name}">Dr</b></div>
+      <div class="who" th:text="${practitioner != null ? practitioner.name : letterhead.name}">Dr</div>
       <div th:if="${practitioner != null and practitioner.inpe != ''}" th:text="${'INPE ' + practitioner.inpe}"></div>
       <div class="label" th:text="${labels.invoiceRef}" style="margin-top:6px;">Facture</div>
       <div th:text="${invoice.number}">INV-1</div>
@@ -54,15 +56,15 @@
     <tr th:if="${invoice.hasDiscount}"><td th:text="${labels.discount}">Remise</td><td class="right" th:text="${'- ' + invoice.discount + ' ' + invoice.currency}">0</td></tr>
     <tr th:if="${invoice.hasTax}"><td th:text="${labels.tax}">TVA</td><td class="right" th:text="${invoice.tax + ' ' + invoice.currency}">0</td></tr>
     <tr class="grand"><td th:text="${labels.total}">Total</td><td class="right" th:text="${invoice.total + ' ' + invoice.currency}">0</td></tr>
-    <tr><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid + ' ' + invoice.currency}">0</td></tr>
-    <tr><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance + ' ' + invoice.currency}">0</td></tr>
+    <tr class="after-grand"><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid + ' ' + invoice.currency}">0</td></tr>
+    <tr class="due"><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance + ' ' + invoice.currency}">0</td></tr>
   </table>
 
   <div class="words" th:if="${words != null}"><span th:text="${labels.words}">Arrêtée la présente note à la somme de</span> <b th:text="${words}">mille dirhams</b>.</div>
 
   <table class="sign"><tr>
-    <td><div class="label" th:text="${labels.patientSignature}">Signature du patient</div></td>
-    <td><div class="label" th:text="${labels.practitionerSignature}">Cachet et signature du praticien</div></td>
+    <td><div class="sign-space"></div><div class="sign-rule" th:text="${labels.patientSignature}">Signature du patient</div></td>
+    <td><div class="sign-space"></div><div class="sign-rule" th:text="${labels.practitionerSignature}">Cachet et signature du praticien</div></td>
   </tr></table>
 
 </body>

@@ -4,13 +4,14 @@
 <head>
   <meta charset="UTF-8"/>
   <title th:text="${labels.title + ' ' + doc.number}">Fee note</title>
-  <style th:replace="~{frame :: style('A4', '38mm 14mm 24mm 14mm')}"></style>
+  <style th:replace="~{frame :: style('A4', '40mm 14mm 20mm 14mm')}"></style>
 </head>
 <body>
   <div th:replace="~{frame :: header(${labels.title}, ${'N° ' + doc.number + ' · ' + doc.issuedOn}, ${practitioner != null ? letterhead.practitionerLine(practitioner.name, practitioner.inpe) : letterhead.practitionerLine(null, null)})}"></div>
   <div th:replace="~{frame :: footer(false)}"></div>
 
-  <h1><span th:text="${labels.title}">FEUILLE DE SOINS</span> <span th:text="${'N° ' + doc.number}">N° 1</span><span class="stamp" th:if="${doc.duplicate}" th:text="${labels.duplicate}">DUPLICATA</span></h1>
+  <h1 th:text="${labels.title}">FEUILLE DE SOINS</h1>
+  <div class="docno"><span class="docno-n" th:text="${'N° ' + doc.number}">N° 1</span><span class="stamp" th:if="${doc.duplicate}" th:text="${labels.duplicate}">DUPLICATA</span></div>
   <div class="legal" th:text="${labels.date + ' : ' + doc.issuedOn}">Date</div>
 
   <table class="meta"><tr>
