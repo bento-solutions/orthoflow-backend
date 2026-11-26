@@ -23,6 +23,10 @@
       @bottom-left-corner { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
       @bottom-center { content: element(page-footer); vertical-align: middle; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
       @bottom-right-corner { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
+      /* The side boxes are empty, but painted: on a narrow page (A5) the centre box can stop short of the
+         corner by a hairline, which showed as a white seam in the band. */
+      @bottom-left { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
+      @bottom-right { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
     }
     body { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
 
@@ -118,7 +122,8 @@
     table.sign td .sign-space { height: 22mm; }
 
     /* A draft says so across the page. */
-    .draft-mark { position: fixed; top: 95mm; left: 0; width: 100%; text-align: center; font-size: 70pt; font-weight: bold; color: #e3eef0; letter-spacing: 6pt; z-index: -1; }
+    /* Behind everything and pale, low on the page: the space a short document leaves above its sign-off, clear of the totals. */
+    .draft-mark { position: fixed; top: 150mm; left: 0; width: 100%; text-align: center; font-size: 72pt; font-weight: bold; color: #eff5f6; letter-spacing: 6pt; z-index: -1; }
   </style>
 </head>
 <body>
