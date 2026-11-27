@@ -73,7 +73,6 @@ public class InvoicePdfService {
         view.put("balance", money(total.subtract(paid).max(BigDecimal.ZERO)));
         view.put("lines", lines);
         view.put("words", "fr".equals(lang) ? AmountInWords.french(total, "dirham", "centime") : null);
-        view.put("draft", invoice.getStatus() == com.orthoflow.billing.domain.model.InvoiceStatus.DRAFT);
 
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("letterhead", letterheads.forPractice(invoice.getPracticeId()).requireFor(Letterhead.Use.FINANCIAL));
@@ -117,7 +116,6 @@ public class InvoicePdfService {
             Map.entry("payBy", new String[] {"À régler avant le", "Payable by", "يؤدى قبل"}),
             Map.entry("questions", new String[] {"Une question ? Appelez le", "Questions? Call", "للاستفسار:"}),
             Map.entry("signature", new String[] {"Cachet et signature", "Stamp and signature", "الختم والتوقيع"}),
-            Map.entry("draft", new String[] {"BROUILLON", "DRAFT", "مسودة"}),
             Map.entry("status.DRAFT", new String[] {"Brouillon", "Draft", "مسودة"}),
             Map.entry("status.SENT", new String[] {"Émise", "Issued", "صادرة"}),
             Map.entry("status.PARTIALLY_PAID", new String[] {"Partiellement réglée", "Partly paid", "مدفوعة جزئياً"}),
