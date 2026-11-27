@@ -190,6 +190,7 @@ public class SecurityConfig {
             // Taking payment is front-desk work; what the clinic has taken in total,
             // the cash close and the cheque lifecycle are not.
             .requestMatchers(HttpMethod.POST, "/invoices/*/payments").hasAuthority(Permission.BILLING_WRITE.name())
+            .requestMatchers(HttpMethod.POST, "/invoices/*/issue").hasAuthority(Permission.BILLING_WRITE.name())
             .requestMatchers(HttpMethod.POST, "/invoices").hasAuthority(Permission.BILLING_WRITE.name())
             // Whose invoice it is decides whose pay it counts toward.
             .requestMatchers(HttpMethod.PUT, "/invoices/*/practitioner").hasAuthority(Permission.FINANCE_MANAGE.name())

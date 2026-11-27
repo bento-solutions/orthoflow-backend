@@ -271,6 +271,8 @@ class SecurityPolicyTest {
                         "invoicing is front-desk work", ASSISTANT, DOCTOR, ADMIN),
                 Case.restricted(HttpMethod.POST, "/invoices/" + ID + "/payments",
                         "recording payment is front-desk work", ASSISTANT, DOCTOR, ADMIN),
+                Case.restricted(HttpMethod.POST, "/invoices/" + ID + "/issue",
+                        "issuing an invoice (or printing a draft) is front-desk work", ASSISTANT, DOCTOR, ADMIN),
 
                 // ── Practice settings ────────────────────────────────────────
                 Case.restricted(HttpMethod.GET, "/settings/practice",
