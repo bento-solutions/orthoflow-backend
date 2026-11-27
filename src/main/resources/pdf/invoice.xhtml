@@ -25,8 +25,8 @@
   <table class="meta"><tr>
     <td><div class="box">
       <div class="label" th:text="${labels.billedTo}">Facturé à</div>
-      <div class="who" th:text="${invoice.patient}">Patient</div>
-      <div th:if="${invoice.patientCode != null}" th:text="${labels.file + ' ' + invoice.patientCode}"></div>
+      <div class="who hand" th:text="${invoice.patient}">Patient</div>
+      <div th:if="${invoice.patientCode != null}"><span th:text="${labels.file}">Dossier</span> <span class="hand" th:text="${invoice.patientCode}">P-1</span></div>
     </div></td>
     <td><div class="box">
       <table class="kv">
@@ -48,26 +48,26 @@
     </tr></thead>
     <tbody>
       <tr th:each="line : ${invoice.lines}">
-        <td th:text="${line.code}"></td>
+        <td class="hand" th:text="${line.code}"></td>
         <td class="hand" th:text="${line.label}"></td>
-        <td class="center" th:text="${line.qty}"></td>
-        <td class="right" th:text="${line.unit}"></td>
-        <td class="right" th:text="${line.discount}"></td>
-        <td class="right" th:text="${line.total}"></td>
+        <td class="center hand" th:text="${line.qty}"></td>
+        <td class="right hand" th:text="${line.unit}"></td>
+        <td class="right hand" th:text="${line.discount}"></td>
+        <td class="right hand" th:text="${line.total}"></td>
       </tr>
     </tbody>
   </table>
 
   <table class="totals">
-    <tr><td th:text="${labels.subtotal}">Sous-total</td><td class="right" th:text="${invoice.subtotal}"></td></tr>
-    <tr th:if="${invoice.discount != null}"><td th:text="${labels.discount}">Remise</td><td class="right" th:text="${'- ' + invoice.discount}"></td></tr>
-    <tr><td th:text="${labels.tax}">TVA</td><td class="right" th:text="${invoice.tax}"></td></tr>
-    <tr class="grand"><td th:text="${labels.total}">Total</td><td class="right" th:text="${invoice.total + ' ' + invoice.currency}"></td></tr>
-    <tr class="after-grand"><td th:text="${labels.paid}">Réglé</td><td class="right" th:text="${invoice.paid}"></td></tr>
-    <tr class="due"><td th:text="${labels.balance}">Reste dû</td><td class="right" th:text="${invoice.balance + ' ' + invoice.currency}"></td></tr>
+    <tr><td th:text="${labels.subtotal}">Sous-total</td><td class="right hand" th:text="${invoice.subtotal}"></td></tr>
+    <tr th:if="${invoice.discount != null}"><td th:text="${labels.discount}">Remise</td><td class="right hand" th:text="${'- ' + invoice.discount}"></td></tr>
+    <tr><td th:text="${labels.tax}">TVA</td><td class="right hand" th:text="${invoice.tax}"></td></tr>
+    <tr class="grand"><td th:text="${labels.total}">Total</td><td class="right hand" th:text="${invoice.total + ' ' + invoice.currency}"></td></tr>
+    <tr class="after-grand"><td th:text="${labels.paid}">Réglé</td><td class="right hand" th:text="${invoice.paid}"></td></tr>
+    <tr class="due"><td th:text="${labels.balance}">Reste dû</td><td class="right hand" th:text="${invoice.balance + ' ' + invoice.currency}"></td></tr>
   </table>
 
-  <div class="words" th:if="${invoice.words != null}"><span th:text="${labels.words}">Arrêtée la présente facture à la somme de</span> <b th:text="${invoice.words}">mille dirhams</b>.</div>
+  <div class="words" th:if="${invoice.words != null}"><span th:text="${labels.words}">Arrêtée la présente facture à la somme de</span> <b class="hand" th:text="${invoice.words}">mille dirhams</b>.</div>
 
   <div id="page-fill" class="page-fill" th:style="${pageFill == null ? null : 'height:' + pageFill + 'px'}"></div>
   <table class="close"><tr>
