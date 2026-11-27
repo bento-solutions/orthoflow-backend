@@ -18,15 +18,14 @@
     @page {
       size: [(${size})];
       margin: [(${margin})];
+      /* The footer band, edge to edge: one picture (a mint rule over petrol) laid behind the bottom margin.
+         Painting the margin boxes instead left hairline seams where they met. */
+      background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAGQCAIAAAAGE1bIAAAAOUlEQVR4nO3OMQ0AIAwAQYoP5KEBGdhixxATCRKacL/d9jH3KrdaniADovWRaAcAAAAAAAAAAD7HAd+KBkIHWlDjAAAAAElFTkSuQmCC");
+      background-repeat: no-repeat;
+      background-position: left bottom;
+      background-size: 100% [(${#strings.arraySplit(margin, ' ')[2]})];
       @top-center { content: element(page-header); vertical-align: bottom; padding-bottom: 4mm; }
-      /* The footer is a solid band across the whole width of the page: the two bottom corners carry its colour too. */
-      @bottom-left-corner { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
-      @bottom-center { content: element(page-footer); vertical-align: middle; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
-      @bottom-right-corner { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
-      /* The side boxes are empty, but painted: on a narrow page (A5) the centre box can stop short of the
-         corner by a hairline, which showed as a white seam in the band. */
-      @bottom-left { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
-      @bottom-right { content: ""; background-color: #1d6577; border-top: 1.6mm solid #8fd3c8; }
+      @bottom-center { content: element(page-footer); vertical-align: middle; }
     }
     body { font-family: 'Open Sans', 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #1f2933; }
 
