@@ -241,4 +241,46 @@ class BillingServiceTest {
         assertThatThrownBy(() -> billingService.getInvoice(id))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    private Invoice invoiceIn(InvoiceStatus status) {
+        Invoice invoice = Invoice.builder()
+                .id(UUID.randomUUID())
+                .status(status)
+                .total(BigDecimal.valueOf(100))
+                .payments(new java.util.ArrayList<>())
+                .lines(new java.util.ArrayList<>())
+                .practiceId(UUID.randomUUID())
+                .patientId(UUID.randomUUID())
+                .build();
+        when(invoiceRepository.findByIdForUpdate(invoice.getId())).thenReturn(Optional.of(invoice));
+        return invoice;
+    }
+
+    @Test
+    void issuingADraftMakesItSent() {
+        Invoice invoice = invoiceIn(InvoiceStatus.DRAFT);
+
+        billingService.issueInvoice(invoice.getId(), UUID.randomUUID());
+
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.SENT);
+        verify(invoiceRepository).save(invoice);
+    }
+
+    @Test
+    void issuingAnInvoiceAlreadyIssuedOrPaidLeavesItAsItIs() {
+        for (InvoiceStatus status : java.util.List.of(InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.PAID)) {
+            Invoice invoice = invoiceIn(status);
+            billingService.issueInvoice(invoice.getId(), UUID.randomUUID());
+            assertThat(invoice.getStatus()).isEqualTo(status);
+        }
+    }
+
+    @Test
+    void aCancelledInvoiceCannotBeIssued() {
+        Invoice invoice = invoiceIn(InvoiceStatus.CANCELLED);
+
+        assertThatThrownBy(() -> billingService.issueInvoice(invoice.getId(), UUID.randomUUID()))
+                .isInstanceOf(ConflictException.class);
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.CANCELLED);
+    }
 }

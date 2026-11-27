@@ -210,7 +210,7 @@ class ReceiptServiceTest {
         assertThat(voided.voided()).isTrue();
         assertThat(voided.voidReason()).isEqualTo("saisie en double");
         assertThat(a.getPayments()).isEmpty();
-        assertThat(a.getStatus()).isEqualTo(InvoiceStatus.DRAFT);
+        assertThat(a.getStatus()).isEqualTo(InvoiceStatus.SENT);
         assertThat(service.account(practice, patient).balanceDue()).isEqualByComparingTo("300");
         assertThatThrownBy(() -> service.voidReceipt(practice, actor, paid.id(), "again", false)).isInstanceOf(ConflictException.class);
     }
@@ -240,7 +240,7 @@ class ReceiptServiceTest {
         assertThatThrownBy(() -> service.voidReceipt(practice, actor, view.id(), "x", false))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("cheque");
         service.voidReceipt(practice, actor, view.id(), "Cheque 0012345 rejected", true);
-        assertThat(a.getStatus()).isEqualTo(InvoiceStatus.DRAFT);
+        assertThat(a.getStatus()).isEqualTo(InvoiceStatus.SENT);
     }
 
     @Test

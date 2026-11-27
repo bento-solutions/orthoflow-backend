@@ -246,9 +246,8 @@ public class BillingService {
 
     /**
      * Recomputes an invoice's status from what has been allocated to it. An
-     * invoice whose payments were all reversed goes back to DRAFT — which is
-     * what every unpaid invoice is in this application: nothing else ever
-     * moves one to SENT — and it is owed again.
+     * invoice whose payments were all reversed is owed again: it goes back to
+     * SENT (issued), since an invoice that was paid had been handed out.
      */
     public void refreshStatus(Invoice invoice) {
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
@@ -260,7 +259,7 @@ public class BillingService {
         } else if (paid.signum() > 0) {
             invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
         } else if (invoice.getStatus() == InvoiceStatus.PAID || invoice.getStatus() == InvoiceStatus.PARTIALLY_PAID) {
-            invoice.setStatus(InvoiceStatus.DRAFT);
+            invoice.setStatus(InvoiceStatus.SENT);
         }
     }
 
@@ -273,6 +272,26 @@ public class BillingService {
                 "receiptId", String.valueOf(payment.getReceiptId()),
                 "reason", reason == null ? "" : reason,
                 "resultingStatus", invoice.getStatus().toString()));
+    }
+
+    /**
+     * Issues a draft: it becomes SENT ("Émise"), the invoice handed to the patient. Done by the
+     * "Émettre" button, and by printing, downloading or sending a draft, so no invoice given out
+     * stays a draft. An invoice already issued or paid is left as it is; a cancelled one cannot be issued.
+     */
+    @Transactional
+    public InvoiceResponse issueInvoice(UUID invoiceId, UUID actorId) {
+        Invoice invoice = invoiceRepository.findByIdForUpdate(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found"));
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw new ConflictException("A cancelled invoice cannot be issued");
+        }
+        if (invoice.getStatus() == InvoiceStatus.DRAFT) {
+            invoice.setStatus(InvoiceStatus.SENT);
+            invoiceRepository.save(invoice);
+            audit(invoice.getId(), "ISSUED", actorId, Map.of());
+        }
+        return mapToResponse(invoice);
     }
 
     /**

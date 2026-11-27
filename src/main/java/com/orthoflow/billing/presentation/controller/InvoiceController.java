@@ -51,6 +51,12 @@ public class InvoiceController {
                 "facture-" + (rendered.number() == null ? id : rendered.number()));
     }
 
+    /** Issues a draft ("Émettre"): DRAFT becomes SENT. Already issued or paid: unchanged. */
+    @PostMapping("/{id}/issue")
+    public InvoiceResponse issue(@PathVariable UUID id) {
+        return billingService.issueInvoice(id, currentUserProvider.requireUserId());
+    }
+
     /** Body {"practitionerId": "..."}; null clears the attribution. */
     @PutMapping("/{id}/practitioner")
     public InvoiceResponse assignPractitioner(@PathVariable UUID id, @RequestBody AssignPractitioner body) {
