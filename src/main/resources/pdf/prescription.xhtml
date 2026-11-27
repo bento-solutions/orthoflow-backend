@@ -29,6 +29,7 @@
     .dci { color: #52606d; font-size: 8.5pt; }
     .posology { margin: 1px 0 0 12px; }
     .advice { margin-top: 12px; padding: 6px 8px; border: 1px dashed #9aa5b1; font-size: 8.5pt; }
+    .advice.hand { font-size: 11pt; } .hand .dci { font-size: 10pt; }
     .sign { margin-top: 10mm; text-align: right; font-size: 8pt; color: #52606d; page-break-inside: avoid; }
   </style>
 </head>
@@ -44,13 +45,13 @@
 
   <h1>ORDONNANCE</h1>
 
-  <div class="rx" th:each="l : ${lines}">
+  <div class="rx hand" th:each="l : ${lines}">
     <div><span class="drug" th:text="${l.drug}">Drug</span><span th:if="${l.form != null}" th:text="${' — ' + l.form}"></span></div>
     <div class="dci" th:if="${l.dci != null}" th:text="${l.dci}">DCI</div>
     <div class="posology" th:text="${l.posology}">Posologie</div>
   </div>
 
-  <div class="advice" th:if="${!advice.isEmpty()}">
+  <div class="advice hand" th:if="${!advice.isEmpty()}">
     <div th:each="a : ${advice}" th:text="${a}">Conseil</div>
   </div>
 

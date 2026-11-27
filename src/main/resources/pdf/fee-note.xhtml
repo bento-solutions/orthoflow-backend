@@ -42,7 +42,7 @@
     </tr></thead>
     <tbody>
       <tr th:each="l : ${invoice.lines}">
-        <td th:text="${l.label}">Soin</td>
+        <td class="hand" th:text="${l.label}">Soin</td>
         <td class="center" th:text="${l.quantity}">1</td>
         <td class="right" th:text="${l.unitPrice}">0</td>
         <td class="right" th:text="${l.discount}">0</td>
