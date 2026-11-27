@@ -44,7 +44,7 @@ import java.util.Map;
 public class PdfService {
 
     private static final String FONT_DIR = "net/sf/jasperreports/fonts/dejavu/";
-    private static final String HAND_FONT_DIR = "pdf/fonts/";
+    private static final String BUNDLED_FONT_DIR = "pdf/fonts/";
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     static final String FILL_ID = "page-fill";
@@ -222,10 +222,12 @@ public class PdfService {
         font(builder, "DejaVuSans.ttf", 400, BaseRendererBuilder.FontStyle.NORMAL);
         font(builder, "DejaVuSans-Bold.ttf", 700, BaseRendererBuilder.FontStyle.NORMAL);
         font(builder, "DejaVuSans-BoldOblique.ttf", 700, BaseRendererBuilder.FontStyle.ITALIC);
-        // What the practitioner writes (treatments, a medicine and how to take it) is set in a handwriting
-        // face; Aref Ruqaa carries the Arabic, which Indie Flower lacks. Both are SIL OFL, in pdf/fonts.
-        handFont(builder, "IndieFlower-Regular.ttf", "Indie Flower");
-        handFont(builder, "ArefRuqaa-Regular.ttf", "Aref Ruqaa");
+        // Documents are set in Open Sans (SIL OFL, in pdf/fonts); DejaVu, above, carries what it lacks (Arabic).
+        bundledFont(builder, "OpenSans-Regular.ttf", "Open Sans", 400, BaseRendererBuilder.FontStyle.NORMAL);
+        bundledFont(builder, "OpenSans-SemiBold.ttf", "Open Sans", 600, BaseRendererBuilder.FontStyle.NORMAL);
+        bundledFont(builder, "OpenSans-Bold.ttf", "Open Sans", 700, BaseRendererBuilder.FontStyle.NORMAL);
+        bundledFont(builder, "OpenSans-Italic.ttf", "Open Sans", 400, BaseRendererBuilder.FontStyle.ITALIC);
+        bundledFont(builder, "OpenSans-BoldItalic.ttf", "Open Sans", 700, BaseRendererBuilder.FontStyle.ITALIC);
         builder.useUnicodeBidiSplitter(new ICUBidiSplitter.ICUBidiSplitterFactory());
         builder.useUnicodeBidiReorderer(new ICUBidiReorderer());
         builder.defaultTextDirection(rtl
@@ -235,14 +237,15 @@ public class PdfService {
         return builder.buildPdfRenderer();
     }
 
-    private static void handFont(PdfRendererBuilder builder, String file, String family) {
+    private static void bundledFont(PdfRendererBuilder builder, String file, String family, int weight,
+                                    BaseRendererBuilder.FontStyle style) {
         builder.useFont(() -> {
-            InputStream stream = PdfService.class.getClassLoader().getResourceAsStream(HAND_FONT_DIR + file);
+            InputStream stream = PdfService.class.getClassLoader().getResourceAsStream(BUNDLED_FONT_DIR + file);
             if (stream == null) {
                 throw new IllegalStateException("Font " + file + " is missing from the classpath");
             }
             return stream;
-        }, family, 400, BaseRendererBuilder.FontStyle.NORMAL, true);
+        }, family, weight, style, true);
     }
 
     /**
