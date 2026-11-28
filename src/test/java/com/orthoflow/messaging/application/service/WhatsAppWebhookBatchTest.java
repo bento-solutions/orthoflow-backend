@@ -38,7 +38,7 @@ class WhatsAppWebhookBatchTest {
             inv.<Consumer<org.springframework.transaction.TransactionStatus>>getArgument(0).accept(null);
             return null;
         }).when(tx).executeWithoutResult(any());
-        WhatsAppWebhookService service = new WhatsAppWebhookService(props, new ObjectMapper(), outbox, null, null, null, null, null, null, tx);
+        WhatsAppWebhookService service = new WhatsAppWebhookService(props, new ObjectMapper(), outbox, null, null, null, null, null, null, null, null, tx);
 
         var failed = service.handle("""
                 {"events":[

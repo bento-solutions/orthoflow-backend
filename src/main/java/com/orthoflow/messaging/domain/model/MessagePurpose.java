@@ -18,6 +18,7 @@ public enum MessagePurpose {
     CHEQUE_REJECTED,
     TASK_ASSIGNED,
     INTERNAL_MESSAGE,
+    URGENT_ALERT,
     TEST,
     GENERIC
 }

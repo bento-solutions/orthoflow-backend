@@ -2,12 +2,15 @@ package com.orthoflow.messaging.application.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orthoflow.auth.domain.model.Permission;
+import com.orthoflow.booking.infrastructure.BookingProperties;
 import com.orthoflow.common.events.LiveEventPublisher;
 import com.orthoflow.messaging.application.dto.MessagingDtos.InboxRow;
 import com.orthoflow.messaging.application.dto.MessagingDtos.WhatsAppStatus;
 import com.orthoflow.messaging.application.port.InboundMessageListener;
 import com.orthoflow.messaging.application.port.WhatsAppProvider;
 import com.orthoflow.messaging.domain.model.MessageEvent;
+import com.orthoflow.messaging.domain.model.MessagePurpose;
 import com.orthoflow.messaging.domain.model.MessageStatus;
 import com.orthoflow.messaging.domain.model.OutboxMessage;
 import com.orthoflow.messaging.infrastructure.MessagingProperties;
@@ -36,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 /**
  * What the Baileys bridge reports back: delivery receipts, patients' replies
@@ -63,6 +67,8 @@ public class WhatsAppWebhookService {
     private final LiveEventPublisher liveEvents;
     private final ObjectProvider<InboundMessageListener> listeners;
     private final LandingPageContacts landingPageContacts;
+    private final BookingProperties bookingProperties;
+    private final StaffNotifier staffNotifier;
     private final TransactionTemplate tx;
     private final AtomicReference<Reported> lastSessionReport = new AtomicReference<>();
 
@@ -175,15 +181,27 @@ public class WhatsAppWebhookService {
         String digits = phone == null ? null : phone.replaceAll("[^0-9]", "");
         String body = data.path("body").asText("");
         UUID practiceId = properties.getWhatsapp().getPracticeId();
+        boolean urgent = isUrgentMessage(body);
         boolean fromLandingPage = fromLandingPage(practiceId, digits, body);
-        if (!fromLandingPage && properties.getWhatsapp().getInboundFrom() == MessagingProperties.InboundFrom.LANDING_PAGE) {
+        if (!urgent && !fromLandingPage && properties.getWhatsapp().getInboundFrom() == MessagingProperties.InboundFrom.LANDING_PAGE) {
             // The number is shared with the bento CRM: this conversation is not the clinic's. Nothing is kept.
             return;
         }
         UUID patientId = digits == null ? null : patientLookup.findIdByPhoneDigits(practiceId, digits).orElse(null);
 
         MessageEvent saved = events.save(MessageEvent.builder().practiceId(practiceId).direction("IN").eventType("MESSAGE")
-                .externalId(wamid).fromPhone(digits).body(body).patientId(patientId).fromLandingPage(fromLandingPage).build());
+                .externalId(wamid).fromPhone(digits).body(body).patientId(patientId).fromLandingPage(fromLandingPage)
+                .urgent(urgent).build());
+
+        if (urgent) {
+            // Emergency messages must never be consumed by reminder reply parsers (1/2/3) or buried in normal chats.
+            String excerpt = body.length() > 140 ? body.substring(0, 140) + "..." : body;
+            staffNotifier.toPermission(practiceId, Permission.MESSAGING_VIEW, MessagePurpose.URGENT_ALERT,
+                    "WhatsApp URGENT", excerpt, "MESSAGE_EVENT", saved.getId());
+            liveEvents.publish(practiceId, "whatsapp-urgent", saved.getId());
+            liveEvents.publish(practiceId, "whatsapp-inbox", saved.getId());
+            return;
+        }
 
         boolean handled = false;
         if (patientId != null) {
@@ -222,14 +240,32 @@ public class WhatsAppWebhookService {
         return false;
     }
 
+    private boolean isUrgentMessage(String body) {
+        if (body == null || body.isBlank()) {
+            return false;
+        }
+        String marker = bookingProperties.getEmergencyMarker();
+        if (marker == null || marker.isBlank()) {
+            marker = "URGENT";
+        }
+        Pattern pattern = Pattern.compile("(?i)(?:^|\\b)" + Pattern.quote(marker.trim()) + "(?:\\b|$)");
+        return pattern.matcher(body).find();
+    }
+
     @Transactional(readOnly = true)
     public List<InboxRow> inbox(UUID practiceId, boolean unhandledOnly, boolean landingPageOnly, int limit) {
-        List<MessageEvent> rows = events.inbox(practiceId, unhandledOnly, landingPageOnly, PageRequest.of(0, Math.min(Math.max(limit, 1), 200)));
+        return inbox(practiceId, unhandledOnly, landingPageOnly, false, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InboxRow> inbox(UUID practiceId, boolean unhandledOnly, boolean landingPageOnly, boolean urgentOnly, int limit) {
+        List<MessageEvent> rows = events.inbox(practiceId, unhandledOnly, landingPageOnly, urgentOnly,
+                PageRequest.of(0, Math.min(Math.max(limit, 1), 200)));
         Map<UUID, com.orthoflow.patient.application.port.PatientSummary> patients = patientLookup.findSummaries(
                 rows.stream().map(MessageEvent::getPatientId).filter(java.util.Objects::nonNull).distinct().toList());
         return rows.stream().map(e -> new InboxRow(e.getId(), e.getFromPhone(), e.getBody(), e.getPatientId(),
                 e.getPatientId() == null || patients.get(e.getPatientId()) == null ? null : patients.get(e.getPatientId()).fullName(),
-                e.getOccurredAt(), e.getHandledAt(), e.isFromLandingPage())).toList();
+                e.getOccurredAt(), e.getHandledAt(), e.isFromLandingPage(), e.isUrgent())).toList();
     }
 
     @Transactional
@@ -246,7 +282,7 @@ public class WhatsAppWebhookService {
         Reported reported = lastSessionReport.get();
         return new WhatsAppStatus(provider.enabled(), provider.sessionState().orElse(null),
                 reported == null ? null : reported.state(), reported == null ? null : reported.at(),
-                events.unhandledCount(practiceId));
+                events.unhandledCount(practiceId), events.unhandledUrgentCount(practiceId));
     }
 
     private static int rank(MessageStatus status) {

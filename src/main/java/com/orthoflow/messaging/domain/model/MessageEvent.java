@@ -53,6 +53,10 @@ public class MessageEvent {
     @Column(name = "from_landing_page", nullable = false)
     private boolean fromLandingPage;
 
+    /** Flagged when the inbound body carries the configured urgent emergency marker. */
+    @Column(name = "is_urgent", nullable = false)
+    private boolean urgent;
+
     @Column(name = "occurred_at", nullable = false)
     private OffsetDateTime occurredAt;
 

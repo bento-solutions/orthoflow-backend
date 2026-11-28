@@ -47,7 +47,7 @@ public final class MessagingDtos {
     }
 
     public record InboxRow(UUID id, String fromPhone, String body, UUID patientId, String patientName,
-                           OffsetDateTime occurredAt, OffsetDateTime handledAt, boolean fromLandingPage) {
+                           OffsetDateTime occurredAt, OffsetDateTime handledAt, boolean fromLandingPage, boolean urgent) {
     }
 
     public record Consent(Map<MessageChannel, Boolean> channels) {
@@ -57,7 +57,7 @@ public final class MessagingDtos {
     }
 
     public record WhatsAppStatus(boolean enabled, String sessionState, String lastReportedState,
-                                 OffsetDateTime lastReportedAt, long unhandledReplies) {
+                                 OffsetDateTime lastReportedAt, long unhandledReplies, long unhandledUrgent) {
     }
 
     public record NotificationRow(UUID id, MessagePurpose purpose, String subject, String body, String relatedType,

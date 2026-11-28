@@ -86,8 +86,9 @@ public class MessagingController {
     @GetMapping("/messaging/inbox")
     public List<InboxRow> inbox(@RequestParam(defaultValue = "true") boolean unhandledOnly,
                                 @RequestParam(defaultValue = "false") boolean landingPageOnly,
+                                @RequestParam(defaultValue = "false") boolean urgentOnly,
                                 @RequestParam(defaultValue = "50") int limit) {
-        return webhookService.inbox(currentUser.requirePracticeId(), unhandledOnly, landingPageOnly, limit);
+        return webhookService.inbox(currentUser.requirePracticeId(), unhandledOnly, landingPageOnly, urgentOnly, limit);
     }
 
     @PostMapping("/messaging/inbox/{id}/handled")
