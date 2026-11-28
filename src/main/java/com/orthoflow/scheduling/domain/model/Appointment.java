@@ -87,6 +87,16 @@ public class Appointment {
     @Column(name = "waiting_priority", nullable = false)
     private int waitingPriority;
 
+    /** Patient's WhatsApp reminder reply: CONFIRMED_ON_TIME, CONFIRMED_LATE, CANNOT_COME. */
+    @Column(name = "reply_status", length = 32)
+    private String replyStatus;
+
+    @Column(name = "reply_received_at")
+    private OffsetDateTime replyReceivedAt;
+
+    @Column(name = "reply_note", columnDefinition = "TEXT")
+    private String replyNote;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

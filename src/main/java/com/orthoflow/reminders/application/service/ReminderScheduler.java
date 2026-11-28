@@ -40,7 +40,7 @@ public class ReminderScheduler {
         this.reminders = reminders;
     }
 
-    @Scheduled(cron = "${orthoflow.reminders.cron:0 5 * * * *}")
+    @Scheduled(cron = "${orthoflow.reminders.cron:0 0 * * * *}")
     public void run() {
         List<UUID> practices = jdbc.queryForList("SELECT id FROM practices WHERE active", UUID.class);
         for (UUID practiceId : practices) {

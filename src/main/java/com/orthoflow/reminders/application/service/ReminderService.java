@@ -5,6 +5,7 @@ import com.orthoflow.billing.infrastructure.adapter.persistence.PaymentPlanJpaRe
 import com.orthoflow.common.tenancy.PracticeZone;
 import com.orthoflow.export.infrastructure.Cells;
 import com.orthoflow.messaging.application.dto.OutgoingMessage;
+import com.orthoflow.messaging.application.service.DefaultTemplates;
 import com.orthoflow.messaging.application.service.MessageService;
 import com.orthoflow.messaging.domain.model.MessageChannel;
 import com.orthoflow.messaging.domain.model.MessagePurpose;
@@ -12,6 +13,7 @@ import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientSummary;
 import com.orthoflow.publicapi.application.service.PublicLinkService;
 import com.orthoflow.publicapi.domain.model.PublicLinkPurpose;
+import com.orthoflow.registration.application.service.RegistrationService;
 import com.orthoflow.scheduling.domain.model.Appointment;
 import com.orthoflow.scheduling.domain.model.AppointmentStatus;
 import com.orthoflow.scheduling.infrastructure.adapter.persistence.AppointmentJpaRepository;
@@ -52,6 +54,7 @@ public class ReminderService {
     private final ChannelPicker channelPicker;
     private final MessageService messages;
     private final PublicLinkService publicLinks;
+    private final RegistrationService registrationService;
     private final PracticeZone practiceZone;
     private final JdbcTemplate jdbc;
 
@@ -79,9 +82,22 @@ public class ReminderService {
             if (messages.alreadyQueued(key)) {
                 continue;
             }
+            // Include the personal registration link only when the patient's registration form is still incomplete.
+            String registrationSection = "";
+            if (!registrationService.isRegistrationCompleted(practiceId, p.id())) {
+                try {
+                    String link = registrationService.issuePersonalRegistrationUrl(practiceId, p.id());
+                    registrationSection = DefaultTemplates.registrationSnippet(p.preferredLanguage(), link);
+                } catch (RuntimeException ex) {
+                    log.warn("Could not attach registration link to reminder for patient {}: {}", p.id(), ex.getMessage());
+                }
+            }
             messages.enqueue(OutgoingMessage.builder().practiceId(practiceId).channel(channel.get())
                     .purpose(MessagePurpose.APPOINTMENT_REMINDER).patientId(p.id()).language(p.preferredLanguage())
-                    .variables(Map.of("date", DAY.format(a.getDateTime().atZoneSameInstant(zone)), "time", TIME.format(a.getDateTime().atZoneSameInstant(zone))))
+                    .variables(Map.of(
+                            "date", DAY.format(a.getDateTime().atZoneSameInstant(zone)),
+                            "time", TIME.format(a.getDateTime().atZoneSameInstant(zone)),
+                            "registrationSection", registrationSection))
                     .relatedType("APPOINTMENT").relatedId(a.getId()).dedupeKey(key).build());
             queued++;
         }

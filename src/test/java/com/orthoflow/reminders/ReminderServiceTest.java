@@ -8,6 +8,7 @@ import com.orthoflow.messaging.domain.model.MessagePurpose;
 import com.orthoflow.patient.application.port.PatientLookup;
 import com.orthoflow.patient.application.port.PatientSummary;
 import com.orthoflow.publicapi.application.service.PublicLinkService;
+import com.orthoflow.registration.application.service.RegistrationService;
 import com.orthoflow.reminders.application.service.ChannelPicker;
 import com.orthoflow.reminders.application.service.ReminderService;
 import com.orthoflow.scheduling.domain.model.Appointment;
@@ -39,6 +40,7 @@ class ReminderServiceTest {
     private PatientLookup patients;
     private ChannelPicker picker;
     private MessageService messages;
+    private RegistrationService registration;
     private ReminderService service;
 
     @BeforeEach
@@ -47,8 +49,10 @@ class ReminderServiceTest {
         patients = mock(PatientLookup.class);
         picker = mock(ChannelPicker.class);
         messages = mock(MessageService.class);
+        registration = mock(RegistrationService.class);
+        when(registration.isRegistrationCompleted(any(), any())).thenReturn(true);
         service = new ReminderService(appointments, mock(PaymentPlanJpaRepository.class), patients, picker, messages,
-                mock(PublicLinkService.class), id -> ZONE, mock(JdbcTemplate.class));
+                mock(PublicLinkService.class), registration, id -> ZONE, mock(JdbcTemplate.class));
     }
 
     private Appointment visit(UUID patient, String time) {
@@ -116,5 +120,32 @@ class ReminderServiceTest {
 
         assertThat(service.sendRecallReminders(practice, UUID.randomUUID(), List.of(sara))).isEqualTo(1);
         assertThat(service.sendRecallReminders(practice, UUID.randomUUID(), List.of(sara))).isZero();
+    }
+
+    @Test
+    void reminderIncludesRegistrationLinkOnlyWhenFormIsStillIncomplete() {
+        UUID incompletePatient = UUID.randomUUID();
+        UUID completedPatient = UUID.randomUUID();
+        Appointment a1 = visit(incompletePatient, "09:00");
+        Appointment a2 = visit(completedPatient, "10:00");
+        when(appointments.inStatuses(eq(practice), any(), any(), any())).thenReturn(List.of(a1, a2));
+        when(patients.findSummaries(anyList())).thenReturn(Map.of(
+                incompletePatient, patient(incompletePatient, "fr"),
+                completedPatient, patient(completedPatient, "fr")));
+        when(picker.pick(any())).thenReturn(Optional.of(MessageChannel.WHATSAPP));
+        when(registration.isRegistrationCompleted(practice, incompletePatient)).thenReturn(false);
+        when(registration.isRegistrationCompleted(practice, completedPatient)).thenReturn(true);
+        when(registration.issuePersonalRegistrationUrl(practice, incompletePatient))
+                .thenReturn("https://ortho.crmbento.com/public/register/tok123");
+
+        int queued = service.queueAppointmentReminders(practice, tomorrow);
+
+        assertThat(queued).isEqualTo(2);
+        ArgumentCaptor<OutgoingMessage> sent = ArgumentCaptor.forClass(OutgoingMessage.class);
+        verify(messages, times(2)).enqueue(sent.capture());
+        List<OutgoingMessage> out = sent.getAllValues();
+        assertThat(out.get(0).getVariables().get("registrationSection")).contains("https://ortho.crmbento.com/public/register/tok123");
+        assertThat(out.get(1).getVariables().get("registrationSection")).isEmpty();
+        verify(registration, never()).issuePersonalRegistrationUrl(practice, completedPatient);
     }
 }

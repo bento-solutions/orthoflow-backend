@@ -32,6 +32,9 @@ public class AppointmentResponse {
     private OffsetDateTime finishedAt;
     private UUID waitingRoomId;
     private int waitingPriority;
+    private String replyStatus;
+    private OffsetDateTime replyReceivedAt;
+    private String replyNote;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

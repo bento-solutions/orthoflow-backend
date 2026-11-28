@@ -299,6 +299,9 @@ public class AppointmentService {
                 .finishedAt(a.getFinishedAt())
                 .waitingRoomId(a.getWaitingRoomId())
                 .waitingPriority(a.getWaitingPriority())
+                .replyStatus(a.getReplyStatus())
+                .replyReceivedAt(a.getReplyReceivedAt())
+                .replyNote(a.getReplyNote())
                 .createdAt(a.getCreatedAt())
                 .updatedAt(a.getUpdatedAt())
                 .build();
