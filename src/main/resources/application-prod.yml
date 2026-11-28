@@ -23,6 +23,10 @@ logging:
     com.orthoflow: INFO
 
 orthoflow:
+  messaging:
+    sender:
+      min-delay-ms: ${MESSAGING_MIN_DELAY_MS:1200}
+      max-delay-ms: ${MESSAGING_MAX_DELAY_MS:3000}
   # See AuthController#register / application.yml. Defaults to TRUE in
   # production: /auth/register is public (it has to be, to create the very
   # first account on an empty database), so with this off anyone on the

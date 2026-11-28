@@ -366,6 +366,8 @@ orthoflow:
       enabled: ${MESSAGING_SENDER_ENABLED:true}
       batch-size: ${MESSAGING_BATCH_SIZE:20}
       max-attempts: ${MESSAGING_MAX_ATTEMPTS:6}
+      min-delay-ms: ${MESSAGING_MIN_DELAY_MS:0}
+      max-delay-ms: ${MESSAGING_MAX_DELAY_MS:0}
     email:
       # Also needs SPRING_MAIL_HOST (and, usually, _PORT/_USERNAME/_PASSWORD).
       enabled: ${MESSAGING_EMAIL_ENABLED:false}

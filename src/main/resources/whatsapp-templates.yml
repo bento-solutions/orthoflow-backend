@@ -1,0 +1,124 @@
+# Plain-text WhatsApp & notification message templates.
+# Edit wording here in one place. Keep placeholders inside {{ }}.
+# Supported languages: fr (French), ar (Arabic), en (English).
+
+APPOINTMENT_REMINDER:
+  fr:
+    subject: "Rappel de rendez-vous"
+    body: "Bonjour {{patientName}}, rappel de votre rendez-vous le {{date}} à {{time}} au {{clinicName}}.{{clinicAddressPart}} Répondez : 1 pour confirmer à l'heure, 2 si vous aurez du retard, ou 3 si vous ne pouvez pas venir.{{registrationSection}}"
+  ar:
+    subject: "تذكير بموعدك"
+    body: "مرحباً {{patientName}}، نذكّركم بموعدكم يوم {{date}} على الساعة {{time}} في {{clinicName}}.{{clinicAddressPart}} أجيبوا بـ: 1 للتأكيد في الوقت، 2 للتأكيد مع تأخر بسيط، أو 3 إذا تعذّر عليكم الحضور.{{registrationSection}}"
+  en:
+    subject: "Appointment reminder"
+    body: "Hello {{patientName}}, reminder of your appointment on {{date}} at {{time}} at {{clinicName}}.{{clinicAddressPart}} Reply 1 to confirm on time, 2 if running late, or 3 if you cannot come.{{registrationSection}}"
+
+APPOINTMENT_CONFIRMED:
+  fr:
+    subject: "Rendez-vous confirmé"
+    body: "Merci {{patientName}}, votre rendez-vous du {{date}} à {{time}} est confirmé."
+  ar:
+    subject: "تم تأكيد موعدك"
+    body: "شكراً {{patientName}}، تم تأكيد موعدكم يوم {{date}} على الساعة {{time}}."
+  en:
+    subject: "Appointment confirmed"
+    body: "Thank you {{patientName}}, your appointment on {{date}} at {{time}} is confirmed."
+
+APPOINTMENT_CANCELLED:
+  fr:
+    subject: "Rendez-vous annulé"
+    body: "{{patientName}}, votre rendez-vous du {{date}} à {{time}} a été annulé. Appelez-nous pour en reprendre un : {{clinicPhone}}."
+  ar:
+    subject: "تم إلغاء موعدك"
+    body: "{{patientName}}، تم إلغاء موعدكم يوم {{date}} على الساعة {{time}}. اتصلوا بنا لتحديد موعد جديد: {{clinicPhone}}."
+  en:
+    subject: "Appointment cancelled"
+    body: "{{patientName}}, your appointment on {{date}} at {{time}} was cancelled. Call us to rebook: {{clinicPhone}}."
+
+INSTALMENT_REMINDER:
+  fr:
+    subject: "Rappel d'échéance"
+    body: "Bonjour {{patientName}}, rappel : une échéance de {{amount}} {{currency}} est due le {{date}}. {{clinicName}}"
+  ar:
+    subject: "تذكير بالدفع"
+    body: "مرحباً {{patientName}}، نذكّركم بقسط بقيمة {{amount}} {{currency}} مستحق يوم {{date}}. {{clinicName}}"
+  en:
+    subject: "Payment reminder"
+    body: "Hello {{patientName}}, a reminder that an instalment of {{amount}} {{currency}} is due on {{date}}. {{clinicName}}"
+
+RECALL:
+  fr:
+    subject: "C'est le moment de nous revoir"
+    body: "Bonjour {{patientName}}, nous ne vous avons pas vu depuis un moment. Appelez-nous pour un rendez-vous : {{clinicPhone}}. {{clinicName}}"
+  ar:
+    subject: "حان وقت زيارتك"
+    body: "مرحباً {{patientName}}، لم نرَكم منذ مدة. اتصلوا بنا لتحديد موعد: {{clinicPhone}}. {{clinicName}}"
+  en:
+    subject: "Time for a check-up"
+    body: "Hello {{patientName}}, it has been a while. Call us to book a visit: {{clinicPhone}}. {{clinicName}}"
+
+SURVEY_REQUEST:
+  fr:
+    subject: "Votre avis nous intéresse"
+    body: "Merci de votre visite, {{patientName}}. Donnez-nous votre avis en une minute : {{link}}"
+  ar:
+    subject: "رأيكم يهمنا"
+    body: "شكراً على زيارتكم {{patientName}}. شاركونا رأيكم في دقيقة: {{link}}"
+  en:
+    subject: "How was your visit?"
+    body: "Thank you for visiting, {{patientName}}. Tell us how it went in a minute: {{link}}"
+
+BOOKING_RECEIVED:
+  fr:
+    subject: "Demande reçue"
+    body: "Merci {{patientName}}, nous avons bien reçu votre demande de rendez-vous et la confirmerons rapidement. {{clinicName}}"
+  ar:
+    subject: "تم استلام طلبكم"
+    body: "شكراً {{patientName}}، تم استلام طلب موعدكم وسنؤكده قريباً. {{clinicName}}"
+  en:
+    subject: "Request received"
+    body: "Thank you {{patientName}}, we received your appointment request and will confirm shortly. {{clinicName}}"
+
+BOOKING_CONFIRMED:
+  fr:
+    subject: "Rendez-vous confirmé"
+    body: "Bonjour {{patientName}}, votre rendez-vous du {{date}} à {{time}} au {{clinicName}}{{clinicAddressPart}} est confirmé.{{registrationSection}}"
+  ar:
+    subject: "تم تأكيد موعدك"
+    body: "مرحباً {{patientName}}، تم تأكيد موعدكم يوم {{date}} على الساعة {{time}} في {{clinicName}}{{clinicAddressPart}}.{{registrationSection}}"
+  en:
+    subject: "Appointment confirmed"
+    body: "Hello {{patientName}}, your appointment on {{date}} at {{time}} at {{clinicName}}{{clinicAddressPart}} is confirmed.{{registrationSection}}"
+
+BOOKING_DECLINED:
+  fr:
+    subject: "Créneau indisponible"
+    body: "{{patientName}}, nous n'avons pas pu confirmer le créneau demandé. Appelez-nous pour en convenir un autre : {{clinicPhone}}."
+  ar:
+    subject: "تعذر تأكيد الموعد"
+    body: "{{patientName}}، تعذّر علينا تأكيد الموعد المطلوب. اتصلوا بنا لاقتراح وقت آخر: {{clinicPhone}}."
+  en:
+    subject: "Appointment not available"
+    body: "{{patientName}}, we could not confirm the requested time. Please call us for another slot: {{clinicPhone}}."
+
+REGISTRATION_INVITE:
+  fr:
+    subject: "Remplissez votre fiche patient"
+    body: "Bonjour {{patientName}}, remplissez ce court formulaire (5 min) pour simplifier votre consultation chez {{clinicName}} : {{link}}"
+  ar:
+    subject: "املؤوا استمارة المريض"
+    body: "مرحباً {{patientName}}، املؤوا هذه الاستمارة القصيرة (5 دقائق) لتسهيل استشارتكم في {{clinicName}}: {{link}}"
+  en:
+    subject: "Complete your patient form"
+    body: "Hello {{patientName}}, fill this 5-minute form to make your consultation simple at {{clinicName}}: {{link}}"
+
+TEST:
+  fr:
+    subject: "Test"
+    body: "{{clinicName}} — test message / message de test."
+  ar:
+    subject: "Test"
+    body: "{{clinicName}} — رسالة تجريبية."
+  en:
+    subject: "Test"
+    body: "{{clinicName}} — test message."

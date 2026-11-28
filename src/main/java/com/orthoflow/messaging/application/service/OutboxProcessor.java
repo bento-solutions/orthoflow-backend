@@ -20,6 +20,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Delivers what the outbox holds. A batch is claimed inside a transaction with
@@ -72,15 +73,33 @@ public class OutboxProcessor {
 
     private int sendBatch() {
         List<UUID> claimed = claim();
-        for (UUID id : claimed) {
+        for (int i = 0; i < claimed.size(); i++) {
+            UUID id = claimed.get(i);
             try {
                 deliver(id);
             } catch (RuntimeException e) {
                 log.error("Delivering message {} failed unexpectedly", id, e);
                 record(id, ChannelSender.Result.retry("Unexpected error: " + e.getMessage(), 0));
             }
+            if (i < claimed.size() - 1) {
+                paceBetweenSends();
+            }
         }
         return claimed.size();
+    }
+
+    private void paceBetweenSends() {
+        long min = Math.max(0, properties.getSender().getMinDelayMs());
+        long max = Math.max(min, properties.getSender().getMaxDelayMs());
+        if (max <= 0) {
+            return;
+        }
+        long delayMs = min == max ? min : ThreadLocalRandom.current().nextLong(min, max + 1);
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private List<UUID> claim() {

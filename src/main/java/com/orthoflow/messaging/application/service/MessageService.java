@@ -141,6 +141,10 @@ public class MessageService {
         Letterhead clinic = letterheadProvider.forPractice(request.getPracticeId());
         variables.put("clinicName", clinic.name());
         variables.put("clinicPhone", clinic.phone() == null ? "" : clinic.phone());
+        String addressLine = clinic.addressLine();
+        variables.put("clinicAddress", addressLine == null ? "" : addressLine);
+        variables.put("clinicAddressPart", addressLine == null ? "" : " (" + addressLine + ")");
+        variables.put("registrationSection", "");
         if (patient != null) {
             variables.put("patientName", patient.fullName());
             variables.put("firstName", patient.firstName());

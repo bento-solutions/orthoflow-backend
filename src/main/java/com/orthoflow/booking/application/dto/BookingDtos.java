@@ -70,6 +70,43 @@ public final class BookingDtos {
     public record Received(String reference) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "DirectBookRequest")
+    public record DirectBookRequest(
+            @NotNull UUID appointmentTypeId,
+            UUID practitionerId,
+            @NotNull OffsetDateTime startsAt,
+            @NotBlank @Size(max = 255) String fullName,
+            @NotBlank @Size(max = 40) String phone,
+            @Size(max = 10) String countryCode,
+            @Size(max = 1000) String notes,
+            @Pattern(regexp = "fr|en|ar") String language,
+            @AssertTrue(message = "consent is required") boolean consent,
+            @Size(max = 4096) String captchaToken,
+            /** A hidden field a person never fills; a bot does. */
+            String website) {
+    }
+
+    /**
+     * Response for an atomic public booking.
+     * {@code registrationUrl} is populated ONLY for newly created patients whose form is incomplete
+     * and link generation succeeded — never for existing patients (privacy) and never via GET.
+     */
+    @io.swagger.v3.oas.annotations.media.Schema(name = "DirectBookResponse")
+    public record DirectBookResponse(
+            String reference,
+            UUID appointmentId,
+            OffsetDateTime startsAt,
+            int durationMinutes,
+            String doctorName,
+            String clinicName,
+            String clinicAddress,
+            String appointmentTypeName,
+            String registrationUrl,
+            boolean registrationAlreadyCompleted,
+            boolean existingPatient,
+            boolean registrationLinkSentByWhatsapp) {
+    }
+
     // ── Staff side ──
     public record RequestView(UUID id, UUID appointmentTypeId, String typeName, UUID practitionerId, String practitionerName,
                               OffsetDateTime startsAt, int durationMinutes, String firstName, String lastName, String phone,

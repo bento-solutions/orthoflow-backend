@@ -99,6 +99,7 @@ public class RegistrationService {
             throw new NotFoundException("This link is not valid");
         }
         UUID id = UUID.randomUUID();
+        UUID invitedPatientId = "PATIENT".equals(link.getSubjectType()) ? link.getSubjectId() : null;
         jdbc.update("""
                 INSERT INTO pending_patients (id, practice_id, first_name, last_name, gender, date_of_birth, phone, email, address, cin, guardian_name,
                     guardian_phone, insurance_provider, insurance_number, occupation, preferred_language, consented_at, consent_whatsapp, consent_email, invited_patient_id)
@@ -107,7 +108,13 @@ public class RegistrationService {
                 f.dateOfBirth(), blankToNull(f.phone()), blankToNull(f.email()), blankToNull(f.address()), blankToNull(f.cin()),
                 blankToNull(f.guardianName()), blankToNull(f.guardianPhone()), blankToNull(f.insuranceProvider()), blankToNull(f.insuranceNumber()),
                 blankToNull(f.occupation()), f.language() == null ? "fr" : f.language(), f.consentWhatsapp(), f.consentEmail(),
-                "PATIENT".equals(link.getSubjectType()) ? link.getSubjectId() : null);
+                invitedPatientId);
+        if (invitedPatientId != null) {
+            jdbc.update("""
+                    UPDATE patients SET registration_completed_at = COALESCE(registration_completed_at, NOW())
+                    WHERE id = ? AND practice_id = ?
+                    """, invitedPatientId, link.getPracticeId());
+        }
         notifier.toPermission(link.getPracticeId(), Permission.BOOKING_REVIEW, MessagePurpose.GENERIC, "Nouvelle fiche patient à valider",
                 f.firstName().trim() + " " + f.lastName().trim() + " a rempli sa fiche en ligne.", "PENDING_PATIENT", id);
         liveEvents.publish(link.getPracticeId(), "registration", id);
@@ -147,6 +154,7 @@ public class RegistrationService {
         if (Boolean.TRUE.equals(row.get("consent_whatsapp"))) consent.record(patientId, MessageChannel.WHATSAPP, true, "SELF_REGISTRATION");
         if (Boolean.TRUE.equals(row.get("consent_email"))) consent.record(patientId, MessageChannel.EMAIL, true, "SELF_REGISTRATION");
         jdbc.update("UPDATE pending_patients SET status = 'APPROVED', patient_id = ?, decided_by = ?, decided_at = NOW() WHERE id = ?", patientId, actorId, id);
+        jdbc.update("UPDATE patients SET registration_completed_at = COALESCE(registration_completed_at, NOW()) WHERE id = ? AND practice_id = ?", patientId, practiceId);
         liveEvents.publish(practiceId, "registration", id);
         return patientId;
     }
@@ -166,6 +174,33 @@ public class RegistrationService {
         }
         var issued = publicLinks.issue(practiceId, PublicLinkPurpose.REGISTRATION, "PATIENT", patientId, Duration.ofDays(14), 1, actorId);
         return new Invite(frontendUrl + "/public/register/" + issued.token(), false);
+    }
+
+    /**
+     * Issues a fresh personal registration link for an already-created patient.
+     * Callers must treat the returned URL as a secret and never log it.
+     */
+    @Transactional
+    public String issuePersonalRegistrationUrl(UUID practiceId, UUID patientId) {
+        if (!patientLookup.exists(patientId)) {
+            throw new NotFoundException("Patient not found");
+        }
+        var issued = publicLinks.issue(practiceId, PublicLinkPurpose.REGISTRATION, "PATIENT", patientId, Duration.ofDays(14), 1, null);
+        return frontendUrl + "/public/register/" + issued.token();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isRegistrationCompleted(UUID practiceId, UUID patientId) {
+        Boolean done = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM patients
+                    WHERE id = ? AND practice_id = ? AND deleted_at IS NULL AND registration_completed_at IS NOT NULL
+                ) OR EXISTS (
+                    SELECT 1 FROM pending_patients
+                    WHERE practice_id = ? AND (invited_patient_id = ? OR patient_id = ?) AND status IN ('PENDING', 'APPROVED')
+                )
+                """, Boolean.class, patientId, practiceId, practiceId, patientId, patientId);
+        return Boolean.TRUE.equals(done);
     }
 
     private Pending map(java.sql.ResultSet rs, UUID practiceId) throws java.sql.SQLException {

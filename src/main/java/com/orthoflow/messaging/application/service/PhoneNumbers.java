@@ -1,7 +1,11 @@
 package com.orthoflow.messaging.application.service;
 
-/** Turns what a receptionist typed into the digits-only international form the WhatsApp bridge expects. */
+import java.util.regex.Pattern;
+
+/** Turns what a receptionist or patient typed into international digits or strict E.164. */
 public final class PhoneNumbers {
+
+    private static final Pattern E164 = Pattern.compile("^\\+[1-9][0-9]{7,14}$");
 
     private PhoneNumbers() {
     }
@@ -24,5 +28,39 @@ public final class PhoneNumbers {
             digits = defaultCountryCode + digits;
         }
         return digits.length() >= 10 && digits.length() <= 15 ? digits : null;
+    }
+
+    /**
+     * Normalizes a user-provided phone number and optional country dial code (e.g. "+212")
+     * into strict E.164 format (e.g. "+212661123456"), or null if invalid.
+     */
+    public static String normalizeE164(String raw, String countryCode, String defaultCountryCode) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        String candidate;
+        if (trimmed.startsWith("+")) {
+            candidate = "+" + digits;
+        } else if (digits.startsWith("00")) {
+            candidate = "+" + digits.substring(2);
+        } else {
+            String cc = countryCode != null && !countryCode.isBlank() ? countryCode : defaultCountryCode;
+            String ccDigits = cc == null ? "" : cc.replaceAll("[^0-9]", "");
+            if (ccDigits.isEmpty()) {
+                return null;
+            }
+            if (digits.startsWith(ccDigits) && digits.length() >= ccDigits.length() + 8) {
+                candidate = "+" + digits;
+            } else {
+                String subscriber = digits.startsWith("0") ? digits.substring(1) : digits;
+                candidate = "+" + ccDigits + subscriber;
+            }
+        }
+        return E164.matcher(candidate).matches() ? candidate : null;
     }
 }

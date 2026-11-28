@@ -2,8 +2,13 @@ package com.orthoflow.booking.presentation;
 
 import com.orthoflow.booking.application.dto.BookingDtos.*;
 import com.orthoflow.booking.application.service.BookingService;
+import com.orthoflow.booking.application.service.DirectBookingService;
+import com.orthoflow.platform.web.ClientAddress;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -19,6 +24,7 @@ import java.util.UUID;
 public class PublicDirectBookingController {
 
     private final BookingService service;
+    private final DirectBookingService directBookingService;
 
     @GetMapping("/config")
     public PublicConfig config() {
@@ -36,5 +42,13 @@ public class PublicDirectBookingController {
                                      @RequestParam(defaultValue = "14") int days,
                                      @RequestParam(required = false) Integer durationMinutes) {
         return service.directAvailability(typeId, from, days, durationMinutes);
+    }
+
+    @PostMapping("/booking/appointments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DirectBookResponse book(@Valid @RequestBody DirectBookRequest request,
+                                   @RequestHeader(value = "X-Booking-Api-Key", required = false) String apiKey,
+                                   HttpServletRequest httpRequest) {
+        return directBookingService.bookForConfiguredDoctor(request, apiKey, ClientAddress.of(httpRequest));
     }
 }

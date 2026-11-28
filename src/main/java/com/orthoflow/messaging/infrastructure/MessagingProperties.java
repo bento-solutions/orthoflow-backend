@@ -25,6 +25,8 @@ public class MessagingProperties {
         private boolean enabled = true;
         private int batchSize = 20;
         private int maxAttempts = 6;
+        private long minDelayMs = 0;
+        private long maxDelayMs = 0;
     }
 
     @Getter
