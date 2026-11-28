@@ -73,8 +73,12 @@ class PublicSecurityConfigTest {
 
     @Test
     void anonymousReadsAndFormPostsReachTheEndpoint() throws Exception {
+        assertThat(status(HttpMethod.GET, "/public/config")).isEqualTo(404);
+        assertThat(status(HttpMethod.GET, "/public/booking/info")).isEqualTo(404);
+        assertThat(status(HttpMethod.GET, "/public/booking/availability")).isEqualTo(404);
         assertThat(status(HttpMethod.GET, "/public/book/sometoken")).isEqualTo(404);
         assertThat(status(HttpMethod.POST, "/public/book/sometoken/requests")).isEqualTo(404);
+        assertThat(status(HttpMethod.POST, "/public/booking/appointments")).isEqualTo(404);
         assertThat(status(HttpMethod.POST, "/public/register/sometoken")).isEqualTo(404);
         assertThat(status(HttpMethod.POST, "/webhooks/whatsapp")).isEqualTo(404);
     }

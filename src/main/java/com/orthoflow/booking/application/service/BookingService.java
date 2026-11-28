@@ -2,11 +2,13 @@ package com.orthoflow.booking.application.service;
 
 import com.orthoflow.auth.domain.model.Permission;
 import com.orthoflow.booking.application.dto.BookingDtos.*;
+import com.orthoflow.booking.infrastructure.BookingProperties;
 import com.orthoflow.common.events.LiveEventPublisher;
 import com.orthoflow.common.exception.ConflictException;
 import com.orthoflow.common.exception.NotFoundException;
 import com.orthoflow.common.exception.ValidationException;
 import com.orthoflow.common.tenancy.PracticeZone;
+import com.orthoflow.common.tenancy.Practices;
 import com.orthoflow.messaging.application.dto.OutgoingMessage;
 import com.orthoflow.messaging.application.service.ConsentService;
 import com.orthoflow.messaging.application.service.LandingPageContacts;
@@ -96,6 +98,8 @@ public class BookingService {
     private final LiveEventPublisher liveEvents;
     private final LandingPageContacts landingPageContacts;
     private final MessagingProperties messagingProperties;
+    private final BookingProperties bookingProperties;
+    private final PublicBookingTargetResolver targetResolver;
 
     // ── Settings ──
     @Transactional
@@ -114,17 +118,43 @@ public class BookingService {
     }
 
     // ── Public ──
+    @Transactional(readOnly = true)
+    public PublicConfig publicConfig() {
+        UUID practiceId = targetResolver.resolve()
+                .map(PublicBookingTargetResolver.Target::practiceId)
+                .orElse(Practices.DEFAULT_ID);
+        PracticeProfile clinic = profiles.require(practiceId);
+        return new PublicConfig(clinic.getName(), clinic.getAddress(), clinic.getPhone(),
+                bookingProperties.getBaileysPhoneNumber(), bookingProperties.getEmergencyMarker(),
+                clinic.getDefaultLanguage(), practiceZone.of(practiceId).getId(),
+                bookingProperties.getCaptchaSiteKey(), bookingProperties.isCaptchaEnabled());
+    }
+
+    @Transactional
+    public PublicInfo directInfo() {
+        var target = requireDirectTarget();
+        UUID practiceId = target.practiceId();
+        Settings s = settings(practiceId);
+        PracticeProfile clinic = profiles.require(practiceId);
+        return buildPublicInfo(clinic, practiceId, s, target.practitionerId(), target.practitionerName());
+    }
+
+    @Transactional
+    public Availability directAvailability(UUID typeId, LocalDate from, int days, Integer durationMinutes) {
+        var target = requireDirectTarget();
+        UUID practiceId = target.practiceId();
+        Settings s = settings(practiceId);
+        int duration = resolveDirectDuration(practiceId, typeId, durationMinutes);
+        return computeAvailability(practiceId, duration, target.practitionerId(), s, from, days);
+    }
+
     @Transactional
     public PublicInfo info(String token) {
         PublicLink link = publicLinks.resolve(token, PublicLinkPurpose.BOOKING);
         UUID practiceId = link.getPracticeId();
         Settings s = requireEnabled(practiceId);
         PracticeProfile clinic = profiles.require(practiceId);
-        return new PublicInfo(clinic.getName(), clinic.getPhone(), clinic.getCity(),
-                types.findByPracticeIdAndActiveTrueAndBookableOnlineTrueOrderByDisplayOrderAscNameFrAsc(practiceId).stream()
-                        .map(t -> new PublicType(t.getId(), t.getNameFr(), t.getNameEn(), t.getNameAr(), t.getColor(), t.getDefaultDurationMinutes())).toList(),
-                practitionerService.list(practiceId, false).stream().map(p -> new PublicPractitioner(p.id(), p.displayName(), p.color())).toList(),
-                s.maxDaysAhead(), clinic.getDefaultLanguage(), practiceZone.of(practiceId).getId());
+        return buildPublicInfo(clinic, practiceId, s, null, null);
     }
 
     @Transactional
@@ -134,6 +164,26 @@ public class BookingService {
         Settings s = requireEnabled(practiceId);
         AppointmentType type = bookableType(practiceId, typeId);
         checkPractitioner(practiceId, practitionerId);
+        return computeAvailability(practiceId, type.getDefaultDurationMinutes(), practitionerId, s, from, days);
+    }
+
+    private PublicInfo buildPublicInfo(PracticeProfile clinic, UUID practiceId, Settings s,
+                                       UUID lockedPractitionerId, String lockedPractitionerName) {
+        List<PublicPractitioner> practitioners = lockedPractitionerId != null
+                ? List.of(new PublicPractitioner(lockedPractitionerId, lockedPractitionerName, null))
+                : practitionerService.list(practiceId, false).stream()
+                        .map(p -> new PublicPractitioner(p.id(), p.displayName(), p.color())).toList();
+        return new PublicInfo(clinic.getName(), clinic.getAddress(), clinic.getPhone(), clinic.getCity(),
+                types.findByPracticeIdAndActiveTrueAndBookableOnlineTrueOrderByDisplayOrderAscNameFrAsc(practiceId).stream()
+                        .map(t -> new PublicType(t.getId(), t.getNameFr(), t.getNameEn(), t.getNameAr(), t.getColor(), t.getDefaultDurationMinutes())).toList(),
+                practitioners, s.maxDaysAhead(), clinic.getDefaultLanguage(), practiceZone.of(practiceId).getId(),
+                bookingProperties.getBaileysPhoneNumber(), bookingProperties.getEmergencyMarker(),
+                bookingProperties.getCaptchaSiteKey(), bookingProperties.isCaptchaEnabled(),
+                lockedPractitionerId, lockedPractitionerName);
+    }
+
+    private Availability computeAvailability(UUID practiceId, int durationMinutes, UUID practitionerId,
+                                             Settings s, LocalDate from, int days) {
         ZoneId zone = practiceZone.of(practiceId);
         LocalDate today = LocalDate.now(zone);
         LocalDate start = from == null || from.isBefore(today) ? today : from;
@@ -142,7 +192,7 @@ public class BookingService {
         Map<LocalDate, List<String>> out = new LinkedHashMap<>();
         for (int i = 0; i < span && !start.plusDays(i).isAfter(last); i++) {
             LocalDate day = start.plusDays(i);
-            List<String> times = slotFinder.freeSlots(practiceId, day, type.getDefaultDurationMinutes(), practitionerId,
+            List<String> times = slotFinder.freeSlots(practiceId, day, durationMinutes, practitionerId,
                     s.leadTimeHours(), s.slotStepMinutes(), holds(practiceId, day, zone)).stream()
                     .map(t -> TIME.format(t.atZoneSameInstant(zone))).toList();
             if (!times.isEmpty()) {
@@ -150,6 +200,24 @@ public class BookingService {
             }
         }
         return new Availability(out);
+    }
+
+    private PublicBookingTargetResolver.Target requireDirectTarget() {
+        return targetResolver.resolve()
+                .orElseThrow(() -> new NotFoundException("Online booking doctor account is not configured"));
+    }
+
+    private int resolveDirectDuration(UUID practiceId, UUID typeId, Integer durationMinutes) {
+        if (typeId != null) {
+            return bookableType(practiceId, typeId).getDefaultDurationMinutes();
+        }
+        if (durationMinutes != null) {
+            if (durationMinutes < 5 || durationMinutes > 240) {
+                throw new ValidationException("Duration must be between 5 and 240 minutes");
+            }
+            return durationMinutes;
+        }
+        return Math.max(5, bookingProperties.getDefaultDurationMinutes());
     }
 
     /**

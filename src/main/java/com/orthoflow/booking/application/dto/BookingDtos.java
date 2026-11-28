@@ -25,14 +25,23 @@ public final class BookingDtos {
     public record PublicPractitioner(UUID id, String name, String color) {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "BookingPublicConfig")
+    public record PublicConfig(String clinicName, String clinicAddress, String clinicPhone, String baileysPhone,
+                               String emergencyMarker, String defaultLanguage, String timeZone,
+                               String captchaSiteKey, boolean captchaEnabled) {
+    }
+
     /**
      * What the booking page may show: the clinic's name and what can be booked. No patient data, ever.
      * {@code timeZone} is the clinic's zone (for example {@code Africa/Casablanca}): the free times are
      * clock times in that zone, and the page needs it to send a moment the server reads the same way.
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "BookingPublicInfo")
-    public record PublicInfo(String clinicName, String phone, String city, List<PublicType> types, List<PublicPractitioner> practitioners,
-                             int maxDaysAhead, String defaultLanguage, String timeZone) {
+    public record PublicInfo(String clinicName, String clinicAddress, String phone, String city, List<PublicType> types,
+                             List<PublicPractitioner> practitioners, int maxDaysAhead, String defaultLanguage,
+                             String timeZone, String baileysPhone, String emergencyMarker,
+                             String captchaSiteKey, boolean captchaEnabled,
+                             UUID lockedPractitionerId, String lockedPractitionerName) {
     }
 
     public record Availability(Map<LocalDate, List<String>> days) {

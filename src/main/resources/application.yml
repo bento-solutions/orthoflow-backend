@@ -403,6 +403,17 @@ orthoflow:
       questions-per-hour: ${HELP_ASK_QUESTIONS_PER_HOUR:20}
 
   # ── Public pages (F7): online booking, self-registration, surveys ────
+  booking:
+    doctor-email: ${ORTHOFLOW_BOOKING_DOCTOR_EMAIL:achraf.ouajid@bentosolutions.com}
+    direct-book: ${BOOKING_DIRECT_BOOK:true}
+    default-duration-minutes: ${ORTHOFLOW_BOOKING_DEFAULT_DURATION_MINUTES:30}
+    baileys-phone-number: ${BAILEYS_PHONE_NUMBER:}
+    emergency-marker: ${WHATSAPP_EMERGENCY_MARKER:URGENT}
+    api-key: ${BOOKING_API_KEY:}
+    captcha-enabled: ${BOOKING_CAPTCHA_ENABLED:false}
+    captcha-site-key: ${BOOKING_CAPTCHA_SITE_KEY:}
+    captcha-secret-key: ${BOOKING_CAPTCHA_SECRET_KEY:}
+    captcha-verify-url: ${BOOKING_CAPTCHA_VERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}
   public:
     # Derives the clinic-wide booking, registration and survey links. Falls back
     # to the JWT secret when empty (PublicLinkService); set it so that one can be
