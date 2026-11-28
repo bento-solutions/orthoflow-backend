@@ -124,7 +124,8 @@ public class PatientDataPurger implements PatientErasureListener {
     /** Which {@code patients} columns anonymisation blanks; a test makes every column be in this list or in {@link #KEPT_COLUMNS}. */
     public static final List<String> WIPED_COLUMNS = List.of("first_name", "last_name", "date_of_birth", "gender", "email", "phone", "address", "cin",
             "guardian_name", "guardian_phone", "photo_file_id", "occupation", "referral_source", "insurer_id", "insurance_provider",
-            "insurance_number", "insurance_affiliation_number", "insured_relation", "insured_name", "insured_cin", "consent_notes");
+            "insurance_number", "insurance_affiliation_number", "insured_relation", "insured_name", "insured_cin", "consent_notes",
+            "registration_completed_at");
 
     /** What stays on the shell: keys, the clinic's own reference, flags and dates that identify no one. */
     public static final List<String> KEPT_COLUMNS = List.of("id", "status", "created_at", "updated_at", "deleted_at", "deleted_by", "version",
@@ -144,6 +145,7 @@ public class PatientDataPurger implements PatientErasureListener {
                     address = NULL, cin = NULL, guardian_name = NULL, guardian_phone = NULL, photo_file_id = NULL, occupation = NULL,
                     referral_source = NULL, insurer_id = NULL, insurance_provider = NULL, insurance_number = NULL,
                     insurance_affiliation_number = NULL, insured_relation = 'SELF', insured_name = NULL, insured_cin = NULL, consent_notes = NULL,
+                    registration_completed_at = NULL,
                     anonymised_at = now(), deleted_at = COALESCE(deleted_at, now()), deleted_by = COALESCE(deleted_by, ?), updated_at = now()
                 WHERE id = ? OR merged_into_id = ?
                 """, actor, patientId, patientId);

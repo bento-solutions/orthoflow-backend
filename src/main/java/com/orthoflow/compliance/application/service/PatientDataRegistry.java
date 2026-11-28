@@ -63,6 +63,7 @@ public class PatientDataRegistry {
             Map.entry("message_events", Rule.DELETE),
             Map.entry("booking_requests", Rule.DELETE),
             Map.entry("pending_patients", Rule.DELETE),
+            Map.entry("registration_link_retries", Rule.DELETE),
             // Trails that outlive the person, with the person taken out of them.
             Map.entry("voice_command_audit", Rule.SCRUB),
             Map.entry("sterilization_events", Rule.SCRUB),
